@@ -1,0 +1,21 @@
+{
+  "name": "@crp/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generated TypeScript types for the Code Review Platform API. Source of truth: services/api Pydantic models -> openapi.json.",
+  "type": "module",
+  "types": "./src/v1.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/v1.d.ts"
+    }
+  },
+  "scripts": {
+    "generate": "openapi-typescript openapi.json --output src/v1.d.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

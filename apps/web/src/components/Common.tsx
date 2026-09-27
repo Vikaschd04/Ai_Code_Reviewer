@@ -1,0 +1,103 @@
+import { useState, type ReactNode } from "react";
+
+import { Icon } from "./Icon";
+
+export function Alert({ tone, children }: { tone: "bad" | "warn" | "info"; children: ReactNode }) {
+  return (
+    <div className={`alert alert-${tone}`} role={tone === "bad" ? "alert" : "status"}>
+      <Icon name={tone === "info" ? "info" : "alert"} />
+      <div>{children}</div>
+    </div>
+  );
+}
+
+export function Empty({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <div className="empty">
+      <h3>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+export function Loading({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="stack" aria-busy="true" aria-label="Loading">
+      {Array.from({ length: lines }, (_, index) => (
+        <div key={index} className="skeleton" style={{ width: `${90 - index * 15}%` }} />
+      ))}
+    </div>
+  );
+}
+
+export function CopyBlock({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="copy-block">
+      <code aria-label={label}>{text}</code>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        onClick={() => {
+          void navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            window.setTimeout(() => {
+              setCopied(false);
+            }, 1500);
+          });
+        }}
+      >
+        <Icon name={copied ? "check" : "copy"} size={14} />
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+export function Tabs({
+  items,
+  current,
+}: {
+  items: { id: string; label: string; href: string }[];
+  current: string;
+}) {
+  return (
+    <nav className="tabs" aria-label="Sections">
+      {items.map((item) => (
+        <a
+          key={item.id}
+          className="tab"
+          href={item.href}
+          aria-current={item.id === current ? "page" : undefined}
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+export function PageHeader({
+  title,
+  sub,
+  actions,
+  eyebrow,
+}: {
+  title: ReactNode;
+  sub?: ReactNode;
+  actions?: ReactNode;
+  eyebrow?: ReactNode;
+}) {
+  return (
+    <header className="page-head">
+      <div style={{ minWidth: 0 }}>
+        {eyebrow ? <div className="row small muted">{eyebrow}</div> : null}
+        <h1 className="page-title" tabIndex={-1}>
+          {title}
+        </h1>
+        {sub ? <p className="page-sub">{sub}</p> : null}
+      </div>
+      {actions ? <div className="row">{actions}</div> : null}
+    </header>
+  );
+}

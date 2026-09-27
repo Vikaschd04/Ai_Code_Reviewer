@@ -1,0 +1,22 @@
+[project]
+name = "crp-api"
+version = "0.1.0"
+description = "Code Review Platform FastAPI control plane."
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "crp-analysis",
+    "crp-core",
+    "fastapi==0.141.1",
+    "uvicorn==0.54.0",
+]
+
+[project.scripts]
+crp-api = "crp_api.__main__:main"
+
+[tool.uv.sources]
+crp-analysis = { workspace = true }
+crp-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13"]
+build-backend = "uv_build"

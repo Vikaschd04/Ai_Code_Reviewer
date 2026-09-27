@@ -1,0 +1,4 @@
+{
+  // JSONC comments are allowed in tsconfig files
+  "compilerOptions": { "target": "ES2022", "strict": true }
+}

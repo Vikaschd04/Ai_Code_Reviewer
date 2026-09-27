@@ -1,0 +1,56 @@
+# Initial implementation backlog
+
+Items are TODO unless a status is shown. Expand into small vertical slices as needed; preserve IDs and verified history. Do not create external tickets unless requested.
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P00-01 | Inspect workspace/toolchain and create coherent app layout | No user work overwritten; versions recorded — **DONE** (ADR 0003, TOOLCHAIN.md) |
+| P00-02 | Web/API/local auth, DB migration and artifact/workflow contracts | Real health/readiness + migration — **DONE** (P00_REPORT) |
+| P00-03 | Developer scripts, context utilities and test pipeline | Executed commands documented — **DONE** (INSTALLATION.md, P00_REPORT) |
+| P01-01 | Streamed ZIP intake and freeze/manifest | Adversarial archive tests — **DONE** (P01_REPORT) |
+| P01-02 | Local CLI capture/upload | Capture stable, input unchanged — **DONE** |
+| P01-03 | Inventory/basic Java/JS parser | Honest per-file outcomes — **DONE** |
+| P01-04 | Real PMD/ESLint worker adapters | Seeded/clean/crash cases — **DONE** (ADR 0006) |
+| P01-05 | Source/progress/coverage/issues UI | End-to-end browser workflow — **DONE** (redesigned UI, E2E) |
+| P02-01 | Snapshot graph and bounded queries | Provenance/stale-edge tests — **DONE** (P02_REPORT, ADR 0008) |
+| P02-02 | Opengrep/Trivy and normalization | Approved versions/rules, duplicates preserved correctly — **DONE** (ADR 0007) |
+| P02-03 | Comparison/export | Incompatible/partial scans do not resolve issues — **DONE** (also issue lifecycle, cache, benchmark) |
+| P03-01 | Provider boundary and context builder | Scope/egress/budget tests — **NEXT** (live provider needs user-approved account/policy) |
+| P03-02 | OCR evaluation and AI review/Q&A | Anchors and held-out evaluation |
+| P04-01 | SAP Commerce pack | Mapping + domain fixtures |
+| P04-02 | Salesforce pack | Metadata + permission/limit fixtures |
+| P05-01 | Patch author/workbench | Separate copy and constrained diff |
+| P05-02 | Validation/export | Original-defect and regression evidence |
+| P06-01 | GitHub connector/webhooks | Scoped auth/idempotency |
+| P06-02 | Incremental scopes/PRs | Merge-base/cache/freshness tests |
+| P07-01 | Identity/tenant/execution hardening | Isolation/security assessment |
+| P07-02 | Scale/recovery/retention/release | Measured limits and runbooks |
+
+
+## Follow-ups discovered in P00 (non-blocking)
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P00-F1 | Initialize Git (user decision) and run `/security-review` + `/code-review` on the foundation | Findings triaged or fixed |
+| P00-F2 | Verify bootstrap/dev/test on Linux | Commands pass on a named distro; TOOLCHAIN updated |
+| P00-F3 | Pinned container images / Compose for PostgreSQL + Temporal (digests) | `make dev` alternative verified |
+| P00-F4 | License review for psycopg (LGPL-3.0) before binary/image distribution | Recorded decision |
+
+## Follow-ups discovered in P01 (non-blocking)
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P01-F1 | Optional browser folder selection with ZIP fallback; admin-registered server mounts by opaque ID | Same server-side checks as ZIP |
+| P01-F2 | Scheduled intake-expiry job and content-addressed blob garbage collection | Retention tests |
+| P01-F3 | User scope overrides within safety limits (versioned) | Overrides recorded; secrets still excluded |
+| P01-F4 | OS-level sandbox for engine processes (container/VM) | Resource/egress limits enforced and tested (before P07) |
+
+## Follow-ups discovered in P02 (non-blocking)
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P02-F1 | Engine-cache eviction (age/size) and a `crp-dev cache-prune` command | Retention test; hit rates unchanged for recent entries |
+| P02-F2 | Scheduled Trivy DB refresh with provenance record (still no DB update during scans) | DB age alert; refresh logged; absent vulns handled as UNKNOWN |
+| P02-F3 | Deeper resolution: Maven/Gradle classpath from a sandboxed build, `tsconfig` `extends`/project references, `package.json` `exports`, CommonJS exports, call edges | Resolution precision measured on fixtures; no guessed edges |
+| P02-F4 | Engine pins for Linux x86_64/arm64 | Checksums + signatures verified on Linux |
+| P02-F5 | Link pre-0003 findings to issues by fingerprint (backfill) or label them in the UI | Old scans show issue status or an explicit note |

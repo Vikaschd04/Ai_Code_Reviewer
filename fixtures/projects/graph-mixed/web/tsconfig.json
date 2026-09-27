@@ -1,0 +1,10 @@
+{
+  // JSONC: comments and trailing commas are allowed here.
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"], /* alias for src */
+    },
+  },
+}

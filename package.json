@@ -1,0 +1,17 @@
+{
+  "name": "code-review-platform",
+  "private": true,
+  "description": "pnpm workspace root for the Code Review Platform web app and generated API contracts.",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "contracts:generate": "pnpm --filter @crp/contracts generate",
+    "lint": "pnpm --filter @crp/web lint",
+    "typecheck": "pnpm -r typecheck",
+    "format:check": "pnpm --filter @crp/web format:check",
+    "test": "pnpm --filter @crp/web test",
+    "build": "pnpm --filter @crp/web build"
+  }
+}

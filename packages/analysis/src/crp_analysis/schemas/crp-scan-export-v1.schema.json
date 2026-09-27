@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:crp:schema:scan-export:v1",
+  "title": "Code Review Platform scan export v1",
+  "description": "One scan of one frozen snapshot: provenance, engine outcomes and coverage, findings with evidence anchors, and explicit limitations. Source text is never included.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "generated_at", "tool", "project", "snapshot", "scan", "engines", "findings", "limitations"],
+  "properties": {
+    "format": {"const": "crp-scan-export/v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {"name": {"type": "string"}, "version": {"type": "string"}}
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slug", "name"],
+      "properties": {"id": {"$ref": "#/$defs/uuid"}, "slug": {"type": "string"}, "name": {"type": "string"}}
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "manifest_sha256", "manifest_version", "file_count", "analyzable_count", "excluded_count", "git_commit", "frozen_at", "policy_version"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256OrNull"},
+        "manifest_version": {"type": "integer"},
+        "file_count": {"type": "integer", "minimum": 0},
+        "analyzable_count": {"type": "integer", "minimum": 0},
+        "excluded_count": {"type": "integer", "minimum": 0},
+        "git_commit": {"type": ["string", "null"]},
+        "frozen_at": {"type": ["string", "null"], "format": "date-time"},
+        "policy_version": {"type": ["string", "null"]}
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "state", "mode", "policy_version", "cache_mode", "created_at", "started_at", "finished_at", "lifecycle_applied", "summary"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "state": {"enum": ["QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"]},
+        "mode": {"type": "string"},
+        "policy_version": {"type": "string"},
+        "cache_mode": {"enum": ["use", "refresh"]},
+        "created_at": {"type": "string", "format": "date-time"},
+        "started_at": {"type": ["string", "null"], "format": "date-time"},
+        "finished_at": {"type": ["string", "null"], "format": "date-time"},
+        "lifecycle_applied": {"type": "boolean"},
+        "summary": {"type": ["object", "null"]}
+      }
+    },
+    "engines": {"type": "array", "items": {"$ref": "#/$defs/engine"}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sha256OrNull": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "intOrNull": {"type": ["integer", "null"]},
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "version", "ruleset_id", "ruleset_sha256", "state", "files_eligible", "files_attempted", "files_succeeded", "files_failed", "findings", "coverage", "cache_hits", "cache_misses", "duration_ms", "exit_code", "error_code", "error_message", "raw_report_sha256"],
+      "properties": {
+        "engine": {"type": "string"},
+        "version": {"type": ["string", "null"]},
+        "ruleset_id": {"type": ["string", "null"]},
+        "ruleset_sha256": {"$ref": "#/$defs/sha256OrNull"},
+        "state": {"enum": ["QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "CANCELED", "UNAVAILABLE", "NOT_APPLICABLE"]},
+        "files_eligible": {"type": "integer", "minimum": 0},
+        "files_attempted": {"type": "integer", "minimum": 0},
+        "files_succeeded": {"type": "integer", "minimum": 0},
+        "files_failed": {"type": "integer", "minimum": 0},
+        "findings": {"type": "integer", "minimum": 0},
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ANALYZED", "FAILED", "NOT_ATTEMPTED"],
+          "properties": {
+            "ANALYZED": {"type": "integer", "minimum": 0},
+            "FAILED": {"type": "integer", "minimum": 0},
+            "NOT_ATTEMPTED": {"type": "integer", "minimum": 0}
+          }
+        },
+        "cache_hits": {"type": "integer", "minimum": 0},
+        "cache_misses": {"type": "integer", "minimum": 0},
+        "duration_ms": {"$ref": "#/$defs/intOrNull"},
+        "exit_code": {"$ref": "#/$defs/intOrNull"},
+        "error_code": {"type": ["string", "null"]},
+        "error_message": {"type": ["string", "null"]},
+        "raw_report_sha256": {"$ref": "#/$defs/sha256OrNull"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fingerprint", "correlation_key", "engine", "engine_version", "rule_id", "ruleset", "rule_family", "severity", "engine_severity", "category", "confidence", "title", "message", "path", "anchor_kind", "start_line", "start_column", "end_line", "end_column", "rule_url", "details", "issue"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "fingerprint": {"$ref": "#/$defs/sha256"},
+        "correlation_key": {"$ref": "#/$defs/sha256"},
+        "engine": {"type": "string"},
+        "engine_version": {"type": "string"},
+        "rule_id": {"type": "string"},
+        "ruleset": {"type": ["string", "null"]},
+        "rule_family": {"type": ["string", "null"]},
+        "severity": {"enum": ["critical", "high", "medium", "low", "info"]},
+        "engine_severity": {"type": ["string", "null"]},
+        "category": {"enum": ["correctness", "security", "performance", "maintainability", "coding_standards", "reliability", "dependencies"]},
+        "confidence": {"type": "string"},
+        "title": {"type": "string"},
+        "message": {"type": "string"},
+        "path": {"type": "string", "minLength": 1},
+        "anchor_kind": {"enum": ["source_span", "file", "dependency"]},
+        "start_line": {"type": ["integer", "null"], "minimum": 1},
+        "start_column": {"$ref": "#/$defs/intOrNull"},
+        "end_line": {"type": ["integer", "null"], "minimum": 1},
+        "end_column": {"$ref": "#/$defs/intOrNull"},
+        "rule_url": {"type": ["string", "null"]},
+        "details": {"type": ["object", "null"]},
+        "issue": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "status", "recheck_state"],
+              "properties": {
+                "id": {"$ref": "#/$defs/uuid"},
+                "status": {"enum": ["OPEN", "TRIAGED", "ACCEPTED_RISK", "FALSE_POSITIVE", "FIX_PROPOSED", "RESOLVED"]},
+                "recheck_state": {"enum": ["VERIFIED_PRESENT", "VERIFIED_ABSENT", "NOT_RECHECKED", "UNKNOWN", "RULE_OBSOLETE"]}
+              }
+            }
+          ]
+        }
+      },
+      "if": {"properties": {"anchor_kind": {"const": "source_span"}}},
+      "then": {"properties": {"start_line": {"type": "integer"}, "end_line": {"type": "integer"}}}
+    }
+  }
+}

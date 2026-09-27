@@ -1,0 +1,2 @@
+export function broken(value: number {
+  return value;

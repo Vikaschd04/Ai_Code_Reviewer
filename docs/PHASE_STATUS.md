@@ -1,0 +1,18 @@
+# Phase status
+
+Last updated: 27 September 2026 (P00, P01 and P02 gates run on macOS arm64).
+
+| Phase | Status | Evidence | Next task |
+|---|---|---|---|
+| P00 Foundation | COMPLETE | [P00_REPORT](validation/P00_REPORT.md): `make check` exit 0; 124 pytest + 5 vitest pass; `make test-e2e` 5/5; live `make dev` + `make doctor` 0 failing | — |
+| P01 Source/baseline | COMPLETE | [P01_REPORT](validation/P01_REPORT.md): `make check` exit 0; 203 pytest + 12 vitest; `make test-e2e` 8/8; ZIP ≡ folder manifests/findings; real PMD 7.27.0 / ESLint 10.11.0 | — |
+| P02 Graph/analyzers | COMPLETE | [P02_REPORT](validation/P02_REPORT.md): `make check` exit 0; 265 pytest + 14 vitest; `make test-e2e` 10/10; real Opengrep 1.30.0 / Trivy 0.69.3 (offline DB); schema 0003; benchmark recorded | — |
+| P03 Agentic analysis | NOT_STARTED | None | P03-01 provider-independent adapter + egress policy (live provider gate needs an approved account/policy) |
+| P04 Frameworks | NOT_STARTED | None | After required foundations |
+| P05 Validated fixes | NOT_STARTED | None | After P03/P04 |
+| P06 Git/incremental | NOT_STARTED | None | After applicable earlier gates |
+| P07 Production | NOT_STARTED | None | After launch scope gates |
+
+Allowed: NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETE. Link validation reports and list blocked capabilities separately. Passing documentation-link checks does not complete P00 or any software phase.
+
+Scope limits (not blockers): verified on macOS arm64 only; Linux/Windows, containers and hosted deployment are unverified; optional P01 intake modes (browser folder, registered mounts) not implemented. See docs/memory/KNOWN_ISSUES.md.

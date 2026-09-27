@@ -1,0 +1,34 @@
+# Local runtime state: generated secrets, local PostgreSQL/Temporal data, logs, context packets.
+.local/
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Node / web
+node_modules/
+apps/web/dist/
+apps/web/playwright-report/
+apps/web/test-results/
+*.tsbuildinfo
+
+# Build output
+dist/
+
+# Editor / OS / tool caches (the .sf directory is a Salesforce extension cache owned by the user)
+.DS_Store
+.sf/
+.sfdx/
+.idea/
+
+# Synthetic fixtures intentionally contain a fake .env and a node_modules/ directory (see fixtures/README.md)
+!fixtures/projects/seeded-mixed/.env
+!fixtures/projects/seeded-mixed/node_modules/

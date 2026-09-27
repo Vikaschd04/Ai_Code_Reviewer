@@ -1,0 +1,101 @@
+# Trusted Code Review Platform Opengrep rules (crp-opengrep-v1).
+# Written and owned by this project (no third-party rule packs are embedded). Every rule id has
+# an entry in rules/catalog.json and positive/negative fixtures in packages/analysis/tests.
+rules:
+  - id: crp.java.command-injection.runtime-exec
+    languages: [java]
+    severity: ERROR
+    message: Runtime.exec() is called with a non-literal command; untrusted input can run arbitrary commands.
+    patterns:
+      - pattern-either:
+          - pattern: Runtime.getRuntime().exec($CMD)
+          - pattern: Runtime.getRuntime().exec($CMD, ...)
+      - pattern-not: Runtime.getRuntime().exec("...")
+      - pattern-not: Runtime.getRuntime().exec("...", ...)
+
+  - id: crp.java.sql-injection.string-concat
+    languages: [java]
+    severity: ERROR
+    message: SQL is built by string concatenation and executed; use a parameterized PreparedStatement.
+    patterns:
+      - pattern-either:
+          - pattern: $S.executeQuery($Q)
+          - pattern: $S.executeUpdate($Q)
+          - pattern: $S.execute($Q)
+          - pattern: $C.prepareStatement($Q)
+      - metavariable-pattern:
+          metavariable: $Q
+          pattern-either:
+            - pattern: '"..." + $X'
+            - pattern: '$X + "..."'
+
+  - id: crp.java.crypto.weak-hash
+    languages: [java]
+    severity: WARNING
+    message: MD5/SHA-1 are broken for security purposes; use SHA-256 or stronger.
+    pattern-either:
+      - pattern: MessageDigest.getInstance("MD5")
+      - pattern: MessageDigest.getInstance("SHA-1")
+      - pattern: MessageDigest.getInstance("SHA1")
+
+  - id: crp.java.crypto.ecb-mode
+    languages: [java]
+    severity: WARNING
+    message: ECB mode (explicit or the "AES" default) leaks plaintext patterns; use an authenticated mode such as AES/GCM.
+    pattern-either:
+      - pattern: Cipher.getInstance("AES")
+      - pattern: Cipher.getInstance("AES/ECB/PKCS5Padding")
+      - pattern: Cipher.getInstance("AES/ECB/NoPadding")
+
+  - id: crp.java.crypto.hardcoded-key
+    languages: [java]
+    severity: ERROR
+    message: A secret key is created from a string literal embedded in source code.
+    pattern: new SecretKeySpec("...".getBytes(), ...)
+
+  - id: crp.js.code-injection.eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: eval() executes a string as code.
+    pattern: eval($X)
+
+  - id: crp.js.command-injection.child-process
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: A child_process command is built from a non-literal value; untrusted input can run arbitrary commands.
+    patterns:
+      - pattern-either:
+          - pattern: $CP.exec($CMD, ...)
+          - pattern: $CP.execSync($CMD, ...)
+      - metavariable-regex:
+          metavariable: $CP
+          regex: ^(child_process|childProcess|cp)$
+      - pattern-not: $CP.exec("...", ...)
+      - pattern-not: $CP.execSync("...", ...)
+
+  - id: crp.js.xss.inner-html
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: A non-literal value is assigned to innerHTML/outerHTML; this is a DOM XSS sink.
+    patterns:
+      - pattern-either:
+          - pattern: $EL.innerHTML = $V
+          - pattern: $EL.outerHTML = $V
+      - pattern-not: $EL.innerHTML = "..."
+      - pattern-not: $EL.outerHTML = "..."
+
+  - id: crp.js.xss.document-write
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: document.write() with dynamic content is a DOM XSS sink and blocks parsing.
+    patterns:
+      - pattern: document.write($V)
+      - pattern-not: document.write("...")
+
+  - id: crp.js.secrets.hardcoded-jwt-secret
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: A JWT is signed or verified with a secret literal embedded in source code.
+    pattern-either:
+      - pattern: $JWT.sign($P, "...", ...)
+      - pattern: $JWT.verify($T, "...", ...)

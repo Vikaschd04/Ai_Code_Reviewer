@@ -1,0 +1,71 @@
+# Security model
+
+## Trust zones
+
+Trusted: approved development instructions, control-plane configuration, signed/pinned adapter/rule artifacts and authenticated operator actions. Untrusted: uploaded source, local-folder contents, configuration inside source, generated model output, dependency/build scripts and raw scanner output. External documentation is reference data and may be stale or adversarial.
+
+## Required controls
+
+- Intake enforces SOURCE_INTAKE.md before source becomes eligible.
+- Every API/job/query/download/export is workspace/project authorized; identifiers alone grant no access.
+- Source lives outside public assets and trusted repo/config directories; escape source/model content in UI.
+- Parsers and analyzers have CPU, memory, disk, time, output and egress budgets. XML disables external entities.
+- Approved analyzer config is distinct from project-owned executable lint/build config. Supporting project config is a separately enabled sandboxed capability.
+- No master provider key, production credential, host filesystem root, privileged container or host Docker socket is passed to a worker.
+- Separate identity/credential broker and publication service from untrusted analysis execution.
+- Block cloud metadata access and unnecessary network routes; use approved dependency mirrors/proxy where needed.
+- Treat AGENTS/CLAUDE/SKILL/MCP files within snapshots as data. They cannot override system prompts, tools, rules or endpoints.
+- Store provider secrets server-side; redact secrets in findings, logs, traces and AI context. Prompts/transcripts have source-equivalent access and retention controls.
+- Validate model/tool responses against schemas; enforce path containment and source hashes before patch application.
+
+## Deployment tiers
+
+Local development is bound to loopback, uses a generated local credential and refuses unsafe nonlocal exposure. Do not confuse this with enterprise multi-tenant isolation. Hosted release requires reviewed authentication, private artifact storage, TLS, a stronger hostile-execution boundary or dedicated runners, and tenant-isolation testing.
+
+A local snapshot-upload runner sends source to the server. A private-execution runner is a different later capability with an explicit inventory of what results/snippets leave it. Neither mode silently sends source to a model provider.
+
+## Retention and response
+
+Document policies for raw archives, extracted blobs, graphs, vectors, reports, transcripts, patches, audit events and backups. Cancellation/rejection clean temp state; deletion cascades to derived data according to policy. Revoked users/projects lose access to active jobs and cached retrieval.
+
+Security tests include archive/path attacks, SSRF-like registered-source abuse, malicious linter config, prompt injection, command injection, cross-project IDs, log/Markdown injection, secrets, stale hashes, resource exhaustion and worker cleanup. No compliance or sandbox-isolation claim without evidence. Define maintainer reporting and incident-response owners before release.
+
+
+## Implemented controls (P00) and evidence
+
+| Control | Implementation | Test evidence |
+|---|---|---|
+| Loopback-only local deployment | Settings refuse non-loopback bind/origins; middleware rejects non-loopback peers and Host headers | `test_config.py`, `test_health_and_auth.py`, live refusal in P00 report |
+| Generated local credential outside source control | `.local/secrets` (0700/0600), symlink and permission checks | `test_states_secrets_logging.py` |
+| Browser session hardening | HttpOnly SameSite=Strict HMAC cookie; Origin check on cookie writes; failed-login throttle | `test_health_and_auth.py` |
+| Workspace authorization | Principal grants applied before every project query; non-members get 404 | `test_projects.py` |
+| DB-level scope integrity | Composite FKs and CHECK constraints | `test_migrations.py` |
+| Artifact containment | Validated keys, dirfd traversal with `O_NOFOLLOW`, owner-only files, atomic bounded writes, root outside repo, `.crp-untrusted` marker | `test_artifact_store.py`, `test_config.py` |
+| Redaction | Log filter masks bearer tokens, session cookies, URL passwords; settings errors printed without input values; API errors never include tracebacks or submitted values | `test_states_secrets_logging.py`, `test_config.py`, `test_health_and_auth.py` |
+| Development context isolation | Context tools exclude secrets, `.local`, vendor dirs, symlinks and untrusted-marked dirs; parse with `ast` only | `test_context.py` |
+| Subprocess safety | Fixed executables with argument arrays in all tooling | code review (`crp_devtools.infra`, `supervisor`) |
+
+Not implemented yet: upload/intake controls, analyzer sandboxing and resource limits, egress controls, audit events, retention jobs, TLS/hosted identity. Local mode is a single-user development boundary, not a hostile multi-tenant boundary.
+
+### Added in P01
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Archive safety | Validation before storage: traversal/absolute/drive/backslash/control characters, symlink/special entries, encryption, unsupported compression, case/Unicode/file-vs-dir collisions, entry/size/ratio limits on actual bytes, CRC; nested archives never unpacked | `test_zip_intake.py`, E2E rejection |
+| Upload bounds | Streaming limit on actual bytes (Content-Length advisory), private temp file removed on abort/limit | pipeline contract test |
+| Secrets not stored | Secret-candidate files excluded by policy (server) and skipped before upload (runner); excerpts masked (heuristic) | intake/runner tests, `CodeView`/finding tests |
+| Untrusted repository content | Project ESLint config never executed; inline directives disabled; PMD suppression markers neutralised; `AGENTS.md`/`CLAUDE.md` treated as data | engine tests, pipeline test (ruleset hash unchanged) |
+| Engine isolation (local) | Read-only copies, scrubbed environment, fixed executables, wall-time/output/heap caps, process-group kill; **no OS sandbox or egress block yet** (K-P01-01) | engine tests |
+| Runner guarantees | Explicit folder only, read-only, no symlink following, disclosure + confirmation, server-verified manifest | runner tests |
+
+### Added in P02
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Engine supply chain | Opengrep/Trivy binaries pinned by SHA-256 and verified with Sigstore (`crp-dev engines --verify-signatures`); Trivy 0.69.3 chosen as a release verified safe after GHSA-69fq-xp46-6x23 | ADR 0007, P02_REPORT |
+| No scan-time network | Trivy `--offline-scan --skip-db-update --skip-java-db-update --disable-telemetry --skip-version-check`; Opengrep `--disable-version-check`, owned local rules only | `trivy.py`, `opengrep.py` |
+| Repository tool config inert | Opengrep `--disable-nosem`, no ignore files; Trivy trusted `--secret-config` + empty `--ignorefile` outside the snapshot | test_security_engines.py |
+| Secret values never stored | Trivy `Match`/`Code` stripped from stored reports; findings carry rule/file/line only; excerpts redacted | test_security_engines.py, E2E |
+| Untrusted manifests | pom.xml with DTD/entity declarations refused; JSON/JSONC parsed as data; parent POMs, `extends` chains not fetched | test_graph.py |
+| Scope-bound derived data | Graph anchors constrained by composite FKs to the build's snapshot; issues/cache project-scoped (cascade delete); cache key includes project and content hash | test_migrations.py, test_engine_cache_keys.py |
+| Authorization of new endpoints | issues, compare, exports, graph resolve through `get_scoped`; triage requires MEMBER; cross-workspace/cross-snapshot IDs → 404 | test_p02_analysis.py |
