@@ -57,7 +57,6 @@ def test_token_rotation_overwrites_the_token_file(tmp_path: Path) -> None:
         ({"CRP_ACCESS_TOKEN": ""}, "CRP_ACCESS_TOKEN"),
         ({"CRP_ACCESS_TOKEN": "short"}, "CRP_ACCESS_TOKEN"),
         ({"RENDER_EXTERNAL_HOSTNAME": ""}, "CRP_PUBLIC_HOST"),
-        ({"CRP_ALLOWED_WEB_ORIGINS": ""}, "CRP_ALLOWED_WEB_ORIGINS"),
         ({"DATABASE_URL": ""}, "CRP_DATABASE_URL"),
     ],
 )
@@ -66,3 +65,16 @@ def test_missing_or_weak_configuration_refuses_to_start(
 ) -> None:
     with pytest.raises(InfraError, match=message):
         hosted_env(_environ(tmp_path, **override), REPO)
+
+
+def test_same_origin_defaults_when_the_container_serves_the_ui(tmp_path: Path) -> None:
+    web = tmp_path / "web-dist"
+    web.mkdir()
+    (web / "index.html").write_text("<div id=root></div>")
+    environ = _environ(tmp_path, CRP_ALLOWED_WEB_ORIGINS="", CRP_WEB_STATIC_DIR=str(web))
+    env, _ = hosted_env(environ, REPO)
+    settings = settings_from_env(env)
+    assert settings.allowed_web_origins == ("https://ai-code-reviewer-api.onrender.com",)
+    assert settings.web_static_dir == web
+    missing = hosted_env(_environ(tmp_path, CRP_WEB_STATIC_DIR=str(tmp_path / "absent")), REPO)[0]
+    assert "CRP_WEB_STATIC_DIR" not in missing  # no UI build: API only, nothing half-served

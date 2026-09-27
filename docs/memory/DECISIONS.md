@@ -10,6 +10,6 @@
 | ADR 0006 baseline engines and trusted execution | Accepted, implemented (P01) | 2026-09-26 | PMD 7.27.0 + isolated ESLint 10.11.0 with platform-owned rules; source cannot suppress rules; bounded copies |
 | ADR 0007 Opengrep and Trivy adoption | Accepted, implemented (P02) | 2026-09-27 | Owned Opengrep rules; Trivy 0.69.3 (verified-safe after the March 2026 compromise), SHA-256 + Sigstore, fully offline, repo config inert |
 | ADR 0008 snapshot graph, issue lifecycle and cache | Accepted, implemented (P02) | 2026-09-27 | Superseding graph builds (no stale links), strict recheck states, correlation keys, content/rule/config-keyed per-file cache |
-| ADR 0009 single-user hosted deployment | Accepted, implemented (config + tests); live deploy pending owner accounts | 2026-09-27 | User chose Vercel UI + container backend; hosted tier with Host allowlist, secure cookies, upload tickets; Render Blueprint; CI-gated deploys |
+| ADR 0009 single-user hosted deployment | Accepted, implemented; amended to Render-only (UI served by the container) | 2026-09-27 | Hosted tier with Host allowlist, secure cookies, upload tickets; one Render Blueprint (web service + PostgreSQL), CI-gated deploys |
 
 Add implementation decisions only after recording alternatives, consequences and evidence in an ADR. Do not convert speculative preferences into verified implementation facts.

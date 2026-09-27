@@ -27,7 +27,7 @@ An upload-first code intelligence, review and validated-remediation application 
 
 ## Deployment
 
-Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. The web UI deploys on Vercel and the backend (API, worker, analyzers, PostgreSQL) on Render from `render.yaml`; every push to `main` runs CI and redeploys. This is a single-user hosted mode signed in with one access token. Setup steps and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. The complete application (web UI, API, worker, analyzers and PostgreSQL) deploys on Render from the Blueprint `render.yaml`; every push to `main` runs CI and redeploys when it passes. This is a single-user hosted mode signed in with one access token. Setup steps and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Quickstart (macOS, verified)
 
@@ -67,7 +67,7 @@ Create project → upload ZIP or capture a selected folder → inspect scope →
 
 ## Limitations
 
-Local development plus a single-user hosted mode (Vercel + Render); not a multi-tenant or SSO deployment. Engines run without an OS-level sandbox on macOS. Linux/Windows untested. No containers/Compose files yet. Temporal runs as the CLI dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
+Local development plus a single-user hosted mode on Render; not a multi-tenant or SSO deployment. Engines run without an OS-level sandbox on macOS. Linux/Windows untested. No containers/Compose files yet. Temporal runs as the CLI dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
 
 ## Project quality
 

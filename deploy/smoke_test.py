@@ -1,8 +1,9 @@
 """Smoke-test a running backend container over HTTP (stdlib only; used by CI).
 
 Usage: python deploy/smoke_test.py http://127.0.0.1:8080 <access-token> [origin]
-Checks liveness, readiness, the Host allowlist, a ticket-authorized upload with CORS, snapshot
-freezing and a real scan. Trivy may be UNAVAILABLE when the offline DB is not downloaded yet.
+Checks liveness, readiness, the web UI at /, the Host allowlist, a ticket-authorized upload with
+CORS, snapshot freezing and a real scan. Trivy may be UNAVAILABLE while the offline DB is not
+downloaded yet.
 """
 
 from __future__ import annotations
@@ -80,6 +81,13 @@ def main() -> int:
             break
         time.sleep(2)
     check(status == 200, ready)
+    with urllib.request.urlopen(base + "/", timeout=30) as response:  # noqa: S310
+        page = response.read().decode()
+        check('id="root"' in page, "web UI is not served at /")
+        check(
+            "default-src 'self'" in response.headers.get("content-security-policy", ""),
+            "web UI is served without a Content-Security-Policy",
+        )
     blocked = call(base, "GET", "/v1/auth/me", token, Host="evil.example.com")[0]
     check(blocked == 403, f"unknown Host header answered with {blocked}")
     status, _, me = call(base, "GET", "/v1/auth/me", token)

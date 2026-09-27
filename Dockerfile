@@ -1,5 +1,5 @@
-# syntax=docker/dockerfile:1.7
-# Single-user hosted backend: API + Temporal worker + Temporal dev server + analyzers.
+# Single-user hosted application in one container: web UI + API + Temporal worker + Temporal dev
+# server + analyzers.
 # Build context = repository root. See docs/DEPLOYMENT.md. Base images are pinned by digest;
 # analyzer binaries are pinned by SHA-256 (tools/devtools/src/crp_devtools/engines.py).
 
@@ -21,24 +21,25 @@ COPY engines/eslint-runner/ engines/eslint-runner/
 RUN pnpm install --frozen-lockfile --filter @crp/eslint-runner \
  && pnpm --filter @crp/eslint-runner deploy --prod --legacy /out/eslint-runner
 
+# --- Web UI: static production build served by the API (one origin for UI and API) ------------
+FROM ${NODE_IMAGE} AS web
+ENV CI=true
+WORKDIR /src
+RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY engines/eslint-runner/package.json engines/eslint-runner/package.json
+RUN pnpm install --frozen-lockfile --filter "@crp/web..."
+COPY packages/contracts/ packages/contracts/
+COPY apps/web/ apps/web/
+RUN pnpm --filter @crp/web build
+
 # --- Temporal CLI (dev server), SHA-256 from the release checksums file -------------------------
 FROM ${PYTHON_IMAGE} AS temporal
-ARG TEMPORAL_VERSION=1.9.1
-ARG TEMPORAL_SHA256=09a0326a51db84d02735e53542b9ebd8c4758daf47482a9ab0abce15844e60d5
-RUN python - <<'PY'
-import hashlib, io, os, tarfile, urllib.request
-version = os.environ["TEMPORAL_VERSION"]
-url = f"https://github.com/temporalio/cli/releases/download/v{version}/temporal_cli_{version}_linux_amd64.tar.gz"
-data = urllib.request.urlopen(url, timeout=300).read()
-digest = hashlib.sha256(data).hexdigest()
-if digest != os.environ["TEMPORAL_SHA256"]:
-    raise SystemExit(f"temporal checksum mismatch: {digest}")
-with tarfile.open(fileobj=io.BytesIO(data)) as archive:
-    member = archive.getmember("temporal")
-    with open("/temporal", "wb") as out:
-        out.write(archive.extractfile(member).read())
-os.chmod("/temporal", 0o755)
-PY
+COPY deploy/fetch_temporal.py /fetch_temporal.py
+RUN python /fetch_temporal.py 1.9.1 \
+    09a0326a51db84d02735e53542b9ebd8c4758daf47482a9ab0abce15844e60d5 /temporal
 
 # --- Runtime -----------------------------------------------------------------------------------
 FROM ${PYTHON_IMAGE}
@@ -47,7 +48,8 @@ ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
     PATH=/app/.venv/bin:$PATH \
-    CRP_DATA_DIR=/data
+    CRP_DATA_DIR=/data \
+    CRP_WEB_STATIC_DIR=/app/web-dist
 RUN mkdir -p /usr/share/man/man1 \
  && apt-get update \
  && apt-get install -y --no-install-recommends openjdk-21-jre-headless libstdc++6 ca-certificates \
@@ -75,6 +77,7 @@ COPY tools/devtools/src tools/devtools/src
 COPY tools/local-runner/src tools/local-runner/src
 RUN uv sync --locked --no-dev --all-packages
 COPY --from=eslint-runner /out/eslint-runner engines/eslint-runner
+COPY --from=web /src/apps/web/dist web-dist
 
 # Analyzers: PMD, Opengrep, Trivy binaries (SHA-256 pinned). The Trivy vulnerability DB is data
 # and is downloaded at runtime onto the persistent disk, then refreshed daily.

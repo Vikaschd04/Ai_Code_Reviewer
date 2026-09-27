@@ -1,6 +1,8 @@
-# ADR 0009 — Single-user hosted deployment: Vercel UI + Render container backend
+# ADR 0009 — Single-user hosted deployment on Render (amended: UI served by the container)
 
-Status: accepted and implemented, 27 September 2026 (user request after P02). Owner: development agent for the repository maintainer.
+Status: accepted and implemented, 27 September 2026 (user request after P02); **amended the same day**: at the user's request the complete application runs on Render — the container serves the built web UI on the API's own origin and the Vercel configuration was removed. The original split-hosting decision is kept below for history. Owner: development agent for the repository maintainer.
+
+Amendment (Render only): a `web` build stage compiles `apps/web` into `/app/web-dist`; the API mounts it at `/` (`CRP_WEB_STATIC_DIR`, routes under `/v1` take precedence, strict CSP for HTML, immutable caching for hashed assets). In hosted mode the allowed web origin defaults to the service's own `https://` address derived from `RENDER_EXTERNAL_HOSTNAME`, so the Blueprint needs no input (database URL wired, access token generated). Upload tickets remain (same-origin now; still allow a separately hosted UI via `CRP_ALLOWED_WEB_ORIGINS`). The Dockerfile no longer uses BuildKit heredocs (`deploy/fetch_temporal.py` downloads and verifies the Temporal CLI). Evidence: `test_container_serves_the_web_ui_on_the_api_origin`, `test_same_origin_defaults_when_the_container_serves_the_ui`, the hosted smoke tests (UI served by the real entrypoint) and the CI container smoke test (checks `/` and its CSP).
 
 Context: the user asked for a public URL with continuous deployment from GitHub (`Vikaschd04/Ai_Code_Reviewer`) and chose "Vercel UI + container host" after being told Vercel cannot host the backend. Until now the API refused non-loopback clients (ADR 0004) and hosted exposure was planned for P07. The analyzers need Java/Node runtimes, ~800 MB of binaries, a 1.3 GB offline DB and a long-running worker; Vercel Functions cap bodies at 4.5 MB and proxied requests at 120 s.
 

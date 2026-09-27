@@ -30,6 +30,7 @@ from crp_api.routes import (
     scans,
     snapshots,
 )
+from crp_api.webapp import WebAppFiles
 from crp_core.artifacts import ArtifactStore, create_artifact_store
 from crp_core.config import AuthMode, Settings
 from crp_core.db.session import create_engine_from_settings, create_session_factory
@@ -101,6 +102,8 @@ def create_app(
         diagnostics.router,
     ):
         app.include_router(router, prefix=API_PREFIX)
+    if settings.web_static_dir is not None:
+        app.mount("/", WebAppFiles(settings.web_static_dir), name="web")
     if settings.hosted:
         # Direct archive uploads come from the web origin to this API's own host (upload
         # tickets, no cookies); everything else is same-origin through the web host's proxy.

@@ -20,6 +20,7 @@ import pytest
 
 from crp_core.local_secrets import generate_token
 from crp_devtools.infra import PostgresCluster, free_port
+from crp_devtools.stack import pnpm
 from crp_devtools.testing.fixture_projects import prepare_fixture
 
 pytestmark = pytest.mark.integration
@@ -35,6 +36,11 @@ def hosted_process(
     trivy_cache = REPO / ".local" / "engines" / "trivy-cache"
     if not (trivy_cache / "db" / "trivy.db").is_file():
         pytest.fail("Trivy DB is not installed; run `make engines`")
+    web = REPO / "apps" / "web" / "dist"
+    if not (web / "index.html").is_file():
+        subprocess.run(  # noqa: S603 - resolved pnpm, fixed arguments
+            [pnpm(), "--filter", "@crp/web", "build"], cwd=REPO, check=True, capture_output=True
+        )
     data = tmp_path / "data"
     data.mkdir()
     (data / "trivy-cache").symlink_to(trivy_cache)  # reuse the local DB instead of downloading
@@ -54,6 +60,7 @@ def hosted_process(
             "PORT": str(port),
             "CRP_TEMPORAL_PORT": str(free_port()),
             "CRP_TRIVY_DB_AUTO_REFRESH": "0",
+            "CRP_WEB_STATIC_DIR": str(web),
         }
     )
     log = (tmp_path / "hosted.log").open("wb")

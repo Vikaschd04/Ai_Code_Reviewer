@@ -87,6 +87,8 @@ class Settings(BaseSettings):
     public_hosts: Annotated[tuple[str, ...], NoDecode] = ()
     allowed_web_origin_regex: str | None = None
     public_api_url: str | None = None
+    # Built web UI (apps/web/dist) served by the API itself: one origin for UI and API.
+    web_static_dir: Path | None = None
     session_ttl_seconds: Annotated[int, Field(ge=300, le=7 * 24 * 3600)] = 12 * 3600
 
     database_url: SecretStr
@@ -155,6 +157,7 @@ class Settings(BaseSettings):
         "trivy_cache_dir",
         "eslint_runner_dir",
         "node_executable",
+        "web_static_dir",
     )
     @classmethod
     def _absolute_paths(cls, value: Path | None) -> Path | None:

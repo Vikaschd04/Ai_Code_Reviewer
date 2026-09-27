@@ -5,11 +5,15 @@ Trivy database fresh in the background (the only network use; scans stay offline
 API and worker under the supervisor. If any process exits, everything stops and the container
 exits non-zero so the platform restarts it.
 
+The built web UI (``/app/web-dist`` in the image, or ``CRP_WEB_STATIC_DIR``) is served from the
+same address, so UI and API share one origin.
+
 Required environment: ``CRP_ACCESS_TOKEN`` (>= 32 characters; the sign-in secret),
-``CRP_DATABASE_URL`` or ``DATABASE_URL``, ``CRP_ALLOWED_WEB_ORIGINS`` (https origins of the web
-UI), and ``CRP_PUBLIC_HOST`` or ``RENDER_EXTERNAL_HOSTNAME`` (this API's public host name).
-Optional: ``CRP_ALLOWED_WEB_ORIGIN_REGEX`` (preview origins), ``CRP_EXTRA_PUBLIC_HOSTS``,
-``CRP_DATA_DIR`` (default ``/data``), ``CRP_TRIVY_DB_AUTO_REFRESH=0`` (keep the current DB).
+``CRP_DATABASE_URL`` or ``DATABASE_URL``, and ``CRP_PUBLIC_HOST`` or ``RENDER_EXTERNAL_HOSTNAME``
+(this service's public host name). Optional: ``CRP_ALLOWED_WEB_ORIGINS`` (default: the service's
+own https origin; add others if the UI is also hosted elsewhere), ``CRP_ALLOWED_WEB_ORIGIN_REGEX``,
+``CRP_EXTRA_PUBLIC_HOSTS`` (custom domains), ``CRP_DATA_DIR`` (default ``/data``),
+``CRP_TRIVY_DB_AUTO_REFRESH=0`` (keep the current DB).
 """
 
 from __future__ import annotations
@@ -48,9 +52,8 @@ def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Pat
         raise InfraError(
             "set CRP_PUBLIC_HOST (or run on Render, which sets RENDER_EXTERNAL_HOSTNAME)"
         )
-    origins = environ.get("CRP_ALLOWED_WEB_ORIGINS", "")
-    if not origins.strip():
-        raise InfraError("set CRP_ALLOWED_WEB_ORIGINS to the https origin(s) of the web UI")
+    # The container serves the UI itself, so by default the only web origin is its own address.
+    origins = environ.get("CRP_ALLOWED_WEB_ORIGINS", "").strip() or f"https://{host}"
     database = environ.get("CRP_DATABASE_URL") or environ.get("DATABASE_URL")
     if not database:
         raise InfraError("set CRP_DATABASE_URL (or DATABASE_URL)")
@@ -79,6 +82,9 @@ def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Pat
         "CRP_PMD_JAVA_HEAP": environ.get("CRP_PMD_JAVA_HEAP", "512m"),
         "CRP_LOG_FORMAT": "json",
     }
+    static = Path(environ.get("CRP_WEB_STATIC_DIR", str(repo / "web-dist")))
+    if (static / "index.html").is_file():
+        env["CRP_WEB_STATIC_DIR"] = str(static)
     if regex := environ.get("CRP_ALLOWED_WEB_ORIGIN_REGEX"):
         env["CRP_ALLOWED_WEB_ORIGIN_REGEX"] = regex
     for key, value in environ.items():

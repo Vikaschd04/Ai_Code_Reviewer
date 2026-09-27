@@ -1,9 +1,10 @@
-# Render Blueprint for the backend: one Docker web service (API + Temporal worker + Temporal dev
-# server + analyzers) and a private PostgreSQL database. Pushes to main redeploy after CI passes.
-# Setup and costs: docs/DEPLOYMENT.md. The web UI is deployed separately on Vercel (vercel.json).
+# Render Blueprint: the complete application on Render - one Docker web service (web UI + API +
+# Temporal worker + Temporal dev server + analyzers) and a private PostgreSQL database.
+# No settings to enter: the service derives its own URL and generates the sign-in token.
+# Pushes to main redeploy after GitHub Actions CI passes. Guide: docs/DEPLOYMENT.md.
 services:
   - type: web
-    name: ai-code-reviewer-api
+    name: ai-code-reviewer
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
@@ -12,7 +13,7 @@ services:
     healthCheckPath: /v1/health/live
     autoDeployTrigger: checksPass # deploy main only after GitHub Actions CI passes
     disk:
-      name: crp-data # artifacts, scan work area, Temporal history, offline Trivy DB
+      name: crp-data # uploads, scan work area, Temporal history, offline Trivy DB
       mountPath: /data
       sizeGB: 10
     envVars:
@@ -20,12 +21,8 @@ services:
         fromDatabase:
           name: ai-code-reviewer-db
           property: connectionString
-      - key: CRP_ACCESS_TOKEN # sign-in secret; copy it from the Render dashboard
+      - key: CRP_ACCESS_TOKEN # sign-in secret: Render dashboard > service > Environment
         generateValue: true
-      - key: CRP_ALLOWED_WEB_ORIGINS # e.g. https://ai-code-reviewer.vercel.app
-        sync: false
-      - key: CRP_ALLOWED_WEB_ORIGIN_REGEX # optional, for Vercel preview URLs
-        sync: false
 
 databases:
   - name: ai-code-reviewer-db

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Complete application on Render (27 September 2026)
+
+- The container serves the built web UI on the API's origin (`CRP_WEB_STATIC_DIR`, strict CSP, immutable hashed assets); hosted mode defaults the web origin to the service's own address, so the Render Blueprint needs no input.
+- `render.yaml` now deploys everything (service `ai-code-reviewer` + PostgreSQL); `vercel.json` removed; Dockerfile without BuildKit heredocs (`deploy/fetch_temporal.py`).
+- CI container smoke test also checks the served UI and its CSP.
+
 ## Unreleased — Git, CI and single-user hosted deployment (27 September 2026)
 
 - Repository on GitHub (`Vikaschd04/Ai_Code_Reviewer`); GitHub Actions CI (lint, types, contracts, unit tests, web build, Linux image build + container smoke test), actions pinned to commit SHAs.

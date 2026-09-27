@@ -21,7 +21,7 @@ Updated 27 September 2026 after P02. None of these block the P00–P02 gates.
 | K-P02-04 | Opengrep/Trivy pinned for macOS arm64 only | engines | Medium | engines.py | Add Linux pins (P02-F4) |
 | K-P02-05 | Findings of scans made before migration 0003 have no issue link | UI/API | Low | dev-stack check | Rescan; backfill is P02-F5 |
 | K-P09-01 | Hosted mode is single-user, single-instance (shared access token, Temporal dev server on SQLite, one disk) | hosted deployment | Medium | ADR 0009 | Do not share the URL/token; P07 brings SSO, managed Temporal, isolation |
-| K-P09-02 | Live deployment not yet created: needs the owner's Vercel import and Render Blueprint (paid plans) | deployment | Info | DEPLOYMENT.md | Follow DEPLOYMENT.md steps 1–4 |
+| K-P09-02 | Live deployment not yet created: needs the owner's Render Blueprint (paid plans) | deployment | Info | DEPLOYMENT.md | Follow DEPLOYMENT.md steps 1–6 |
 | K-P09-03 | CI runs unit tests, image build and a container smoke test; integration suites (PostgreSQL/Temporal/engines) run locally only | CI | Low | ci.yml | Add an integration job with pinned PG18/Temporal/engines |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 

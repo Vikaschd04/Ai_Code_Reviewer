@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -146,3 +147,29 @@ async def test_upload_ticket_requires_member_access(api_factory: ApiFactory) -> 
     intake_id = await _intake(api)
     anonymous = await api.client.post(f"/v1/intakes/{intake_id}/upload-ticket")
     assert anonymous.status_code == 401
+
+
+async def test_container_serves_the_web_ui_on_the_api_origin(
+    api_factory: ApiFactory, tmp_path: Path
+) -> None:
+    web = tmp_path / "web-dist"
+    (web / "assets").mkdir(parents=True)
+    (web / "index.html").write_text('<!doctype html><div id="root"></div>')
+    (web / "assets" / "index-abc123.js").write_text("console.log('ok')")
+    api = await api_factory(**HOSTED, web_static_dir=web)
+    page = await api.client.get("/")
+    assert page.status_code == 200 and 'id="root"' in page.text
+    assert "default-src 'self'" in page.headers["content-security-policy"]
+    assert page.headers["cache-control"] == "no-cache"
+    asset = await api.client.get("/assets/index-abc123.js")
+    assert asset.status_code == 200
+    assert "immutable" in asset.headers["cache-control"]
+    live = await api.client.get("/v1/health/live")  # API routes win over the UI mount
+    assert live.headers["content-type"].startswith("application/json")
+    me = await api.client.get("/v1/auth/me", headers=api.auth)
+    assert me.status_code == 200
+    assert (await api.client.get("/assets/missing.js")).status_code == 404
+    other_host = await api_factory(
+        **{**HOSTED, "base_url": "https://evil.example.com"}, web_static_dir=web
+    )
+    assert (await other_host.client.get("/")).status_code == 403  # Host allowlist covers the UI

@@ -7,8 +7,8 @@
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
-!apps/web/package.json
-!packages/contracts/package.json
+!apps/web/**
+!packages/contracts/**
 !engines/eslint-runner/package.json
 !engines/eslint-runner/run.mjs
 !engines/eslint-runner/trusted.config.mjs
@@ -25,5 +25,10 @@
 !tools/local-runner/pyproject.toml
 !tools/local-runner/src/**
 !deploy/entrypoint.sh
+!deploy/fetch_temporal.py
 **/__pycache__
+**/node_modules
+apps/web/dist
+apps/web/test-results
+apps/web/playwright-report
 **/*.pyc

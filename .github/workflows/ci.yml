@@ -1,6 +1,6 @@
-# Quality gate on every push/PR, plus a Linux build and smoke test of the backend image.
-# Render deploys main only after these checks pass (render.yaml: autoDeployTrigger checksPass);
-# Vercel builds the web UI on every push. Actions are pinned to commit SHAs.
+# Quality gate on every push/PR, plus a Linux build and smoke test of the application image
+# (web UI + API + worker + analyzers). Render deploys main only after these checks pass
+# (render.yaml: autoDeployTrigger checksPass). Actions are pinned to commit SHAs.
 name: ci
 
 on:
@@ -52,7 +52,7 @@ jobs:
         run: |
           uv run pytest -m "not integration"
           pnpm test
-      - name: Web production build (what Vercel runs)
+      - name: Web production build
         run: pnpm --filter @crp/web build
 
   container:
