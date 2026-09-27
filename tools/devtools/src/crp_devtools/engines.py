@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import shutil
 import subprocess
 import tarfile
@@ -95,26 +96,67 @@ class BinaryRelease:
     bundle_url: str | None = None
 
 
-OPENGREP = BinaryRelease(
-    name="opengrep",
-    version="1.30.0",
-    url="https://github.com/opengrep/opengrep/releases/download/v1.30.0/opengrep_osx_arm64",
-    sha256="0f5bc3dec09d995c61331a4017b856ede508f90d95b018d95f1dc6166be89fdd",
-    signer_identity="https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
-    signature_url="https://github.com/opengrep/opengrep/releases/download/v1.30.0/opengrep_osx_arm64.sig",
-    certificate_url="https://github.com/opengrep/opengrep/releases/download/v1.30.0/opengrep_osx_arm64.cert",
-)
-
+# Per-platform assets. Every pin was checked against the project's checksum file / GitHub asset
+# digest and its Sigstore signature was verified with cosign (macOS arm64 on 2026-09-26, Linux
+# x86_64 on 2026-09-27). Add a platform only after the same verification.
+_OPENGREP_ASSETS: dict[tuple[str, str], tuple[str, str]] = {
+    ("Darwin", "arm64"): (
+        "opengrep_osx_arm64",
+        "0f5bc3dec09d995c61331a4017b856ede508f90d95b018d95f1dc6166be89fdd",
+    ),
+    ("Linux", "x86_64"): (
+        "opengrep_manylinux_x86",
+        "35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c",
+    ),
+}
 # 0.69.3 is the release Aqua listed as verified-safe after the March 2026 compromise
 # (GHSA-69fq-xp46-6x23); its Rekor timestamp (2026-03-03) predates the 2026-03-19 attack.
-TRIVY = BinaryRelease(
-    name="trivy",
-    version="0.69.3",
-    url="https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-ARM64.tar.gz",
-    sha256="a2f2179afd4f8bb265ca3c7aefb56a666bc4a9a411663bc0f22c3549fbc643a5",
-    signer_identity="https://github.com/aquasecurity/trivy/.github/workflows/reusable-release.yaml@refs/tags/v0.69.3",
-    bundle_url="https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-ARM64.tar.gz.sigstore.json",
-)
+_TRIVY_ASSETS: dict[tuple[str, str], tuple[str, str]] = {
+    ("Darwin", "arm64"): (
+        "trivy_0.69.3_macOS-ARM64.tar.gz",
+        "a2f2179afd4f8bb265ca3c7aefb56a666bc4a9a411663bc0f22c3549fbc643a5",
+    ),
+    ("Linux", "x86_64"): (
+        "trivy_0.69.3_Linux-64bit.tar.gz",
+        "1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75",
+    ),
+}
+
+
+def _platform() -> tuple[str, str]:
+    machine = platform.machine()
+    return platform.system(), {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
+
+
+def _opengrep(key: tuple[str, str]) -> BinaryRelease:
+    base = "https://github.com/opengrep/opengrep/releases/download/v1.30.0/"
+    asset, sha = _OPENGREP_ASSETS.get(key, ("", ""))
+    return BinaryRelease(
+        name="opengrep",
+        version="1.30.0",
+        url=base + asset if asset else "",
+        sha256=sha,
+        signer_identity="https://github.com/opengrep/opengrep/.github/workflows/rolling-release.yml@refs/heads/main",
+        signature_url=base + asset + ".sig" if asset else None,
+        certificate_url=base + asset + ".cert" if asset else None,
+    )
+
+
+def _trivy(key: tuple[str, str]) -> BinaryRelease:
+    base = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/"
+    asset, sha = _TRIVY_ASSETS.get(key, ("", ""))
+    return BinaryRelease(
+        name="trivy",
+        version="0.69.3",
+        url=base + asset if asset else "",
+        sha256=sha,
+        signer_identity="https://github.com/aquasecurity/trivy/.github/workflows/reusable-release.yaml@refs/tags/v0.69.3",
+        bundle_url=base + asset + ".sigstore.json" if asset else None,
+    )
+
+
+OPENGREP = _opengrep(_platform())
+TRIVY = _trivy(_platform())
 
 
 def _download(url: str, target: Path, expected_sha256: str | None) -> None:
@@ -171,6 +213,11 @@ def install_binary(
     binary = home / release.name
     if binary.is_file() and (home / "VERSION").is_file():
         return home, "already installed"
+    if not release.url:
+        system, machine = _platform()
+        raise InfraError(
+            f"no verified {release.name} {release.version} build is pinned for {system} {machine}"
+        )
     staging = engines_dir / f".{release.name}.staging"
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)

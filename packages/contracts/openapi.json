@@ -3590,6 +3590,33 @@
         "title": "SymbolResponse",
         "type": "object"
       },
+      "UploadTicketResponse": {
+        "additionalProperties": false,
+        "description": "Where and until when the archive may be uploaded without other credentials.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "max_bytes": {
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "upload_url": {
+            "description": "Relative in local mode; the API's own https URL in hosted mode",
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_url",
+          "expires_at",
+          "max_bytes"
+        ],
+        "title": "UploadTicketResponse",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -4557,6 +4584,23 @@
               "title": "Intake Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "ticket",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticket"
+            }
           }
         ],
         "requestBody": {
@@ -4747,6 +4791,90 @@
           }
         },
         "summary": "Finalize Intake",
+        "tags": [
+          "intake"
+        ]
+      }
+    },
+    "/v1/intakes/{intake_id}/upload-ticket": {
+      "post": {
+        "description": "Issue a 15-minute ticket that authorizes uploading this intake's archive only.\n\nHosted deployments upload directly to the API host (bypassing the web host's proxy limits),\nso the ticket replaces the same-site session cookie for that single request.",
+        "operationId": "create_upload_ticket_v1_intakes__intake_id__upload_ticket_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "intake_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Intake Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadTicketResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Upload Ticket",
         "tags": [
           "intake"
         ]

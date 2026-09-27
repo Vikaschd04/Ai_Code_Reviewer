@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Self
@@ -25,10 +26,16 @@ class InsecureConfigurationError(ValueError):
 
 
 class DeploymentEnvironment(StrEnum):
-    """Supported deployment tiers. Hosted multi-tenant deployment is absent until P07."""
+    """Supported deployment tiers. Hosted multi-tenant deployment is absent until P07.
+
+    ``hosted`` is a single-user deployment behind an HTTPS reverse proxy (see
+    docs/DEPLOYMENT.md): public bind, Host-header allowlist, HTTPS-only web origins and secure
+    cookies. It is not a multi-tenant or SSO deployment.
+    """
 
     LOCAL = "local"
     TEST = "test"
+    HOSTED = "hosted"
 
 
 class AuthMode(StrEnum):
@@ -75,6 +82,11 @@ class Settings(BaseSettings):
     )
 
     local_token_file: Path | None = None
+    # Hosted mode only: Host header allowlist, preview-origin pattern and the backend's own public
+    # HTTPS URL (used for direct archive uploads that bypass the web host's proxy).
+    public_hosts: Annotated[tuple[str, ...], NoDecode] = ()
+    allowed_web_origin_regex: str | None = None
+    public_api_url: str | None = None
     session_ttl_seconds: Annotated[int, Field(ge=300, le=7 * 24 * 3600)] = 12 * 3600
 
     database_url: SecretStr
@@ -121,7 +133,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: str = "json"
 
-    @field_validator("allowed_web_origins", mode="before")
+    @property
+    def hosted(self) -> bool:
+        return self.environment is DeploymentEnvironment.HOSTED
+
+    @field_validator("allowed_web_origins", "public_hosts", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
         if isinstance(value, str):
@@ -149,6 +165,17 @@ class Settings(BaseSettings):
             raise ValueError(f"path settings must be absolute, got a relative path: {value}")
         return expanded
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_database_url(cls, value: object) -> object:
+        """Accept the ``postgres://``/``postgresql://`` URLs that hosting platforms provide."""
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        if isinstance(raw, str):
+            for prefix in ("postgres://", "postgresql://"):
+                if raw.startswith(prefix):
+                    return "postgresql+psycopg://" + raw[len(prefix) :]
+        return value
+
     @field_validator("database_url")
     @classmethod
     def _postgres_only(cls, value: SecretStr) -> SecretStr:
@@ -166,7 +193,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_local_boundary(self) -> Self:
-        if self.auth_mode is AuthMode.LOCAL_TOKEN:
+        if self.hosted:
+            self._enforce_hosted_boundary()
+        elif self.auth_mode is AuthMode.LOCAL_TOKEN:
             if not is_loopback_host(self.api_host):
                 raise InsecureConfigurationError(
                     "Refusing to start: local-token authentication may only bind to a loopback "
@@ -183,6 +212,12 @@ class Settings(BaseSettings):
                     )
             if self.local_token_file is None:
                 raise ValueError("CRP_LOCAL_TOKEN_FILE is required when CRP_AUTH_MODE=local_token")
+
+        if self.allowed_web_origin_regex is not None:
+            try:
+                re.compile(self.allowed_web_origin_regex)
+            except re.error as exc:
+                raise ValueError("CRP_ALLOWED_WEB_ORIGIN_REGEX is not a valid pattern") from exc
 
         root = self.artifact_root.resolve()
         if root == Path(root.anchor) or root == Path.home().resolve():
@@ -202,6 +237,46 @@ class Settings(BaseSettings):
                         "untrusted customer source never mixes with project instructions"
                     )
         return self
+
+    def _enforce_hosted_boundary(self) -> None:
+        """Single-user hosted mode: TLS-terminating proxy in front, explicit hosts and origins."""
+        if self.local_token_file is None:
+            raise ValueError("CRP_LOCAL_TOKEN_FILE is required in hosted mode")
+        if not self.public_hosts:
+            raise InsecureConfigurationError(
+                "Hosted mode requires CRP_PUBLIC_HOSTS (the Host names this API answers to)"
+            )
+        if not self.allowed_web_origins:
+            raise InsecureConfigurationError("Hosted mode requires CRP_ALLOWED_WEB_ORIGINS")
+        for origin in self.allowed_web_origins:
+            parts = urlsplit(origin)
+            if parts.scheme != "https" or not parts.hostname or parts.path not in {"", "/"}:
+                raise InsecureConfigurationError(
+                    f"CRP_ALLOWED_WEB_ORIGINS entry {origin!r} must be an https:// origin"
+                )
+        if (
+            self.allowed_web_origin_regex is not None
+            and not self.allowed_web_origin_regex.startswith("^https://")
+        ):
+            raise InsecureConfigurationError(
+                "CRP_ALLOWED_WEB_ORIGIN_REGEX must be anchored and start with ^https://"
+            )
+        if self.public_api_url is not None:
+            parts = urlsplit(self.public_api_url)
+            if parts.scheme != "https" or not parts.hostname or parts.path not in {"", "/"}:
+                raise InsecureConfigurationError("CRP_PUBLIC_API_URL must be an https:// origin")
+
+    def origin_allowed(self, origin: str | None) -> bool:
+        """Exact configured origin, or (hosted) a match of the anchored preview-origin pattern."""
+        if origin is None:
+            return False
+        if origin in self.allowed_web_origins:
+            return True
+        return (
+            self.hosted
+            and self.allowed_web_origin_regex is not None
+            and re.fullmatch(self.allowed_web_origin_regex, origin) is not None
+        )
 
 
 def load_settings() -> Settings:

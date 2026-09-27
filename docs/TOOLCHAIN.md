@@ -84,3 +84,16 @@ Adoption records: ADR 0006, ADR 0007 and docs/ENGINE_ADOPTION.md. PMD 7.28.0 was
 ## Upgrade procedure
 
 Change the pin in the relevant `pyproject.toml`/`package.json`, run `uv lock` / `pnpm install`, then `make check`, `make test`, `make test-e2e`. Record new versions and license changes here. Keep pnpm's minimum-release-age protection enabled; do not add exemptions for freshly published packages without a reason recorded here.
+
+## Hosted deployment and CI (ADR 0009)
+
+| Item | Pin | Notes |
+|---|---|---|
+| Base image | `python:3.14-slim-trixie@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d` | runtime; Debian `openjdk-21-jre-headless` for PMD |
+| Node image | `node:22-trixie-slim@sha256:b26b04c123d9ff8ab646ceb18b9d75a1173acf64b9a401094b906d27b29338d4` | ESLint runner build (`pnpm deploy --prod --legacy`) and the `node` binary |
+| uv image | `ghcr.io/astral-sh/uv:0.12.19@sha256:04d046b13e60d6bcec73cbc5e1cad25d680dea90c8573340950a0ac2d1aef424` | locked `uv sync --no-dev` |
+| Temporal CLI (Linux amd64) | 1.9.1, SHA-256 `09a0326a51db84d02735e53542b9ebd8c4758daf47482a9ab0abce15844e60d5` | dev server with SQLite on `/data` |
+| Opengrep (Linux x86_64) | `opengrep_manylinux_x86`, SHA-256 `35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c` | cosign-verified 2026-09-27 |
+| Trivy (Linux x86_64) | `trivy_0.69.3_Linux-64bit.tar.gz`, SHA-256 `1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75` | cosign-verified 2026-09-27; matches `trivy_0.69.3_checksums.txt` |
+| GitHub Actions | checkout v7.0.1, setup-uv v10.2.0, setup-node v7.0.0, pnpm/action-setup v6.1.0, setup-buildx v4.4.1, build-push v7.4.0 — all pinned to commit SHAs in `.github/workflows/ci.yml` | CI Postgres service image `postgres:18` |
+| Vercel build | `npx pnpm@11.20.0` install/build from `vercel.json` | static output `apps/web/dist` |

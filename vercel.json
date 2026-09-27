@@ -1,0 +1,31 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npx --yes pnpm@11.20.0 install --frozen-lockfile",
+  "buildCommand": "npx --yes pnpm@11.20.0 --filter @crp/web build",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    {
+      "source": "/v1/:path*",
+      "destination": "https://ai-code-reviewer-api.onrender.com/v1/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/v1/(.*)",
+      "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://ai-code-reviewer-api.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      ]
+    }
+  ]
+}

@@ -88,6 +88,7 @@ test("architecture graph with bounded neighborhood and impact", async ({ page })
     page.getByTestId("module-dependency").filter({ hasText: "module:maven:app" }).first(),
   ).toBeVisible();
   await page.getByLabel("Search graph nodes").fill("CustomerRepository");
+  await expect(page.getByTestId("graph-node-result").first()).toContainText("CustomerRepository");
   await page.getByTestId("graph-node-result").first().click();
   const hood = page.getByTestId("neighborhood");
   await expect(
@@ -102,7 +103,11 @@ test("architecture graph with bounded neighborhood and impact", async ({ page })
   await page.getByRole("button", { name: "Switch to light theme" }).click();
   await page.getByLabel("Search graph nodes").fill("Entity");
   await page.getByLabel("Node kind").selectOption("type");
+  // Wait for the new results before clicking (the previous search's list is still shown).
+  await expect(page.getByTestId("graph-node-result")).toHaveCount(1);
+  await expect(page.getByTestId("graph-node-result").first()).toContainText("Entity.java");
   await page.getByTestId("graph-node-result").first().click();
+  await expect(hood.getByRole("heading", { name: "Entity" })).toBeVisible();
   await hood.getByRole("button", { name: "Impact" }).click();
   await expect(page.getByTestId("impact")).toContainText("Customer.java");
   await expect(page.getByTestId("impact")).toContainText("unresolved edge");

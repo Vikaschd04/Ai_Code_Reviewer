@@ -1,5 +1,8 @@
 # Session handoff
 
+27 September 2026 (later) — Git + CI + single-user hosted deployment (user request; ADR 0009, docs/DEPLOYMENT.md). Code pushed to github.com/Vikaschd04/Ai_Code_Reviewer (`main`, repo-local git identity Vikaschd04 / owner email). Added hosted tier, upload tickets, Dockerfile, `crp-dev hosted`, render.yaml, vercel.json, `.github/workflows/ci.yml`, `deploy/smoke_test.py`. Verified: hosted entrypoint end-to-end on macOS (`tools/devtools/tests/test_hosted_smoke.py`); Linux image build + smoke run in CI. Pending owner actions: import repo in Vercel, create Render Blueprint (paid plans), then adjust `vercel.json` if the Render URL differs. Local Docker not used (Colima VM would not fit on the ~6 GB free disk).
+
+
 27 September 2026 — P02 implemented; gate passed (docs/validation/P02_REPORT.md).
 
 Done: Opengrep/Trivy adoption with supply-chain verification (ADR 0007); migration 0003; issues/lifecycle, comparison, exports, graph, cache (ADR 0008); UI Architecture/Issues/Compare/triage; `make benchmark`; doctor engine checks. Key paths: `packages/analysis/src/crp_analysis/{graph/,engines/{opengrep,trivy}.py,lifecycle.py,reports.py,normalize.py,rules/,schemas/}`, `services/worker/src/crp_worker/{scan,graph_job,engine_cache,lifecycle}.py`, `services/api/src/crp_api/routes/{issues,reports,graph}.py`, `apps/web/src/{pages/ArchitectureView.tsx,pages/IssuesView.tsx,components/IssuePanel.tsx}`, `fixtures/projects/{security-mixed,graph-mixed}`, `tools/devtools/src/crp_devtools/benchmark.py`.

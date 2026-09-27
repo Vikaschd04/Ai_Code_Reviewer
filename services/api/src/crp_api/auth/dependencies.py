@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.exc import SQLAlchemyError
 
+from crp_api.auth.local_token import SESSION_COOKIE
 from crp_api.auth.principal import (
     Principal,
     PrincipalDisabledError,
@@ -29,8 +30,7 @@ Container = Annotated[AppContainer, Depends(get_container)]
 
 def require_allowed_origin(request: Request, container: AppContainer) -> None:
     """Cookie-authenticated state changes must come from a configured web origin."""
-    origin = request.headers.get("origin")
-    if origin is None or origin not in container.settings.allowed_web_origins:
+    if not container.settings.origin_allowed(request.headers.get("origin")):
         raise ApiError(403, "origin_rejected", "Request origin is not allowed for this action")
 
 
@@ -72,6 +72,18 @@ async def get_principal(subject: AuthenticatedRequest, container: Container) -> 
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
+
+
+async def get_optional_principal(request: Request, container: Container) -> Principal | None:
+    """Like ``CurrentPrincipal`` but returns None when no credentials were presented at all
+    (for endpoints that also accept a scoped ticket)."""
+    if request.headers.get("authorization") is None and SESSION_COOKIE not in request.cookies:
+        return None
+    subject = await get_authenticated_subject(request, container)
+    return await get_principal(subject, container)
+
+
+OptionalPrincipal = Annotated[Principal | None, Depends(get_optional_principal)]
 
 
 async def require_operator(principal: CurrentPrincipal) -> Principal:

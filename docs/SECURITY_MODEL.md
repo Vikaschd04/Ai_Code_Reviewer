@@ -69,3 +69,14 @@ Not implemented yet: upload/intake controls, analyzer sandboxing and resource li
 | Untrusted manifests | pom.xml with DTD/entity declarations refused; JSON/JSONC parsed as data; parent POMs, `extends` chains not fetched | test_graph.py |
 | Scope-bound derived data | Graph anchors constrained by composite FKs to the build's snapshot; issues/cache project-scoped (cascade delete); cache key includes project and content hash | test_migrations.py, test_engine_cache_keys.py |
 | Authorization of new endpoints | issues, compare, exports, graph resolve through `get_scoped`; triage requires MEMBER; cross-workspace/cross-snapshot IDs → 404 | test_p02_analysis.py |
+
+### Added for the hosted deployment (ADR 0009)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Hosted tier is explicit | `CRP_ENVIRONMENT=hosted` required for a public bind; demands Host allowlist, https origins, https public API URL, token ≥ 32 chars | test_config.py, app startup |
+| Host / origin / transport | Host allowlist (liveness exempt), allowed Origins (+ anchored preview regex) for cookie state changes, Secure SameSite=Strict cookies, HSTS | test_hosted_mode.py |
+| Direct uploads | 15-minute HMAC ticket bound to one intake, derived from the access token (rotation revokes); CORS only PUT, no credentials, configured origins | test_hosted_mode.py, test_hosted_smoke.py |
+| Container | Unprivileged uid 10001 after disk ownership fix; secrets passed as env, token written 0600, raw token not passed to children; engines keep scrubbed environments | entrypoint.sh, test_hosted_env.py |
+| Build supply chain | Digest-pinned base images, SHA-256 + cosign-verified Linux engines, SHA-256 Temporal CLI, SHA-pinned GitHub Actions, frozen lockfiles | Dockerfile, ci.yml, engines.py |
+| Data location | Uploaded source stored on the Render disk/database of the owner's account; no AI egress | DEPLOYMENT.md |

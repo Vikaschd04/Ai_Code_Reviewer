@@ -43,16 +43,22 @@ async def create_session(
         max_age=session.max_age_seconds,
         httponly=True,
         samesite="strict",
-        # Loopback HTTP only; hosted deployments must terminate TLS and set Secure (P07).
-        secure=False,
+        # Loopback development uses plain HTTP; hosted mode is always behind TLS.
+        secure=container.settings.hosted,
         path="/",
     )
     return SessionResponse(subject=LOCAL_SUBJECT, expires_at=session.expires_at)
 
 
 @router.delete("/session", status_code=204)
-async def delete_session(response: Response) -> Response:
-    response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="strict")
+async def delete_session(response: Response, container: Container) -> Response:
+    response.delete_cookie(
+        SESSION_COOKIE,
+        path="/",
+        httponly=True,
+        samesite="strict",
+        secure=container.settings.hosted,
+    )
     response.status_code = 204
     return response
 

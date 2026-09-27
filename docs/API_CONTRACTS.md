@@ -27,6 +27,8 @@ Cross-cutting: every response has `X-Request-ID`, `Cache-Control: no-store`, `X-
 | GET /v1/intake-policy | principal | Scope policy `scope-v1` (excluded dirs, secret/generated patterns) and quotas; the runner applies it locally |
 | POST /v1/projects/{id}/intakes | member | `{mode: zip_upload\|local_runner, display_name}` → 201 intake (creates a source) |
 | PUT /v1/intakes/{id}/content | member | Streamed `application/zip`; 413 `upload_too_large` on actual bytes, 415, 409 wrong state; temp removed on abort |
+| POST /v1/intakes/{id}/upload-ticket | member | 15-minute HMAC ticket for this intake only → `{upload_url, expires_at, max_bytes}`; `upload_url` is relative locally and on the API's own https host in hosted mode (ADR 0009) |
+| PUT /v1/intakes/{id}/content?ticket= | ticket | Same upload with the ticket instead of credentials (CORS: PUT from configured web origins, no credentials); 401 for missing/expired/tampered or other-intake tickets |
 | PUT /v1/intakes/{id}/client-manifest | member | Runner-declared manifest (bounded); verified, never trusted |
 | POST /v1/intakes/{id}/finalize | member | 202; idempotent; 409 `no_content` / `client_manifest_required`; 503 retryable |
 | POST /v1/intakes/{id}/cancel, GET /v1/intakes/{id}, GET /v1/projects/{id}/intakes | member / viewer | Cancel deletes temporary bytes; status includes `error_code`, `error_message`, `error_details.violations` |

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Git, CI and single-user hosted deployment (27 September 2026)
+
+- Repository on GitHub (`Vikaschd04/Ai_Code_Reviewer`); GitHub Actions CI (lint, types, contracts, unit tests, web build, Linux image build + container smoke test), actions pinned to commit SHAs.
+- Hosted tier `CRP_ENVIRONMENT=hosted`: Host allowlist, https-only origins (+ preview regex), Secure cookies, HSTS, token ≥ 32 characters; platform database URLs normalized.
+- Direct archive uploads with 15-minute single-intake tickets (`POST /v1/intakes/{id}/upload-ticket`); the web UI always uploads via tickets.
+- `Dockerfile` (digest-pinned bases, SHA-256/cosign-verified Linux engines), `crp-dev hosted` single-container entrypoint (Temporal on SQLite, migrations, daily offline Trivy DB refresh, supervised API/worker, unprivileged user), `render.yaml` Blueprint, `vercel.json` (proxy + CSP), docs/DEPLOYMENT.md, ADR 0009.
+- ESLint runner: `typescript` is now a runtime dependency (required by typescript-eslint).
+
 ## Unreleased — Phase 2 persistent mappings and broader analysis (27 September 2026)
 
 - Opengrep 1.30.0 with 10 platform-owned rules and Trivy 0.69.3 (offline vulnerabilities + secrets), SHA-256 and Sigstore verified; repository tool config inert; secret values never stored (ADR 0007).

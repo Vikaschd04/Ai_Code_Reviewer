@@ -135,15 +135,29 @@ export async function createIntake(projectId: string, displayName: string): Prom
   throw toApiError(response, error);
 }
 
-/** XHR upload so the UI can show real byte progress (fetch has no upload progress events). */
-export function uploadArchive(
+async function requestUploadTicket(intakeId: string): Promise<{ upload_url: string }> {
+  const { data, error, response } = await api.POST("/v1/intakes/{intake_id}/upload-ticket", {
+    params: { path: { intake_id: intakeId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/**
+ * XHR upload so the UI can show real byte progress (fetch has no upload progress events).
+ * The archive goes to the ticket's URL: same origin locally, the API host itself when hosted
+ * (bypassing the web host's proxy); the short-lived ticket replaces cookies for that request.
+ */
+export async function uploadArchive(
   intakeId: string,
   file: Blob,
   onProgress: (fraction: number) => void,
 ): Promise<Intake> {
+  const ticket = await requestUploadTicket(intakeId);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", `/v1/intakes/${encodeURIComponent(intakeId)}/content`);
+    xhr.open("PUT", ticket.upload_url);
+    xhr.withCredentials = false;
     xhr.setRequestHeader("Content-Type", "application/zip");
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);

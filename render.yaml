@@ -1,0 +1,35 @@
+# Render Blueprint for the backend: one Docker web service (API + Temporal worker + Temporal dev
+# server + analyzers) and a private PostgreSQL database. Pushes to main redeploy after CI passes.
+# Setup and costs: docs/DEPLOYMENT.md. The web UI is deployed separately on Vercel (vercel.json).
+services:
+  - type: web
+    name: ai-code-reviewer-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore
+    plan: 1c-2g # analyzers need about 1-1.5 GB during a scan (docs/validation/P02_REPORT.md)
+    healthCheckPath: /v1/health/live
+    autoDeployTrigger: checksPass # deploy main only after GitHub Actions CI passes
+    disk:
+      name: crp-data # artifacts, scan work area, Temporal history, offline Trivy DB
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: CRP_DATABASE_URL
+        fromDatabase:
+          name: ai-code-reviewer-db
+          property: connectionString
+      - key: CRP_ACCESS_TOKEN # sign-in secret; copy it from the Render dashboard
+        generateValue: true
+      - key: CRP_ALLOWED_WEB_ORIGINS # e.g. https://ai-code-reviewer.vercel.app
+        sync: false
+      - key: CRP_ALLOWED_WEB_ORIGIN_REGEX # optional, for Vercel preview URLs
+        sync: false
+
+databases:
+  - name: ai-code-reviewer-db
+    region: singapore
+    plan: 0.1c-256mb
+    postgresMajorVersion: "18"
+    ipAllowList: [] # no external connections; only the service above can reach it

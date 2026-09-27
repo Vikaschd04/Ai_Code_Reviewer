@@ -163,6 +163,16 @@ def cmd_engines(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hosted(_: argparse.Namespace) -> int:
+    from crp_devtools.hosted import run_hosted
+
+    try:
+        return run_hosted()
+    except InfraError as exc:
+        print(f"crp-hosted: refusing to start: {exc}", file=sys.stderr)
+        return 2
+
+
 def cmd_benchmark(args: argparse.Namespace) -> int:
     from crp_devtools.benchmark import run_benchmark
 
@@ -240,6 +250,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-trivy-db", action="store_true", help="do not download the vulnerability DB"
     )
     engines.set_defaults(func=cmd_engines)
+    hosted = sub.add_parser(
+        "hosted", help="run API, worker and Temporal in one container (single-user hosted mode)"
+    )
+    hosted.set_defaults(func=cmd_hosted)
     bench = sub.add_parser("benchmark", help="time/memory of real scans on a medium fixture")
     bench.add_argument("--java-files", type=int, default=150, help="Java files per module (4)")
     bench.add_argument("--ts-files", type=int, default=200, help="TS files per package (2)")

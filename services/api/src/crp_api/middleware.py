@@ -1,4 +1,5 @@
-"""Pure-ASGI middleware: request IDs, security headers and the loopback-only guard."""
+"""Pure-ASGI middleware: request IDs, security headers, the loopback-only guard (local) and the
+Host-header allowlist (hosted single-user mode)."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from crp_core.config import is_loopback_host
 
+LIVENESS_PATH = "/v1/health/live"
 _SECURITY_HEADERS = [
     (b"x-content-type-options", b"nosniff"),
     (b"x-frame-options", b"DENY"),
@@ -65,6 +67,46 @@ class LoopbackOnlyMiddleware:
             await _reject(scope, send, "host_not_allowed", "Host header must name a loopback host")
             return
         await self.app(scope, receive, send)
+
+
+class HostAllowlistMiddleware:
+    """Hosted mode: accept only configured Host names (DNS-rebinding / Host-header defence).
+
+    The platform's TLS-terminating proxy is the direct peer, so peer addresses are not checked;
+    authentication and origin checks still apply to every data endpoint.
+    """
+
+    def __init__(self, app: ASGIApp, *, hosts: tuple[str, ...]) -> None:
+        self.app = app
+        self.hosts = frozenset(h.lower() for h in hosts)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in {"http", "websocket"}:
+            await self.app(scope, receive, send)
+            return
+        host_header = _header(scope, b"host")
+        # Platform health probes may use internal addresses; liveness reveals nothing.
+        exempt = scope["type"] == "http" and scope.get("path") == LIVENESS_PATH
+        if not exempt and (
+            host_header is None or _strip_port(host_header).lower() not in self.hosts
+        ):
+            await _reject(scope, send, "host_not_allowed", "Host header is not allowed")
+            return
+        if scope["type"] == "http":
+            await self.app(scope, receive, _with_hsts(send))
+            return
+        await self.app(scope, receive, send)
+
+
+def _with_hsts(send: Send) -> Send:
+    async def wrapped(message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers = list(message.get("headers", []))
+            headers.append((b"strict-transport-security", b"max-age=31536000"))
+            message["headers"] = headers
+        await send(message)
+
+    return wrapped
 
 
 def _header(scope: Scope, name: bytes) -> str | None:

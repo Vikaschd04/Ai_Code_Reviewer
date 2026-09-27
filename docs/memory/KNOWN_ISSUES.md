@@ -7,7 +7,7 @@ Updated 27 September 2026 after P02. None of these block the P00–P02 gates.
 | K-P00-01 | Only macOS arm64 verified | all commands | Medium | P00_REPORT environment | Verify on Linux (BACKLOG P00-F2) |
 | K-P00-02 | No container images or Compose; Temporal is the CLI dev server | local deployment | Medium | ADR 0005 | Add digest-pinned images later (P00-F3); qualify hosted Temporal in P07 |
 | K-P00-03 | psycopg/psycopg-binary are LGPL-3.0 | distribution | Low (dev) | TOOLCHAIN.md | License review before shipping images/binaries (P00-F4) |
-| K-P00-04 | Not a Git repository: no commit identity; `/security-review` and `/code-review` not run | process | Medium | P00_REPORT | User decides on `git init`; then run reviews (P00-F1) |
+| K-P00-04 | Git initialized 2026-09-27 (github.com/Vikaschd04/Ai_Code_Reviewer); `/security-review` and `/code-review` not run yet | process | Low | git log | Run the reviews on the branch (P00-F1) |
 | K-P00-05 | Worker readiness may report OK for up to 90 s after a worker stops (Temporal poller freshness) | readiness | Low | readiness.py, INSTALLATION troubleshooting | Diagnostic workflow proves execution; tune `CRP_WORKER_POLLER_FRESH_SECONDS` |
 | K-P00-06 | Browser sessions cannot be revoked individually | local auth | Low | ADR 0004 | Rotate the token file; hosted IdP in P07 |
 | K-P01-01 | Engines run without an OS-level sandbox (no cgroup/VM/egress block) on macOS dev hosts | engine execution | Medium | ADR 0006 | Wall-time, output and heap caps, scrubbed env, read-only copies; add container/VM isolation before multi-tenant use (P01-F4) |
@@ -20,6 +20,9 @@ Updated 27 September 2026 after P02. None of these block the P00–P02 gates.
 | K-P02-03 | Graph is syntax-level: no classpath/type-checker resolution, no call edges; Gradle, parent POMs, tsconfig `extends`, `exports` fields not followed | graph/impact | Medium | P02_REPORT gaps | Unresolved counts shown in UI/API; P02-F3 |
 | K-P02-04 | Opengrep/Trivy pinned for macOS arm64 only | engines | Medium | engines.py | Add Linux pins (P02-F4) |
 | K-P02-05 | Findings of scans made before migration 0003 have no issue link | UI/API | Low | dev-stack check | Rescan; backfill is P02-F5 |
+| K-P09-01 | Hosted mode is single-user, single-instance (shared access token, Temporal dev server on SQLite, one disk) | hosted deployment | Medium | ADR 0009 | Do not share the URL/token; P07 brings SSO, managed Temporal, isolation |
+| K-P09-02 | Live deployment not yet created: needs the owner's Vercel import and Render Blueprint (paid plans) | deployment | Info | DEPLOYMENT.md | Follow DEPLOYMENT.md steps 1–4 |
+| K-P09-03 | CI runs unit tests, image build and a container smoke test; integration suites (PostgreSQL/Temporal/engines) run locally only | CI | Low | ci.yml | Add an integration job with pinned PG18/Temporal/engines |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 
 Known planned limitations: no Git ingestion until P06; no AI provider required in P00/P01; no universal defect detection; SAP/Salesforce runtime checks depend on authorized platform environments; private runner execution is distinct from local snapshot upload.

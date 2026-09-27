@@ -175,6 +175,16 @@ class IntakeCreate(ApiModel):
     ]
 
 
+class UploadTicketResponse(ApiModel):
+    """Where and until when the archive may be uploaded without other credentials."""
+
+    upload_url: str = Field(
+        description="Relative in local mode; the API's own https URL in hosted mode"
+    )
+    expires_at: datetime
+    max_bytes: int
+
+
 class IntakeResponse(ApiModel):
     id: UUID
     project_id: UUID

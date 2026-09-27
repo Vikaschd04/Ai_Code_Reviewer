@@ -33,6 +33,7 @@ Disk space: allow about 2.5 GB for `.local/engines` (Trivy DB ~1.3 GB, Opengrep 
 | check | `make check` | ruff format/lint, mypy strict, OpenAPI + TypeScript contract drift, tsc, ESLint, Prettier |
 | test | `make test` (`SCOPE=all\|python\|unit\|integration\|web`) | pytest (real ephemeral PostgreSQL/Temporal for integration tests; JUnit report in `.local/test-reports/`) and vitest |
 | benchmark | `make benchmark` | Isolated stack; generates the synthetic medium fixture (1,010 files), runs a cold and a warm scan, samples worker memory and times read APIs → `.local/benchmarks/p02-*.json` |
+| hosted | `uv run crp-dev hosted` | Single-container hosted entrypoint (Temporal dev server on SQLite, migrations, Trivy DB refresh, supervised API + worker) used by the Docker image; see docs/DEPLOYMENT.md for the required environment |
 | test-e2e | `make test-e2e` | Starts a throwaway PostgreSQL/Temporal/API/worker + production web build on free ports and runs Playwright (Chrome). Logs are copied to `.local/logs/e2e-*` on failure |
 | package | `make package` | Wheels/sdists for all Python packages in `dist/python`, web bundle in `dist/web`, SHA-256 `dist/MANIFEST.json` |
 | contracts | `make contracts` | Regenerates `packages/contracts/openapi.json` and `src/v1.d.ts` after API model changes |

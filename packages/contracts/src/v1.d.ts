@@ -300,6 +300,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intakes/{intake_id}/upload-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Upload Ticket
+         * @description Issue a 15-minute ticket that authorizes uploading this intake's archive only.
+         *
+         *     Hosted deployments upload directly to the API host (bypassing the web host's proxy limits),
+         *     so the ticket replaces the same-site session cookie for that single request.
+         */
+        post: operations["create_upload_ticket_v1_intakes__intake_id__upload_ticket_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/issues/{issue_id}": {
         parameters: {
             query?: never;
@@ -1918,6 +1941,24 @@ export interface components {
             /** Start Line */
             start_line: number;
         };
+        /**
+         * UploadTicketResponse
+         * @description Where and until when the archive may be uploaded without other credentials.
+         */
+        UploadTicketResponse: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Max Bytes */
+            max_bytes: number;
+            /**
+             * Upload Url
+             * @description Relative in local mode; the API's own https URL in hosted mode
+             */
+            upload_url: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -2666,7 +2707,9 @@ export interface operations {
     };
     upload_content_v1_intakes__intake_id__content_put: {
         parameters: {
-            query?: never;
+            query?: {
+                ticket?: string | null;
+            };
             header?: never;
             path: {
                 intake_id: string;
@@ -2825,6 +2868,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_upload_ticket_v1_intakes__intake_id__upload_ticket_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intake_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadTicketResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

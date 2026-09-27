@@ -25,6 +25,10 @@ An upload-first code intelligence, review and validated-remediation application 
 - Developer commands (`make bootstrap|dev|doctor|migrate|seed-fixtures|check|test|test-e2e|benchmark|package|context-map|context-pack`).
 - Planned features appear in the UI navigation as disabled items with the phase that delivers them.
 
+## Deployment
+
+Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. The web UI deploys on Vercel and the backend (API, worker, analyzers, PostgreSQL) on Render from `render.yaml`; every push to `main` runs CI and redeploys. This is a single-user hosted mode signed in with one access token. Setup steps and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## Quickstart (macOS, verified)
 
 ```sh
@@ -63,7 +67,7 @@ Create project → upload ZIP or capture a selected folder → inspect scope →
 
 ## Limitations
 
-Single-user local development only; not a hosted or multi-tenant deployment. Engines run without an OS-level sandbox on macOS. Linux/Windows untested. No containers/Compose files yet. Temporal runs as the CLI dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
+Local development plus a single-user hosted mode (Vercel + Render); not a multi-tenant or SSO deployment. Engines run without an OS-level sandbox on macOS. Linux/Windows untested. No containers/Compose files yet. Temporal runs as the CLI dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
 
 ## Project quality
 

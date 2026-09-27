@@ -13,17 +13,17 @@ import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import anyio
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import ValidationError
 from sqlalchemy import select
 from starlette.requests import ClientDisconnect
 
 from crp_analysis import policy
 from crp_analysis.client_manifest import ClientManifest
-from crp_api.auth.dependencies import Container, CurrentPrincipal
+from crp_api.auth.dependencies import Container, CurrentPrincipal, OptionalPrincipal
 from crp_api.auth.principal import Principal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
@@ -32,6 +32,7 @@ from crp_api.schemas import (
     IntakePage,
     IntakePolicyResponse,
     IntakeResponse,
+    UploadTicketResponse,
 )
 from crp_api.services.scope import get_scoped
 from crp_core.artifacts import ArtifactKey
@@ -204,6 +205,57 @@ def _file_chunks(path: Path) -> Iterator[bytes]:
             yield chunk
 
 
+@router.post(
+    "/intakes/{intake_id}/upload-ticket",
+    response_model=UploadTicketResponse,
+    responses={**_ERRORS, 409: {"model": ErrorResponse}},
+)
+async def create_upload_ticket(
+    intake_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> UploadTicketResponse:
+    """Issue a 15-minute ticket that authorizes uploading this intake's archive only.
+
+    Hosted deployments upload directly to the API host (bypassing the web host's proxy limits),
+    so the ticket replaces the same-site session cookie for that single request.
+    """
+    async with transaction(container.session_factory) as session:
+        intake = await _intake(session, principal, intake_id)
+        if IntakeState(intake.state) not in {IntakeState.CREATED, IntakeState.UPLOADING}:
+            raise _conflict(intake, "upload to")
+    ticket, expires_at = container.identity.issue_upload_ticket(str(intake_id))
+    base = (container.settings.public_api_url or "").rstrip("/")
+    return UploadTicketResponse(
+        upload_url=f"{base}/v1/intakes/{intake_id}/content?ticket={ticket}",
+        expires_at=expires_at,
+        max_bytes=container.settings.intake_max_upload_bytes,
+    )
+
+
+async def _upload_target(
+    session: Any,
+    container: Any,
+    principal: Principal | None,
+    ticket: str | None,
+    intake_id: uuid.UUID,
+    *,
+    for_update: bool = False,
+) -> Intake:
+    """Resolve the intake through the caller's grants or through a valid upload ticket."""
+    if principal is not None:
+        return await _intake(session, principal, intake_id, for_update=for_update)
+    if ticket is None or not container.identity.verify_upload_ticket(ticket, str(intake_id)):
+        raise ApiError(
+            401,
+            "authentication_required",
+            "Valid credentials or a valid upload ticket are required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    intake: Intake | None = await session.get(Intake, intake_id, with_for_update=for_update)
+    if intake is None:
+        raise ApiError(404, "intake_not_found", "Intake not found")
+    return intake
+
+
 @router.put(
     "/intakes/{intake_id}/content",
     response_model=IntakeResponse,
@@ -216,7 +268,11 @@ def _file_chunks(path: Path) -> Iterator[bytes]:
     },
 )
 async def upload_content(
-    intake_id: uuid.UUID, request: Request, principal: CurrentPrincipal, container: Container
+    intake_id: uuid.UUID,
+    request: Request,
+    principal: OptionalPrincipal,
+    container: Container,
+    ticket: Annotated[str | None, Query(max_length=1024)] = None,
 ) -> IntakeResponse:
     settings = container.settings
     content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
@@ -229,7 +285,7 @@ async def upload_content(
             413, "upload_too_large", f"The upload exceeds {limit} bytes", {"limit": limit}
         )
     async with transaction(container.session_factory) as session:
-        intake = await _intake(session, principal, intake_id)
+        intake = await _upload_target(session, container, principal, ticket, intake_id)
         if IntakeState(intake.state) not in {IntakeState.CREATED, IntakeState.UPLOADING}:
             raise _conflict(intake, "upload to")
 
@@ -265,7 +321,9 @@ async def upload_content(
         await asyncio.to_thread(temp.unlink, missing_ok=True)
 
     async with transaction(container.session_factory) as session:
-        intake = await _intake(session, principal, intake_id, for_update=True)
+        intake = await _upload_target(
+            session, container, principal, ticket, intake_id, for_update=True
+        )
         if IntakeState(intake.state) not in {IntakeState.CREATED, IntakeState.UPLOADING}:
             await asyncio.to_thread(container.artifacts.delete, key)
             raise _conflict(intake, "upload to")

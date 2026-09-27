@@ -10,6 +10,8 @@ Implemented and verified: P00, P01, P02 COMPLETE (macOS arm64). P02 adds: owned 
 
 Not implemented: AI (P03), SAP/Salesforce packs, fixes, Git, optional intake modes, engine OS sandbox, cache eviction, Linux engine pins, semantic (classpath/type-checker) resolution.
 
+Deployment: single-user hosted mode (Vercel UI + Render container + Render PostgreSQL) configured and CI-verified; live services await the owner's Vercel/Render setup (docs/DEPLOYMENT.md). Repo: github.com/Vikaschd04/Ai_Code_Reviewer.
+
 Active phase: P03 NOT_STARTED. Next task: P03-01 provider-independent model adapter, no-credentials state and explicit source-egress policy (prompts/P03_AGENTIC_ANALYSIS.md).
 
 Blockers: live AI provider validation needs a user-approved provider account and data-egress policy (not available); offline P03 components can proceed. Disk is tight (~6 GB free).

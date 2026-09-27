@@ -24,6 +24,8 @@ from crp_core.db.identity import LOCAL_SUBJECT
 
 SESSION_COOKIE = "crp_session"
 _SESSION_VERSION = "v1"
+_TICKET_VERSION = "t1"
+UPLOAD_TICKET_TTL_SECONDS = 15 * 60
 
 
 def _b64e(raw: bytes) -> str:
@@ -48,6 +50,44 @@ class LocalTokenProvider:
             self._token, b"crp-session-signing-v1", hashlib.sha256
         ).digest()
         self._ttl = session_ttl_seconds
+        self._ticket_key = hmac.new(self._token, b"crp-upload-ticket-v1", hashlib.sha256).digest()
+
+    @property
+    def token_length(self) -> int:
+        return len(self._token)
+
+    def issue_upload_ticket(self, intake_id: str, now: float | None = None) -> tuple[str, datetime]:
+        """Short-lived credential that authorizes one thing: uploading one intake's archive."""
+        expires = int(time.time() if now is None else now) + UPLOAD_TICKET_TTL_SECONDS
+        payload = _b64e(
+            json.dumps(
+                {"iid": intake_id, "exp": expires, "n": secrets.token_hex(8)},
+                separators=(",", ":"),
+            ).encode()
+        )
+        signed = f"{_TICKET_VERSION}.{payload}"
+        signature = _b64e(hmac.new(self._ticket_key, signed.encode(), hashlib.sha256).digest())
+        return f"{signed}.{signature}", datetime.fromtimestamp(expires, UTC)
+
+    def verify_upload_ticket(self, ticket: str, intake_id: str, now: float | None = None) -> bool:
+        parts = ticket.split(".")
+        if len(parts) != 3 or parts[0] != _TICKET_VERSION:
+            return False
+        signed = f"{parts[0]}.{parts[1]}"
+        expected = _b64e(hmac.new(self._ticket_key, signed.encode(), hashlib.sha256).digest())
+        if not hmac.compare_digest(expected, parts[2]):
+            return False
+        try:
+            claims = json.loads(_b64d(parts[1]))
+        except ValueError:
+            return False
+        current = time.time() if now is None else now
+        return (
+            isinstance(claims, dict)
+            and claims.get("iid") == intake_id
+            and isinstance(claims.get("exp"), int)
+            and claims["exp"] > current
+        )
 
     def token_matches(self, presented: str) -> bool:
         return hmac.compare_digest(presented.encode("utf-8"), self._token)
