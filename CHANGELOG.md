@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Free deployment on GitHub Codespaces (29 September 2026)
+
+- `.devcontainer/devcontainer.json` + `deploy/codespace.sh` + `deploy/docker-compose.yml`: a codespace builds and starts the complete application with PostgreSQL automatically and prints its private https URL; secrets are generated into `.local/codespace/`.
+- CI's container job now starts the app through the same script and Compose file (simulated codespace) before the smoke test.
+- docs/DEPLOYMENT.md compares free/paid options with current limits (Render free, Railway, Hugging Face, Codespaces).
+
 ## Unreleased — Complete application on Render (27 September 2026)
 
 - The container serves the built web UI on the API's origin (`CRP_WEB_STATIC_DIR`, strict CSP, immutable hashed assets); hosted mode defaults the web origin to the service's own address, so the Render Blueprint needs no input.

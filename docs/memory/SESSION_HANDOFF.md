@@ -1,5 +1,8 @@
 # Session handoff
 
+29 September 2026 — User cannot pay for Render yet: added a free deployment path on GitHub Codespaces (`.devcontainer/`, `deploy/codespace.sh`, `deploy/docker-compose.yml`), verified in CI via a simulated codespace. Render Blueprint kept for later. Next: user creates a codespace (docs/DEPLOYMENT.md "Free: GitHub Codespaces"); then P03-01.
+
+
 27 September 2026 (later) — Git + CI + single-user hosted deployment (user request; ADR 0009, docs/DEPLOYMENT.md). Code pushed to github.com/Vikaschd04/Ai_Code_Reviewer (`main`, repo-local git identity Vikaschd04 / owner email). Added hosted tier, upload tickets, Dockerfile, `crp-dev hosted`, render.yaml, vercel.json, `.github/workflows/ci.yml`, `deploy/smoke_test.py`. Verified: hosted entrypoint end-to-end on macOS (`tools/devtools/tests/test_hosted_smoke.py`); Linux image build + smoke run in CI. Amended at the user's request: complete application on Render only (container serves the UI; vercel.json removed). Pending owner action: Render → New → Blueprint → repo → Apply (paid plans), then sign in with CRP_ACCESS_TOKEN (docs/DEPLOYMENT.md). Local Docker not used (Colima VM would not fit on the ~6 GB free disk).
 
 

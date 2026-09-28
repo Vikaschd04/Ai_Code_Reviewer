@@ -10,7 +10,7 @@ Implemented and verified: P00, P01, P02 COMPLETE (macOS arm64). P02 adds: owned 
 
 Not implemented: AI (P03), SAP/Salesforce packs, fixes, Git, optional intake modes, engine OS sandbox, cache eviction, Linux engine pins, semantic (classpath/type-checker) resolution.
 
-Deployment: single-user hosted mode, complete application on Render (container serves UI + API + worker + analyzers; Render PostgreSQL), configured and CI-verified; the live service awaits the owner's Render Blueprint (docs/DEPLOYMENT.md). Repo: github.com/Vikaschd04/Ai_Code_Reviewer.
+Deployment: free trial via GitHub Codespaces (devcontainer + Docker Compose, CI-verified), or paid always-on Render Blueprint; single-user hosted mode, complete application (container serves UI + API + worker + analyzers; Render PostgreSQL), configured and CI-verified; the live service awaits the owner's Render Blueprint (docs/DEPLOYMENT.md). Repo: github.com/Vikaschd04/Ai_Code_Reviewer.
 
 Active phase: P03 NOT_STARTED. Next task: P03-01 provider-independent model adapter, no-credentials state and explicit source-egress policy (prompts/P03_AGENTIC_ANALYSIS.md).
 

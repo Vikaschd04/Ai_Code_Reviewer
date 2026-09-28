@@ -1,0 +1,46 @@
+# The complete application with Docker Compose: PostgreSQL 18 + the application image (web UI, API,
+# Temporal worker and dev server, analyzers). Used by GitHub Codespaces (deploy/codespace.sh) and
+# usable on any Docker host that puts HTTPS in front of port 8080. Guide: docs/DEPLOYMENT.md.
+name: ai-code-reviewer
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: crp
+      POSTGRES_PASSWORD: ${CRP_DB_PASSWORD:?set CRP_DB_PASSWORD}
+      POSTGRES_DB: crp
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crp -d crp"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  app:
+    image: ${CRP_IMAGE:-ai-code-reviewer:local}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CRP_ACCESS_TOKEN: ${CRP_ACCESS_TOKEN:?set CRP_ACCESS_TOKEN}
+      CRP_PUBLIC_HOST: ${CRP_PUBLIC_HOST:?set CRP_PUBLIC_HOST (the public https host name)}
+      CRP_EXTRA_PUBLIC_HOSTS: localhost,127.0.0.1
+      CRP_ALLOWED_WEB_ORIGINS: ${CRP_ALLOWED_WEB_ORIGINS:-}
+      DATABASE_URL: postgresql://crp:${CRP_DB_PASSWORD}@db:5432/crp
+      PORT: "8080"
+      CRP_TRIVY_DB_AUTO_REFRESH: ${CRP_TRIVY_DB_AUTO_REFRESH:-1}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - app-data:/data
+    restart: unless-stopped
+
+volumes:
+  db-data: {}
+  app-data: {}

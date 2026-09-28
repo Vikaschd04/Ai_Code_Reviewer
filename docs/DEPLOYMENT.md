@@ -1,6 +1,33 @@
-# Deployment on Render (Blueprint)
+# Deployment
 
-Status: configuration implemented and verified locally (the container entrypoint end-to-end, serving the UI) and in CI (Linux image build + smoke test on every push). Creating the live service requires the owner's Render account (steps below).
+Two ways to run the complete application (web UI, API, worker, analyzers, PostgreSQL) in the cloud:
+
+| | Cost | Always on | Notes |
+|---|---|---|---|
+| **GitHub Codespaces** (below) | Free within GitHub's monthly quota (120 hours of compute and 15 GB storage for personal accounts; with no payment method on file, usage simply stops at the quota — you are never charged) | No — runs while the codespace runs (it stops after about 30 minutes without activity; restart it any time) | Best for trying and testing everything; URL private to your GitHub login by default |
+| **Render Blueprint** (further below) | Paid plans (2 GB memory + persistent disk) | Yes | For a permanent URL |
+
+Why not a free always-on host: the analyzers need ~2 GB of memory and ~2 GB of disk (the offline vulnerability database alone is 1.3 GB) plus an always-running worker. Render's free instances have no persistent disk and sleep after 15 minutes (free PostgreSQL expires after 30 days); Railway offers a one-time $5 trial with 1 GB memory/1 GB disk, then $1/month of credit with 0.5 GB memory; Hugging Face now requires a paid plan for Docker Spaces.
+
+## Free: GitHub Codespaces
+
+1. Open <https://github.com/Vikaschd04/Ai_Code_Reviewer>, click **Code → Codespaces → Create codespace on main** (machine: 2-core, 8 GB is enough).
+2. Wait. The codespace starts, then `.devcontainer/devcontainer.json` runs `bash deploy/codespace.sh up`, which builds the application image and starts it with PostgreSQL via Docker Compose. The **first** start takes about 10–15 minutes (image build); later starts take about a minute. Progress is visible in the codespace terminal (**View → Terminal**, the "postStartCommand" log).
+3. When it prints `Code Review Platform is running: https://<codespace-name>-8080.app.github.dev`, open that URL (or open the **Ports** tab and click the globe icon for port 8080 "Code Review Platform").
+4. Get the sign-in token in the codespace terminal: `bash deploy/codespace.sh token`. Paste it on the sign-in page.
+5. Test everything: create a project, upload a ZIP, scan, open findings, issues, architecture, compare and exports. During the first minutes Trivy reports UNAVAILABLE while its database downloads; the other analyzers work immediately.
+
+Useful commands in the codespace terminal: `bash deploy/codespace.sh logs` (application logs), `bash deploy/codespace.sh down` (stop; data is kept), `bash deploy/codespace.sh up` (start again).
+
+Sharing: port 8080 is **private** by default — only you (signed in to GitHub) can open it. To let someone else test, right-click the port in the **Ports** tab → *Port Visibility → Public*, and give them the token; switch it back to private afterwards.
+
+Saving your free quota: stop the codespace when you are done (github.com → **Codespaces** → ⋯ → *Stop codespace*). Your data (projects, scans) stays in the codespace's Docker volumes until you delete the codespace (GitHub deletes stopped codespaces after 30 days of inactivity by default).
+
+Updates: after new commits on `main`, run `git pull` in the codespace terminal and `bash deploy/codespace.sh up` (rebuilds only what changed).
+
+## Paid, always on: Render (Blueprint)
+
+Status: configuration implemented and verified locally (the container entrypoint end-to-end, serving the UI) and in CI (Linux image build, started through `deploy/codespace.sh` + Docker Compose with PostgreSQL, smoke-tested on every push). Creating a live service requires the owner's GitHub Codespaces or Render account (steps above/below).
 
 ## What runs where
 

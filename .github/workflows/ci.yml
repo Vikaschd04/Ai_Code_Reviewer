@@ -58,17 +58,14 @@ jobs:
   container:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: crp
-          POSTGRES_PASSWORD: ci-only-password
-          POSTGRES_DB: crp
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U crp" --health-interval 5s --health-timeout 5s
-          --health-retries 20
+    env:
+      # Simulate a GitHub Codespace so the free deployment path (deploy/codespace.sh +
+      # deploy/docker-compose.yml with PostgreSQL) is exercised exactly as users run it.
+      CODESPACE_NAME: ci
+      GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: app.github.dev
+      CRP_IMAGE: crp-app:ci
+      CRP_SKIP_BUILD: "1"
+      CRP_TRIVY_DB_AUTO_REFRESH: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -76,21 +73,14 @@ jobs:
         with:
           context: .
           load: true
-          tags: crp-backend:ci
+          tags: crp-app:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Run the image and smoke-test it
+      - name: Start the complete application with Docker Compose and smoke-test it
         run: |
-          TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-          docker run -d --name crp --network host \
-            -e CRP_ACCESS_TOKEN="$TOKEN" \
-            -e CRP_PUBLIC_HOST=127.0.0.1 \
-            -e CRP_ALLOWED_WEB_ORIGINS=https://ci.example.test \
-            -e DATABASE_URL=postgresql://crp:ci-only-password@127.0.0.1:5432/crp \
-            -e PORT=8080 \
-            -e CRP_TRIVY_DB_AUTO_REFRESH=0 \
-            crp-backend:ci
-          python3 deploy/smoke_test.py http://127.0.0.1:8080 "$TOKEN" https://ci.example.test
-      - name: Container logs
+          bash deploy/codespace.sh up
+          python3 deploy/smoke_test.py http://127.0.0.1:8080 "$(bash deploy/codespace.sh token)" \
+            https://ci-8080.app.github.dev
+      - name: Application logs
         if: always()
-        run: docker logs crp 2>&1 | tail -200 || true
+        run: bash deploy/codespace.sh logs || true
