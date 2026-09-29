@@ -6,9 +6,9 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   ok: { tone: "ok", icon: "check", label: "OK" },
   ready: { tone: "ok", icon: "check", label: "Ready" },
   READY: { tone: "ok", icon: "check", label: "Ready" },
-  SUCCEEDED: { tone: "ok", icon: "check", label: "Succeeded" },
+  SUCCEEDED: { tone: "ok", icon: "check", label: "Complete" },
   COMPLETED: { tone: "ok", icon: "check", label: "Completed" },
-  PARTIAL: { tone: "warn", icon: "alert", label: "Partial" },
+  PARTIAL: { tone: "warn", icon: "alert", label: "Partly complete" },
   not_ready: { tone: "warn", icon: "alert", label: "Not ready" },
   unavailable: { tone: "warn", icon: "alert", label: "Unavailable" },
   UNAVAILABLE: { tone: "bad", icon: "x", label: "Unavailable" },
@@ -16,32 +16,37 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   FAILED: { tone: "bad", icon: "x", label: "Failed" },
   REJECTED: { tone: "bad", icon: "x", label: "Rejected" },
   CANCELED: { tone: "neutral", icon: "x", label: "Canceled" },
-  NOT_APPLICABLE: { tone: "neutral", icon: "info", label: "Not applicable" },
-  QUEUED: { tone: "neutral", icon: "info", label: "Queued" },
+  NOT_APPLICABLE: { tone: "neutral", icon: "info", label: "Not needed" },
+  QUEUED: { tone: "neutral", icon: "clock", label: "Waiting" },
   CREATED: { tone: "neutral", icon: "info", label: "Created" },
   UPLOADING: { tone: "live", icon: "upload", label: "Uploading" },
-  VALIDATING: { tone: "live", icon: "pulse", label: "Validating" },
-  RUNNING: { tone: "live", icon: "pulse", label: "Running" },
+  VALIDATING: { tone: "live", icon: "pulse", label: "Checking upload" },
+  RUNNING: { tone: "live", icon: "pulse", label: "In progress" },
   pending: { tone: "neutral", icon: "info", label: "Checking" },
   // Issue lifecycle (triage decision) — distinct from recheck evidence below.
   OPEN: { tone: "warn", icon: "alert", label: "Open" },
-  TRIAGED: { tone: "neutral", icon: "info", label: "Triaged" },
+  TRIAGED: { tone: "neutral", icon: "users", label: "Acknowledged" },
   ACCEPTED_RISK: { tone: "neutral", icon: "shield", label: "Accepted risk" },
-  FALSE_POSITIVE: { tone: "neutral", icon: "x", label: "False positive" },
+  FALSE_POSITIVE: { tone: "neutral", icon: "x", label: "Not a problem" },
   FIX_PROPOSED: { tone: "live", icon: "wrench", label: "Fix proposed" },
   RESOLVED: { tone: "ok", icon: "check", label: "Resolved" },
   // Recheck evidence from the newest compatible scan.
-  VERIFIED_PRESENT: { tone: "warn", icon: "scan", label: "Verified present" },
-  VERIFIED_ABSENT: { tone: "ok", icon: "check", label: "Verified absent" },
+  VERIFIED_PRESENT: { tone: "warn", icon: "scan", label: "Still present" },
+  VERIFIED_ABSENT: { tone: "ok", icon: "check", label: "Fixed" },
   NOT_RECHECKED: { tone: "neutral", icon: "info", label: "Not rechecked" },
   UNKNOWN: { tone: "neutral", icon: "info", label: "Unknown" },
-  RULE_OBSOLETE: { tone: "neutral", icon: "x", label: "Rule obsolete" },
+  RULE_OBSOLETE: { tone: "neutral", icon: "x", label: "Rule retired" },
   // Graph edge classification.
-  resolved: { tone: "ok", icon: "check", label: "Resolved" },
+  resolved: { tone: "ok", icon: "check", label: "Confirmed" },
   declared: { tone: "neutral", icon: "info", label: "Declared" },
-  inferred: { tone: "warn", icon: "sparkles", label: "Inferred" },
-  unresolved: { tone: "bad", icon: "x", label: "Unresolved" },
+  inferred: { tone: "warn", icon: "sparkles", label: "Likely" },
+  unresolved: { tone: "bad", icon: "x", label: "Not found" },
 };
+
+/** Plain-language label of a state (falls back to the raw value). */
+export function statusLabel(state: string): string {
+  return STATES[state]?.label ?? state;
+}
 
 /** State indicator that never relies on colour alone: icon + text + tone. */
 export function StatusBadge({ state, label }: { state: string; label?: string }) {

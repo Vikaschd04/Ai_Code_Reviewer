@@ -2,7 +2,8 @@
 
 Usage: python deploy/smoke_test.py http://127.0.0.1:8080 <access-token> [origin]
 Checks liveness, readiness, the web UI at /, the Host allowlist, a ticket-authorized upload with
-CORS, snapshot freezing and a real scan. Trivy may be UNAVAILABLE while the offline DB is not
+CORS, snapshot freezing, a real scan and, when the demo account is enabled, a demo sign-in with a
+review of the built-in sample project. Trivy may be UNAVAILABLE while the offline DB is not
 downloaded yet, unless SMOKE_REQUIRE_TRIVY=1 (the image bakes the DB in). SMOKE_TIMEOUT_SECONDS
 (default 300) bounds each wait; slow hosts such as a 0.1-CPU free instance need more. The slowest
 API response observed while waiting is reported as ``max_api_seconds``.
@@ -70,14 +71,59 @@ def check(condition: bool, detail: object) -> None:
         raise SystemExit(f"smoke test failed: {detail}")
 
 
-def wait(base: str, path: str, token: str, done: set[str]) -> dict[str, Any]:
+def wait(base: str, path: str, token: str | None, done: set[str], **headers: str) -> dict[str, Any]:
     deadline = time.monotonic() + TIMEOUT
     while time.monotonic() < deadline:
-        status, _, body = call(base, "GET", path, token)
+        status, _, body = call(base, "GET", path, token, **headers)
         if status == 200 and body["state"] in done:
             return dict(body)
         time.sleep(1)
     raise SystemExit(f"timed out waiting for {path}")
+
+
+def demo_sample_review(base: str, origin: str) -> dict[str, Any] | None:
+    """When the demo is enabled: sign in as the demo user, run the sample project review."""
+    status, _, options = call(base, "GET", "/v1/auth/options", None)
+    check(status == 200, options)
+    if not options["demo_enabled"]:
+        return None
+    status, headers, _ = call(base, "POST", "/v1/auth/demo-session", None, Origin=origin)
+    check(status == 200, f"demo sign-in answered {status}")
+    # The session cookie is Secure (hosted mode); this test speaks plain HTTP to the container,
+    # so the cookie is sent explicitly instead of through a cookie jar.
+    cookie = next(v for k, v in headers.items() if k.lower() == "set-cookie").split(";")[0]
+    auth = {"Cookie": cookie, "Origin": origin}
+    status, _, me = call(base, "GET", "/v1/auth/me", None, **auth)
+    check(status == 200 and me["is_demo"] and not me["is_operator"], me)
+    workspace = me["workspaces"][0]["workspace_id"]
+    status, _, sample = call(
+        base, "POST", "/v1/projects/sample", None, {"workspace_id": workspace}, **auth
+    )
+    check(status == 202, sample)
+    intake = wait(
+        base, f"/v1/intakes/{sample['intake']['id']}", None, {"READY", "REJECTED"}, **auth
+    )
+    check(intake["state"] == "READY", intake)
+    status, _, scan = call(
+        base,
+        "POST",
+        f"/v1/projects/{sample['project']['id']}/scans",
+        None,
+        {"snapshot_id": intake["snapshot_id"]},
+        **auth,
+    )
+    check(status == 202, scan)
+    done = wait(
+        base,
+        f"/v1/scans/{scan['id']}",
+        None,
+        {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"},
+        **auth,
+    )
+    engines = {e["engine"]: e["state"] for e in done["engines"]}
+    check(all(state == "SUCCEEDED" for state in engines.values()), engines)
+    check(done["summary"]["findings"] >= 30, done["summary"])
+    return {"sample": done["state"], "findings": done["summary"]["findings"]}
 
 
 def main() -> int:
@@ -171,6 +217,8 @@ def main() -> int:
     _, _, page = call(base, "GET", f"/v1/scans/{scan['id']}/findings?limit=50", token)
     rules = {f["rule_id"] for f in page["items"]}
     check({"UseEqualsToCompareStrings", "no-eval", "crp.js.code-injection.eval"} <= rules, rules)
+    sample = demo_sample_review(base, origin)
+    print(json.dumps({"demo_sample_review": sample if sample else "demo disabled"}))
     print("smoke test passed")
     return 0
 

@@ -85,7 +85,7 @@ jobs:
           bash deploy/codespace.sh up
           python3 deploy/smoke_test.py http://127.0.0.1:8080 "$(bash deploy/codespace.sh token)" \
             https://ci-8080.app.github.dev | tee smoke-standard.txt
-          echo "::notice title=Standard profile smoke test::$(head -1 smoke-standard.txt)"
+          echo "::notice title=Standard profile smoke test::$(head -2 smoke-standard.txt | tr '\n' ' ')"
       - name: Application logs (standard profile)
         if: always()
         run: bash deploy/codespace.sh logs || true
@@ -111,7 +111,7 @@ jobs:
           peak="$(docker exec "$app" cat /sys/fs/cgroup/memory.peak || echo unknown)"
           echo "::notice title=Lite profile - 512 MB and 0.1 CPU::memory.peak=${peak} bytes;" \
             "restarts=${restarts}; oom_killed=${oom_flag}; oom_kill=${oom_kills};" \
-            "$(head -1 smoke-lite.txt)"
+            "$(head -2 smoke-lite.txt | tr '\n' ' ')"
           test "$restarts" = 0 && test "$oom_flag" = false && test "$oom_kills" = 0
       - name: Application logs (lite profile)
         if: always()

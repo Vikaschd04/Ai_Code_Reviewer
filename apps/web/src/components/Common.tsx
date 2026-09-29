@@ -101,3 +101,26 @@ export function PageHeader({
     </header>
   );
 }
+
+/** Collapsed section for details most reviewers do not need (versions, hashes, provenance). */
+export function Disclosure({
+  summary = "Technical details",
+  children,
+  testId,
+  defaultOpen = false,
+}: {
+  summary?: ReactNode;
+  children: ReactNode;
+  testId?: string;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details className="disclosure" data-testid={testId} open={defaultOpen}>
+      <summary>
+        <Icon name="chevron" size={14} className="disclosure-chevron" />
+        {summary}
+      </summary>
+      <div className="disclosure-body">{children}</div>
+    </details>
+  );
+}

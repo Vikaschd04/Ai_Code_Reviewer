@@ -59,6 +59,8 @@ describe("CoverageMeter", () => {
         name: "1 of 3 eligible files analyzed, 1 failed, 1 not attempted",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/1\/3 analyzed · 1 failed · 1 not attempted/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 of 3 files checked · 1 could not be read · 1 not attempted/),
+    ).toBeInTheDocument();
   });
 });

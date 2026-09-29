@@ -1,11 +1,15 @@
-# Code Review Platform
+# refactorX
 
-An upload-first code intelligence, review and validated-remediation application for Java, JavaScript/TypeScript, SAP Commerce and Salesforce.
+Evidence-based code review for Java, JavaScript/TypeScript, SAP Commerce and Salesforce: upload your code, get security flaws, bugs and vulnerable dependencies with the exact location and how to fix them — and, in later phases, validated fixes.
+
+(Internal package and setting names still use `crp` from the project's working name, "Code Review Platform"; see ADR 0011.)
 
 **Current state: Phases 0–2 are implemented and their mandatory gates passed on macOS — see the [P00](docs/validation/P00_REPORT.md), [P01](docs/validation/P01_REPORT.md) and [P02](docs/validation/P02_REPORT.md) reports.** You can upload a ZIP or capture a local folder, review the frozen scope, run real PMD, ESLint, Opengrep and Trivy scans, triage durable issues, compare scans, export JSON/SARIF, and explore an evidence-backed architecture graph. Analysis is source-only (no build/runtime verification) and no AI is involved yet.
 
 ## What works today
 
+- **Try it in one click:** the sign-in page offers **Try the demo** (a shared demo workspace, no token) and every workspace offers **Try the sample project** — a small, deliberately flawed Java/TypeScript online store that is uploaded and reviewed by every analyzer with one click.
+- **Reviewer-first UI:** plain-language screens (reviews, uploads, findings, issues, changes, architecture); versions, hashes and other provenance sit behind "Technical details"; administration pages only for administrators; light, dark and mobile layouts.
 - **Source intake:** ZIP upload (streamed, bounded, attack-resistant) and `crp-runner capture` for a local folder (secrets and dependency/build output skipped on your machine); both produce the same content-addressed snapshot.
 - **Scope review:** every entry accounted for (analyzable, excluded with reason, binary, oversized), languages, build/framework indicators with version confidence.
 - **Baseline analysis:** Tree-sitter structure, PMD 7.27.0 and ESLint 10.11.0 with platform-owned rules that uploaded code cannot disable; per-file coverage; failures and partial results shown honestly; live progress and cancellation.
@@ -15,7 +19,7 @@ An upload-first code intelligence, review and validated-remediation application 
 - **Comparison and exports:** new / still present / verified absent / not rechecked / unknown / rule obsolete between any two scans; schema-validated JSON and SARIF 2.1.0 downloads.
 - **Architecture:** snapshot graph of modules, files, types and relations with source evidence and resolved/declared/inferred/unresolved classification; bounded neighborhood and impact views with table equivalents.
 - **Caching:** per-file results reused only for identical content, engine, rules and configuration; full rescans on demand.
-- **Modern UI:** dark-first "deep space" design with a light theme, dashboard, upload with progress, live scan pipeline, charts and source viewer.
+- **Modern UI:** dark-first "deep space" design with a light theme, overview, upload with progress, live review progress, charts and source viewer.
 - Loopback-only, token-authenticated local deployment: FastAPI API, Temporal worker, React UI, PostgreSQL 18, Temporal dev server.
 - Readiness that checks the real dependencies (database + schema revision, Temporal namespace, worker pollers, artifact-store write/read probe), shown in the UI and by `make doctor`.
 - A diagnostic Temporal workflow that proves API → Temporal → worker → artifact store/DB execution.
@@ -27,7 +31,7 @@ An upload-first code intelligence, review and validated-remediation application 
 
 ## Deployment
 
-Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. Free with a public URL: the Render Blueprint `render.yaml` (Render free web service + free PostgreSQL; lite profile — every feature, one scan at a time, sleeps when idle). Free alternative: **GitHub Codespaces** (starts automatically, private URL). Paid, always on: `deploy/render-standard.yaml`. All are a single-user mode signed in with one access token; every push to `main` runs CI, which also runs the app under the Render free limits (512 MB, 0.1 CPU). Setup steps, free-tier limits and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. Free with a public URL: the Render Blueprint `render.yaml` (Render free web service + free PostgreSQL; lite profile — every feature, one scan at a time, sleeps when idle). Free alternative: **GitHub Codespaces** (starts automatically, private URL). Paid, always on: `deploy/render-standard.yaml`. All are a single-user mode signed in with one access token, plus an optional shared demo account (`CRP_DEMO_ENABLED`, on in the free Blueprint); every push to `main` runs CI, which also runs the app under the Render free limits (512 MB, 0.1 CPU). Setup steps, free-tier limits and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Quickstart (macOS, verified)
 

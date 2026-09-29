@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/v1/auth/demo-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Demo Session
+         * @description Sign in to the shared demo account (demo workspace only) when the demo is enabled.
+         */
+        post: operations["create_demo_session_v1_auth_demo_session_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/me": {
         parameters: {
             query?: never;
@@ -13,6 +33,26 @@ export interface paths {
         };
         /** Current Principal */
         get: operations["current_principal_v1_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sign In Options
+         * @description Public: which sign-in methods the web UI should offer (no credentials required).
+         */
+        get: operations["sign_in_options_v1_auth_options_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -353,6 +393,27 @@ export interface paths {
         put?: never;
         /** Create Project */
         post: operations["create_project_v1_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/sample": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Sample Project
+         * @description Create the built-in sample project (a small, deliberately flawed online store) and start
+         *     freezing its snapshot. Poll the returned intake, then start a scan of its snapshot.
+         */
+        post: operations["create_sample_project_v1_projects_sample_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -730,6 +791,15 @@ export interface components {
             /** Size Bytes */
             size_bytes: number;
         };
+        /**
+         * AuthOptions
+         * @description Public sign-in options for the web UI (no credentials needed).
+         */
+        AuthOptions: {
+            /** Demo Enabled */
+            demo_enabled: boolean;
+            environment: components["schemas"]["DeploymentEnvironment"];
+        };
         /** Capability */
         Capability: {
             /** Id */
@@ -862,6 +932,16 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /**
+         * DeploymentEnvironment
+         * @description Supported deployment tiers. Hosted multi-tenant deployment is absent until P07.
+         *
+         *     ``hosted`` is a single-user deployment behind an HTTPS reverse proxy (see
+         *     docs/DEPLOYMENT.md): public bind, Host-header allowlist, HTTPS-only web origins and secure
+         *     cookies. It is not a multi-tenant or SSO deployment.
+         * @enum {string}
+         */
+        DeploymentEnvironment: "local" | "test" | "hosted";
         /** DiagnosticRunResponse */
         DiagnosticRunResponse: {
             /** Closed At */
@@ -1623,6 +1703,11 @@ export interface components {
             auth_method: string;
             /** Display Name */
             display_name: string;
+            /**
+             * Is Demo
+             * @description Signed in with the shared demo account (demo workspace only)
+             */
+            is_demo: boolean;
             /** Is Operator */
             is_operator: boolean;
             /** Subject */
@@ -1737,6 +1822,22 @@ export interface components {
             title: string;
             /** Url */
             url: string | null;
+        };
+        /** SampleProjectCreate */
+        SampleProjectCreate: {
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+        };
+        /**
+         * SampleProjectResponse
+         * @description The new sample project and the intake that is freezing its snapshot.
+         */
+        SampleProjectResponse: {
+            intake: components["schemas"]["IntakeResponse"];
+            project: components["schemas"]["ProjectResponse"];
         };
         /** ScanComparison */
         ScanComparison: {
@@ -1999,6 +2100,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    create_demo_session_v1_auth_demo_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     current_principal_v1_auth_me_get: {
         parameters: {
             query?: never;
@@ -2019,6 +2158,35 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sign_in_options_v1_auth_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthOptions"];
+                };
+            };
+            /** @description Host not allowed (hosted mode) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3184,6 +3352,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_sample_project_v1_projects_sample_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleProjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleProjectResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

@@ -96,6 +96,7 @@ def service_env(
         "CRP_ARTIFACT_ROOT": str(artifacts),
         "CRP_TRUSTED_DEV_ROOT": str(repo),
         "CRP_LOG_FORMAT": log_format,
+        "CRP_DEMO_ENABLED": "true",  # loopback only: lets the UI's "Try the demo" work locally
     }
 
 

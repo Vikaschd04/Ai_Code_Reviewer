@@ -1,4 +1,5 @@
 import type { EngineRun } from "../api/client";
+import { categoryLabel } from "../lib/labels";
 
 /** Single-series magnitude bars (one hue; the heading names the series, so no legend). */
 export function CategoryBars({ counts }: { counts: Record<string, number> }) {
@@ -9,8 +10,8 @@ export function CategoryBars({ counts }: { counts: Record<string, number> }) {
     <ul className="barlist">
       {entries.map(([name, value]) => (
         <li key={name} className="barlist-row">
-          <span className="secondary">{name.replaceAll("_", " ")}</span>
-          <div className="barlist-track" title={`${name}: ${value}`}>
+          <span className="secondary">{categoryLabel(name)}</span>
+          <div className="barlist-track" title={`${categoryLabel(name)}: ${value}`}>
             <div
               className="barlist-bar"
               style={{ width: `${(value / max) * 100}%`, background: "var(--sev-low)" }}
@@ -54,7 +55,7 @@ export function CoverageMeter({ run }: { run: EngineRun }) {
         </div>
       )}
       <p className="small muted" style={{ margin: "6px 0 0" }}>
-        {analyzed}/{eligible} analyzed{failed ? ` · ${failed} failed` : ""}
+        {analyzed} of {eligible} files checked{failed ? ` · ${failed} could not be read` : ""}
         {skipped ? ` · ${skipped} not attempted` : ""}
       </p>
     </div>

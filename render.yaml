@@ -18,6 +18,8 @@ services:
     envVars:
       - key: CRP_PROFILE
         value: lite
+      - key: CRP_DEMO_ENABLED # "Try the demo" on the sign-in page (shared demo workspace)
+        value: "true"
       - key: CRP_DATABASE_URL
         fromDatabase:
           name: ai-code-reviewer-db

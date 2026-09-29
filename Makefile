@@ -1,4 +1,4 @@
-# Developer command contract for the Code Review Platform (macOS/Linux, GNU Make >= 3.81).
+# Developer command contract for refactorX (macOS/Linux, GNU Make >= 3.81).
 # Every target delegates to pinned tools: uv (Python), pnpm (web) and `crp-dev` (tools/devtools).
 # Paths are relative to the repository root, so a checkout path containing spaces works.
 

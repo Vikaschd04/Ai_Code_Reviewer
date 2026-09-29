@@ -3,12 +3,13 @@ import { useState } from "react";
 import type { Finding } from "../api/client";
 import { fetchFinding } from "../api/endpoints";
 import { CodeView } from "../components/CodeView";
-import { Alert, Loading, PageHeader } from "../components/Common";
+import { Alert, Disclosure, Loading, PageHeader } from "../components/Common";
 import { Icon } from "../components/Icon";
 import { IssuePanel } from "../components/IssuePanel";
 import { SeverityChip } from "../components/Severity";
 import { StatusBadge } from "../components/Status";
-import { shortHash, titleCase } from "../lib/format";
+import { shortHash } from "../lib/format";
+import { CHECKS, categoryLabel, checkName } from "../lib/labels";
 import { useAsync } from "../lib/useAsync";
 
 /** ``path:line`` for source spans; dependency and file findings have no invented line. */
@@ -24,17 +25,15 @@ export function findingLocation(finding: Finding): string {
 }
 
 const DEPENDENCY_FIELDS: [string, string][] = [
-  ["package", "Package"],
-  ["installed_version", "Installed"],
-  ["fixed_version", "Fixed in"],
+  ["package", "Library"],
+  ["installed_version", "Your version"],
+  ["fixed_version", "Fixed in version"],
   ["vulnerability_id", "Advisory"],
-  ["status", "Advisory status"],
-  ["purl", "Package URL"],
 ];
 
 function formatDetail(key: string, value: unknown): string {
   if (value === null || value === undefined)
-    return key === "fixed_version" ? "no fix published" : "—";
+    return key === "fixed_version" ? "No fix published yet" : "—";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
@@ -45,7 +44,7 @@ function DependencyCard({ details }: { details: Record<string, unknown> }) {
   return (
     <section className="card stack" aria-labelledby="dep-title" data-testid="dependency-card">
       <h2 id="dep-title" className="card-title">
-        <Icon name="projects" size={16} /> Dependency
+        <Icon name="box" size={16} /> Vulnerable library
       </h2>
       <dl className="dep-grid">
         {DEPENDENCY_FIELDS.map(([key, label]) => (
@@ -56,8 +55,8 @@ function DependencyCard({ details }: { details: Record<string, unknown> }) {
         ))}
       </dl>
       <p className="hint">
-        Declared in a lockfile/manifest of this snapshot; matched offline against the Trivy
-        vulnerability database. Reachability is not assessed.
+        Declared in your dependency files and matched against a public vulnerability database.
+        Whether your code actually uses the vulnerable part is not checked.
       </p>
     </section>
   );
@@ -80,7 +79,8 @@ export function FindingPage({ findingId }: { findingId: string }) {
         eyebrow={
           <>
             <a href={`#/scans/${finding.scan_id}`}>
-              <Icon name="arrow" size={12} style={{ transform: "rotate(180deg)" }} /> Back to scan
+              <Icon name="arrow" size={12} style={{ transform: "rotate(180deg)" }} /> Back to review
+              results
             </a>
           </>
         }
@@ -89,7 +89,7 @@ export function FindingPage({ findingId }: { findingId: string }) {
         actions={
           <div className="row">
             <SeverityChip severity={finding.severity} />
-            <span className="badge badge-neutral">{titleCase(finding.category)}</span>
+            <span className="badge badge-neutral">{categoryLabel(finding.category)}</span>
             {finding.issue ? <StatusBadge state={issueStatus ?? finding.issue.status} /> : null}
           </div>
         }
@@ -110,31 +110,55 @@ export function FindingPage({ findingId }: { findingId: string }) {
               />
             ) : dependency ? (
               <Alert tone="info">
-                The engine reported this against the dependency, not a source line; no line is
-                invented.
+                This finding is about a library your project depends on, not a line of your code.
               </Alert>
             ) : (
-              <Alert tone="info">Source content is not stored for this file.</Alert>
+              <Alert tone="info">This file's content is not shown (it is not stored).</Alert>
             )}
-            <p className="hint">{detail.data.evidence_note}</p>
+          </section>
+          <section className="card stack" aria-labelledby="guidance-title">
+            <h2 id="guidance-title" className="card-title">
+              <Icon name="sparkles" size={16} /> Why it matters
+            </h2>
+            <p style={{ margin: 0 }}>{rule.explanation}</p>
+            <h3 className="card-title" style={{ fontSize: "0.92rem" }}>
+              How to fix
+            </h3>
+            <p style={{ margin: 0 }} data-testid="recommendation">
+              {rule.recommendation}
+            </p>
+            <p className="small muted" style={{ margin: 0 }}>
+              <strong>Why this severity:</strong> {rule.severity_rationale}
+            </p>
+            {rule.url ? (
+              <a href={rule.url} target="_blank" rel="noopener noreferrer">
+                {fromDatabase ? "Read the advisory ↗" : "Learn more about this rule ↗"}
+              </a>
+            ) : null}
+            {!rule.in_catalog ? (
+              <Alert tone="warn">This rule has no detailed guidance yet.</Alert>
+            ) : null}
+            <p className="hint">
+              {fromDatabase
+                ? "Guidance from the public vulnerability database. No AI was used."
+                : "Guidance from the refactorX rule catalog. No AI was used."}
+            </p>
           </section>
           {dependency ? <DependencyCard details={details} /> : null}
           {related.length > 0 ? (
             <section className="card stack" aria-labelledby="related-title">
               <h2 id="related-title" className="card-title">
-                <Icon name="branch" size={16} /> Also reported by
+                <Icon name="check" size={16} /> Also found by
               </h2>
               <p className="small secondary" style={{ margin: 0 }}>
-                Same rule family at the same location from another engine. Each observation is kept
-                with its own provenance.
+                Another check found the same problem in the same place, which makes it more certain.
               </p>
               <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {related.map((other) => (
                   <li key={other.id} className="row">
                     <SeverityChip severity={other.severity} />
-                    <span className="badge badge-neutral">{other.engine}</span>
-                    <a href={`#/findings/${other.id}`} className="mono small">
-                      {other.rule_id}
+                    <a href={`#/findings/${other.id}`} className="small">
+                      {checkName(other.engine)}
                     </a>
                   </li>
                 ))}
@@ -151,51 +175,18 @@ export function FindingPage({ findingId }: { findingId: string }) {
               }}
             />
           ) : null}
-          <section className="card stack" aria-labelledby="guidance-title">
-            <h2 id="guidance-title" className="card-title">
-              <Icon name="sparkles" size={16} /> Why it matters
-            </h2>
-            <p style={{ margin: 0 }}>{rule.explanation}</p>
-            <h3 className="card-title" style={{ fontSize: "0.92rem" }}>
-              Recommendation
-            </h3>
-            <p style={{ margin: 0 }} data-testid="recommendation">
-              {rule.recommendation}
-            </p>
-            <h3 className="card-title" style={{ fontSize: "0.92rem" }}>
-              Severity rationale
-            </h3>
-            <p className="secondary" style={{ margin: 0 }}>
-              {rule.severity_rationale}
-            </p>
-            {rule.url ? (
-              <a href={rule.url} target="_blank" rel="noopener noreferrer">
-                {fromDatabase ? "Advisory ↗" : "Rule documentation ↗"}
-              </a>
-            ) : null}
-            {!rule.in_catalog ? (
-              <Alert tone="warn">
-                This rule is not in the platform catalog; guidance is generic.
-              </Alert>
-            ) : null}
-            <p className="hint">
-              {fromDatabase
-                ? "Guidance from the offline Trivy vulnerability database — no AI was used."
-                : "Static guidance from the platform rule catalog — no AI was used."}
-            </p>
-          </section>
-          <section className="card" aria-labelledby="evidence-title">
-            <h2 id="evidence-title" className="card-title" style={{ marginBottom: 12 }}>
-              Evidence
-            </h2>
+          <Disclosure testId="finding-technical">
             <dl className="kv">
-              <dt>Engine</dt>
-              <dd className="mono">
-                {finding.engine} {finding.engine_version}
+              <dt>Found by</dt>
+              <dd>
+                {checkName(finding.engine)}{" "}
+                <span className="mono muted">
+                  ({CHECKS[finding.engine]?.tool ?? finding.engine} {finding.engine_version})
+                </span>
               </dd>
               <dt>Rule</dt>
               <dd className="mono">{finding.rule_id}</dd>
-              <dt>Ruleset</dt>
+              <dt>Rule set</dt>
               <dd className="mono">{finding.ruleset ?? "—"}</dd>
               {finding.rule_family ? (
                 <>
@@ -209,8 +200,15 @@ export function FindingPage({ findingId }: { findingId: string }) {
               <dd className="hash">{shortHash(finding.fingerprint, 24)}</dd>
               <dt>Snapshot</dt>
               <dd className="hash">{shortHash(detail.data.manifest_sha256, 24)}</dd>
+              {typeof details?.purl === "string" ? (
+                <>
+                  <dt>Package URL</dt>
+                  <dd className="mono wrap-anywhere">{details.purl}</dd>
+                </>
+              ) : null}
             </dl>
-          </section>
+            <p className="hint">{detail.data.evidence_note}</p>
+          </Disclosure>
         </div>
       </div>
     </>

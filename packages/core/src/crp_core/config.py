@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     # Built web UI (apps/web/dist) served by the API itself: one origin for UI and API.
     web_static_dir: Path | None = None
     session_ttl_seconds: Annotated[int, Field(ge=300, le=7 * 24 * 3600)] = 12 * 3600
+    # Shared demo account (sign-in without a token) in its own workspace, with usage quotas.
+    # Off by default; anyone who can reach the site can use it (docs/SECURITY_MODEL.md).
+    demo_enabled: bool = False
+    demo_max_projects: Annotated[int, Field(ge=1, le=10_000)] = 30
+    demo_max_scans_per_hour: Annotated[int, Field(ge=1, le=10_000)] = 20
 
     database_url: SecretStr
     database_pool_size: Annotated[int, Field(ge=1, le=50)] = 5

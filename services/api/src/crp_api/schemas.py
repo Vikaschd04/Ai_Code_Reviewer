@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from crp_core.config import DeploymentEnvironment
 from crp_core.domain.states import MembershipRole, ProjectOrigin
 from crp_core.workflows.contracts import DiagnosticWorkflowResult
 from crp_core.workflows.gateway import WorkflowRunStatus
@@ -101,7 +102,17 @@ class PrincipalResponse(ApiModel):
     display_name: str
     auth_method: str
     is_operator: bool
+    is_demo: bool = Field(
+        description="Signed in with the shared demo account (demo workspace only)"
+    )
     workspaces: list[WorkspaceGrantResponse]
+
+
+class AuthOptions(ApiModel):
+    """Public sign-in options for the web UI (no credentials needed)."""
+
+    environment: DeploymentEnvironment
+    demo_enabled: bool
 
 
 # -- projects ----------------------------------------------------------------------------------
@@ -133,6 +144,10 @@ class ProjectResponse(ApiModel):
 class ProjectPage(ApiModel):
     items: list[ProjectResponse]
     next_cursor: str | None
+
+
+class SampleProjectCreate(ApiModel):
+    workspace_id: UUID
 
 
 # -- diagnostics -------------------------------------------------------------------------------
@@ -201,6 +216,13 @@ class IntakeResponse(ApiModel):
     finalized_at: datetime | None
     expires_at: datetime
     limits: IntakeLimits
+
+
+class SampleProjectResponse(ApiModel):
+    """The new sample project and the intake that is freezing its snapshot."""
+
+    project: ProjectResponse
+    intake: IntakeResponse
 
 
 class IntakePage(ApiModel):

@@ -3,10 +3,11 @@ import { useState } from "react";
 import { describeError, type Issue } from "../api/client";
 import { fetchIssue, listIssues } from "../api/endpoints";
 import { Alert, Empty, Loading } from "../components/Common";
+import { FileLocation } from "../components/FileLocation";
 import { Icon } from "../components/Icon";
 import { SeverityChip } from "../components/Severity";
-import { StatusBadge } from "../components/Status";
-import { formatRelative, titleCase } from "../lib/format";
+import { StatusBadge, statusLabel } from "../components/Status";
+import { formatRelative } from "../lib/format";
 import { navigate } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 
@@ -55,8 +56,8 @@ export function IssuesView({ projectId }: { projectId: string }) {
             <Icon name="shield" size={16} /> Issues
           </h2>
           <p className="card-sub">
-            Status is the triage decision; recheck is what the newest compatible scan could prove.
-            An issue is resolved only after a verified absence.
+            Problems tracked across reviews. Status is your team&apos;s decision; “latest review”
+            shows whether the newest review still finds it.
           </p>
         </div>
       </div>
@@ -80,7 +81,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
               ),
             )}
           </div>
-          <div className="row" role="group" aria-label="Filter by recheck state">
+          <div className="row" role="group" aria-label="Filter by latest review">
             {RECHECKS.map((value) => (
               <button
                 key={value}
@@ -91,7 +92,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
                   setRecheck((current) => (current === value ? "" : value));
                 }}
               >
-                {titleCase(value)} <strong>{page.data?.by_recheck[value] ?? 0}</strong>
+                {statusLabel(value)} <strong>{page.data?.by_recheck[value] ?? 0}</strong>
               </button>
             ))}
             <input
@@ -112,7 +113,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
       {page.loading && !page.data ? <Loading /> : null}
       {page.data && rows.length === 0 ? (
         <Empty title="No issues match">
-          <p className="small">Issues are created from findings of the newest scanned snapshot.</p>
+          <p className="small">Issues appear after a review finds problems.</p>
         </Empty>
       ) : null}
       {rows.length > 0 ? (
@@ -124,7 +125,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
                 <th scope="col">Severity</th>
                 <th scope="col">Issue</th>
                 <th scope="col">Status</th>
-                <th scope="col">Recheck</th>
+                <th scope="col">Latest review</th>
                 <th scope="col">Owner</th>
                 <th scope="col">Last seen</th>
               </tr>
@@ -153,14 +154,14 @@ export function IssuesView({ projectId }: { projectId: string }) {
                     >
                       {issue.title}
                     </button>
-                    <div className="mono small muted">
-                      {issue.path} · {issue.engine}
+                    <div className="small">
+                      <FileLocation path={issue.path} />
                     </div>
                   </th>
                   <td>
                     <StatusBadge state={issue.status} />
                     {issue.exception_expired ? (
-                      <div className="small muted">exception expired</div>
+                      <div className="small muted">acceptance ended</div>
                     ) : null}
                   </td>
                   <td title={issue.recheck_reason ?? undefined}>

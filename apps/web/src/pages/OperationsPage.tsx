@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { describeError, type DiagnosticRun } from "../api/client";
 import { fetchDiagnostic, fetchReadiness, startDiagnostic } from "../api/endpoints";
-import { Alert, Loading } from "../components/Common";
+import { Alert, Disclosure, Loading } from "../components/Common";
 import { Icon } from "../components/Icon";
 import { ReadinessTable } from "../components/ReadinessTable";
 import { StatusBadge } from "../components/Status";
+import { plural } from "../lib/labels";
 import { useAsync } from "../lib/useAsync";
 
 const POLL_INTERVAL_MS = 1000;
@@ -56,11 +57,11 @@ function DiagnosticPanel({ onFinished }: { onFinished: () => void }) {
       <div className="card-head">
         <div>
           <h2 id="diagnostic-title" className="card-title">
-            Workflow diagnostic
+            Test the review pipeline
           </h2>
           <p className="card-sub">
-            Runs a real Temporal workflow that writes, verifies and deletes a probe artifact and
-            checks the schema. It proves the execution path only; it analyses no code.
+            Runs a small end-to-end job that writes, verifies and deletes a test file and checks the
+            database. It reviews no code.
           </p>
         </div>
         <button
@@ -117,15 +118,20 @@ function DiagnosticPanel({ onFinished }: { onFinished: () => void }) {
 export function OperationsPage({ canOperate }: { canOperate: boolean }) {
   const readiness = useAsync((signal) => fetchReadiness(signal), []);
   const report = readiness.data;
+  const failing = report?.checks.filter((check) => check.status !== "ok") ?? [];
   return (
     <>
-      <section className="card" aria-labelledby="readiness-title">
-        <div className="card-head">
+      <section className="card stack" aria-labelledby="readiness-title">
+        <div className="card-head" style={{ marginBottom: 0 }}>
           <div>
             <h2 id="readiness-title" className="card-title">
-              Service readiness
+              {report
+                ? failing.length === 0
+                  ? "All services are running"
+                  : `${plural(failing.length, "service")} need${failing.length === 1 ? "s" : ""} attention`
+                : "Service status"}
             </h2>
-            <p className="card-sub">Live checks of the real dependencies behind this deployment.</p>
+            <p className="card-sub">Live checks of the services behind this deployment.</p>
           </div>
           <button
             type="button"
@@ -136,14 +142,17 @@ export function OperationsPage({ canOperate }: { canOperate: boolean }) {
             {readiness.loading ? "Checking…" : "Re-check"}
           </button>
         </div>
-        <div aria-live="polite">
+        <div aria-live="polite" className="stack">
           {readiness.error ? <Alert tone="bad">{readiness.error}</Alert> : null}
           {report ? (
             <>
-              <p className="row" data-testid="overall-readiness" style={{ marginTop: 0 }}>
+              <p
+                className="row small secondary"
+                data-testid="overall-readiness"
+                style={{ margin: 0 }}
+              >
                 <StatusBadge state={report.status} /> Checked{" "}
-                {new Date(report.checked_at).toLocaleTimeString()} ({report.environment}{" "}
-                environment)
+                {new Date(report.checked_at).toLocaleTimeString()}
               </p>
               <div className="table-wrap">
                 <ReadinessTable checks={report.checks} />
@@ -154,7 +163,11 @@ export function OperationsPage({ canOperate }: { canOperate: boolean }) {
           ) : null}
         </div>
       </section>
-      {canOperate ? <DiagnosticPanel onFinished={readiness.reload} /> : null}
+      {canOperate ? (
+        <Disclosure summary="Advanced: test the review pipeline" testId="diagnostic">
+          <DiagnosticPanel onFinished={readiness.reload} />
+        </Disclosure>
+      ) : null}
     </>
   );
 }

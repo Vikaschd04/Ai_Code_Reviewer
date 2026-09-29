@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   describeError,
-  type ComparisonGroup,
+  type ComparisonItem,
   type EngineRun,
   type Finding,
   type Scan,
@@ -11,14 +11,17 @@ import {
   cancelScan,
   compareScans,
   exportUrl,
+  fetchProject,
   fetchScan,
+  fetchSnapshot,
   listCoverage,
   listFindings,
   listScans,
   startScan,
 } from "../api/endpoints";
 import { CategoryBars, CoverageMeter } from "../components/Charts";
-import { Alert, Empty, Loading, PageHeader, Tabs } from "../components/Common";
+import { Alert, Disclosure, Empty, Loading, PageHeader, Tabs } from "../components/Common";
+import { FileLocation } from "../components/FileLocation";
 import { Icon } from "../components/Icon";
 import {
   SEVERITIES,
@@ -28,38 +31,21 @@ import {
   severityCounts,
 } from "../components/Severity";
 import { StatusBadge, findingTotal, isTerminalScan } from "../components/Status";
-import { formatDuration, formatRelative, shortHash, titleCase } from "../lib/format";
+import { formatDuration, formatRelative, titleCase } from "../lib/format";
+import {
+  CATEGORY_LABELS,
+  CHECK_ORDER,
+  CHECKS,
+  FINDING_CHECKS,
+  categoryLabel,
+  checkName,
+  plural,
+} from "../lib/labels";
+import { reviewLabel, reviewNumbers } from "../lib/reviews";
 import { navigate } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
-import { findingLocation } from "./FindingPage";
 
-const ENGINE_LABELS: Record<string, string> = {
-  structure: "Structure (Tree-sitter)",
-  graph: "Graph · relations",
-  pmd: "PMD · Java",
-  eslint: "ESLint · JS/TS",
-  opengrep: "Opengrep · security rules",
-  trivy: "Trivy · dependencies & secrets",
-};
-const ENGINES = ["structure", "graph", "pmd", "eslint", "opengrep", "trivy"];
-const STAGE_LABELS: Record<string, string> = {
-  structure: "Structure",
-  graph: "Graph",
-  pmd: "PMD",
-  eslint: "ESLint",
-  opengrep: "Opengrep",
-  trivy: "Trivy",
-};
-const FINDING_ENGINES = ["pmd", "eslint", "opengrep", "trivy"];
-const CATEGORIES = [
-  "security",
-  "dependencies",
-  "correctness",
-  "reliability",
-  "performance",
-  "maintainability",
-  "coding_standards",
-];
+const ISSUE_STATUSES = ["OPEN", "TRIAGED", "ACCEPTED_RISK", "FALSE_POSITIVE", "RESOLVED"];
 
 /** Subscribe to server-sent progress events; returns a counter that changes on every event. */
 function useScanEvents(scanId: string, active: boolean): number {
@@ -91,37 +77,38 @@ function useScanEvents(scanId: string, active: boolean): number {
   return tick;
 }
 
-function Pipeline({ scan }: { scan: Scan }) {
+function stepMeta(run: EngineRun | undefined, terminal: boolean): string {
+  if (!run) return terminal ? "Not needed" : "Waiting";
+  if (run.state === "RUNNING") return "Working…";
+  if (run.state === "QUEUED") return "Waiting";
+  if (run.state === "NOT_APPLICABLE") return "No matching files";
+  if (run.state === "UNAVAILABLE") return "Not available";
+  return plural(run.files_succeeded, "file");
+}
+
+function Progress({ scan }: { scan: Scan }) {
   const runs = new Map(scan.engines.map((run) => [run.engine, run]));
+  const terminal = isTerminalScan(scan.state);
   const stages = [
-    {
-      id: "snapshot",
-      name: "Snapshot",
-      state: "SUCCEEDED",
-      meta: shortHash(scan.manifest_sha256, 10),
-    },
-    ...ENGINES.map((engine) => {
+    { id: "snapshot", name: "Code received", state: "SUCCEEDED", meta: "Ready" },
+    ...CHECK_ORDER.map((engine) => {
       const run = runs.get(engine);
       return {
         id: engine,
-        name: STAGE_LABELS[engine] ?? engine,
-        state: run?.state ?? (isTerminalScan(scan.state) ? "NOT_APPLICABLE" : "QUEUED"),
-        meta: run ? `${run.files_eligible} eligible` : "waiting",
+        name: checkName(engine),
+        state: run?.state ?? (terminal ? "NOT_APPLICABLE" : "QUEUED"),
+        meta: stepMeta(run, terminal),
       };
     }),
     {
       id: "publish",
-      name: "Published",
-      state: isTerminalScan(scan.state) ? scan.state : "QUEUED",
-      meta: isTerminalScan(scan.state) ? `${findingTotal(scan.summary) ?? 0} findings` : "pending",
+      name: "Results",
+      state: terminal ? scan.state : "QUEUED",
+      meta: terminal ? plural(findingTotal(scan.summary) ?? 0, "finding") : "Pending",
     },
   ];
   return (
-    <ol
-      className="pipeline"
-      aria-label="Scan pipeline"
-      style={{ listStyle: "none", padding: 0, margin: 0 }}
-    >
+    <ol className="pipeline" aria-label="Review progress">
       {stages.map((stage) => (
         <li
           key={stage.id}
@@ -129,7 +116,7 @@ function Pipeline({ scan }: { scan: Scan }) {
           data-state={stage.state}
           data-testid={`stage-${stage.id}`}
         >
-          <div className="row" style={{ justifyContent: "space-between" }}>
+          <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>
             <span className="stage-name">{stage.name}</span>
             {stage.state === "RUNNING" ? <span className="pulse-dot" aria-hidden="true" /> : null}
           </div>
@@ -141,77 +128,143 @@ function Pipeline({ scan }: { scan: Scan }) {
   );
 }
 
-function EngineCard({ run }: { run: EngineRun }) {
+function CheckTechnicalDetails({ run }: { run: EngineRun }) {
+  const cache = run.diagnostics?.cache as { eligible?: boolean } | undefined;
   return (
-    <article
-      className="card stack"
-      aria-labelledby={`engine-${run.engine}`}
-      data-testid={`engine-${run.engine}`}
-    >
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h3 id={`engine-${run.engine}`} className="card-title">
-          {ENGINE_LABELS[run.engine] ?? run.engine}
-        </h3>
-        <StatusBadge state={run.state} />
+    <dl className="details" data-testid={`engine-${run.engine}`}>
+      <div>
+        <dt>Tool</dt>
+        <dd className="mono">
+          {CHECKS[run.engine]?.tool ?? run.engine} {run.engine_version ?? ""}
+        </dd>
       </div>
-      <CoverageMeter run={run} />
-      <dl className="details">
-        <div>
-          <dt>Version</dt>
-          <dd className="mono">{run.engine_version ?? "—"}</dd>
-        </div>
-        <div>
-          <dt>Ruleset</dt>
-          <dd className="mono">{run.ruleset_id ?? "—"}</dd>
-        </div>
-        <div>
-          <dt>Findings</dt>
-          <dd>{run.findings_count}</dd>
-        </div>
-        <div>
-          <dt>Duration</dt>
-          <dd>{formatDuration(run.duration_ms)}</dd>
-        </div>
-        <div>
-          <dt>Rules</dt>
-          <dd>
-            {run.enabled_rule_count === null || run.enabled_rule_count === undefined
-              ? run.engine === "trivy"
-                ? "vuln DB + secrets"
-                : "—"
-              : run.enabled_rule_count}
-          </dd>
-        </div>
-        <div>
-          <dt>Cache</dt>
-          <dd data-testid={`cache-${run.engine}`}>
-            {run.cache_hits || run.cache_misses
-              ? `${String(run.cache_hits)} reused · ${String(run.cache_misses)} run`
-              : cacheNote(run)}
-          </dd>
-        </div>
-      </dl>
+      <div>
+        <dt>Rule set</dt>
+        <dd className="mono">{run.ruleset_id ?? "—"}</dd>
+      </div>
+      <div>
+        <dt>Rules</dt>
+        <dd>
+          {run.enabled_rule_count ?? (run.engine === "trivy" ? "vulnerability DB + secrets" : "—")}
+        </dd>
+      </div>
+      <div>
+        <dt>Duration</dt>
+        <dd>{formatDuration(run.duration_ms)}</dd>
+      </div>
+      <div>
+        <dt>Saved results reused</dt>
+        <dd data-testid={`cache-${run.engine}`}>
+          {run.cache_hits || run.cache_misses
+            ? `${String(run.cache_hits)} reused · ${String(run.cache_misses)} run`
+            : cache?.eligible === false
+              ? "not reusable"
+              : "—"}
+        </dd>
+      </div>
       {typeof run.diagnostics?.db_updated_at === "string" ? (
-        <p className="hint" style={{ margin: 0 }}>
-          Vulnerability DB {formatRelative(run.diagnostics.db_updated_at)}
-          {run.diagnostics.db_stale === true ? " · stale, refresh with make engines" : ""} · offline
-        </p>
+        <div>
+          <dt>Vulnerability data</dt>
+          <dd>
+            Vulnerability DB updated {formatRelative(run.diagnostics.db_updated_at)}
+            {run.diagnostics.db_stale === true ? " (older than a day)" : ""}
+          </dd>
+        </div>
       ) : null}
-      {run.error_message ? (
-        <Alert tone={run.state === "UNAVAILABLE" || run.state === "FAILED" ? "bad" : "warn"}>
-          <p>
-            <code>{run.error_code}</code> {run.error_message}
-          </p>
-        </Alert>
+      {run.error_code ? (
+        <div>
+          <dt>Error code</dt>
+          <dd className="mono">{run.error_code}</dd>
+        </div>
       ) : null}
-    </article>
+    </dl>
   );
 }
 
-function cacheNote(run: EngineRun): string {
-  const cache = run.diagnostics?.cache as { eligible?: boolean } | undefined;
-  if (cache && cache.eligible === false) return "not cacheable";
-  return "—";
+function ChecksPanel({ scan, limitations }: { scan: Scan; limitations: string[] }) {
+  const runs = [...scan.engines].sort(
+    (a, b) => CHECK_ORDER.indexOf(a.engine) - CHECK_ORDER.indexOf(b.engine),
+  );
+  const problems = runs.filter((run) => ["FAILED", "UNAVAILABLE", "PARTIAL"].includes(run.state));
+  return (
+    <Disclosure
+      testId="checks-panel"
+      defaultOpen={problems.length > 0}
+      summary={
+        <>
+          What was checked
+          <span className="muted small">
+            {" "}
+            · {plural(runs.length, "check")}
+            {problems.length ? ` · ${plural(problems.length, "problem")}` : ""}
+          </span>
+        </>
+      }
+    >
+      <ul className="check-list">
+        {runs.map((run) => (
+          <li key={run.engine} className="check-row" data-testid={`check-${run.engine}`}>
+            <div className="check-main">
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <strong>{checkName(run.engine)}</strong>
+                <StatusBadge state={run.state} />
+              </div>
+              <p className="small muted" style={{ margin: "2px 0 6px" }}>
+                {CHECKS[run.engine]?.description}
+              </p>
+              {run.files_eligible > 0 ? <CoverageMeter run={run} /> : null}
+              {run.error_message ? (
+                <p className="small" style={{ margin: "6px 0 0", color: "var(--bad)" }}>
+                  {run.error_message}
+                </p>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {limitations.length > 0 ? (
+        <div className="stack" style={{ gap: 4 }}>
+          <strong className="small">Keep in mind</strong>
+          <ul
+            className="small secondary"
+            style={{ margin: 0, paddingLeft: 18 }}
+            data-testid="limitations"
+          >
+            {limitations.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <Disclosure summary="Technical details" testId="checks-technical">
+        <div className="grid grid-3">
+          {runs.map((run) => (
+            <section key={run.engine} className="stack" style={{ gap: 6 }}>
+              <strong className="small">{checkName(run.engine)}</strong>
+              <CheckTechnicalDetails run={run} />
+            </section>
+          ))}
+        </div>
+        <p className="hint">
+          Review policy {scan.policy_version} ·{" "}
+          {scan.cache_mode === "refresh" ? "full review" : "unchanged files reuse saved results"} ·
+          source code only (the application is not built or run).
+        </p>
+      </Disclosure>
+    </Disclosure>
+  );
+}
+
+/** Findings that several checks reported at the same place are shown once. */
+function mergeCorrelated(rows: Finding[]): { rows: Finding[]; merged: number } {
+  const hidden = new Set<string>();
+  const kept: Finding[] = [];
+  for (const finding of rows) {
+    if (hidden.has(finding.id)) continue;
+    kept.push(finding);
+    for (const other of finding.also_reported_by ?? []) hidden.add(other.id);
+  }
+  return { rows: kept, merged: rows.length - kept.length };
 }
 
 function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }) {
@@ -233,90 +286,95 @@ function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }
       ),
     [scanId, severity.join(","), engine, category, issueStatus, query, terminal],
   );
-  const rows = [...(page.data?.items ?? []), ...extra];
+  const { rows, merged } = mergeCorrelated([...(page.data?.items ?? []), ...extra]);
 
   return (
     <section className="card stack" aria-labelledby="findings-title">
       <div className="card-head" style={{ marginBottom: 0 }}>
-        <h2 id="findings-title" className="card-title">
-          Findings
-        </h2>
+        <div>
+          <h2 id="findings-title" className="card-title">
+            Findings
+          </h2>
+          <p className="card-sub">Most severe first. Open a finding to see the code and the fix.</p>
+        </div>
         <span className="muted small" aria-live="polite">
-          {page.data ? `${page.data.total} match${page.data.total === 1 ? "" : "es"}` : ""}
+          {page.data ? plural(page.data.total, "finding") : ""}
+          {merged ? ` · ${String(merged)} duplicate${merged === 1 ? "" : "s"} merged` : ""}
         </span>
       </div>
-      <div className="row" role="group" aria-label="Finding filters">
-        {SEVERITIES.map((name) => (
-          <button
-            key={name}
-            type="button"
-            className="pill-toggle"
-            aria-pressed={severity.includes(name)}
-            onClick={() => {
-              setSeverity((current) =>
-                current.includes(name) ? current.filter((s) => s !== name) : [...current, name],
-              );
+      <div className="filters" role="group" aria-label="Finding filters">
+        <div className="row">
+          {SEVERITIES.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className="pill-toggle"
+              aria-pressed={severity.includes(name)}
+              onClick={() => {
+                setSeverity((current) =>
+                  current.includes(name) ? current.filter((s) => s !== name) : [...current, name],
+                );
+              }}
+            >
+              <SeverityMark severity={name} />
+              {titleCase(name)}
+            </button>
+          ))}
+        </div>
+        <div className="row">
+          <select
+            aria-label="Type"
+            value={category}
+            onChange={(event) => {
+              setCategory(event.target.value);
             }}
           >
-            <SeverityMark severity={name} />
-            {titleCase(name)}
-          </button>
-        ))}
-        <select
-          aria-label="Engine"
-          value={engine}
-          style={{ width: "auto" }}
-          onChange={(event) => {
-            setEngine(event.target.value);
-          }}
-        >
-          <option value="">All engines</option>
-          {FINDING_ENGINES.map((name) => (
-            <option key={name} value={name}>
-              {ENGINE_LABELS[name]}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Issue status"
-          value={issueStatus}
-          style={{ width: "auto" }}
-          onChange={(event) => {
-            setIssueStatus(event.target.value);
-          }}
-        >
-          <option value="">Any issue status</option>
-          {["OPEN", "TRIAGED", "ACCEPTED_RISK", "FALSE_POSITIVE", "RESOLVED"].map((value) => (
-            <option key={value} value={value}>
-              {titleCase(value)}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Category"
-          value={category}
-          style={{ width: "auto" }}
-          onChange={(event) => {
-            setCategory(event.target.value);
-          }}
-        >
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {titleCase(c)}
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          aria-label="Search findings by title or path"
-          placeholder="Search title or path…"
-          style={{ maxWidth: 260 }}
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-          }}
-        />
+            <option value="">All types</option>
+            {Object.keys(CATEGORY_LABELS).map((c) => (
+              <option key={c} value={c}>
+                {categoryLabel(c)}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Check"
+            value={engine}
+            onChange={(event) => {
+              setEngine(event.target.value);
+            }}
+          >
+            <option value="">All checks</option>
+            {FINDING_CHECKS.map((name) => (
+              <option key={name} value={name}>
+                {checkName(name)}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Issue status"
+            value={issueStatus}
+            onChange={(event) => {
+              setIssueStatus(event.target.value);
+            }}
+          >
+            <option value="">Any status</option>
+            {ISSUE_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {titleCase(value)}
+              </option>
+            ))}
+          </select>
+          <input
+            type="search"
+            aria-label="Search findings by title or path"
+            placeholder="Search title or file…"
+            className="search"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+          />
+        </div>
       </div>
       {page.error ? <Alert tone="bad">{page.error}</Alert> : null}
       {page.loading && !page.data ? <Loading /> : null}
@@ -324,55 +382,67 @@ function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }
         <Empty title={terminal ? "No findings match" : "No findings yet"}>
           <p className="small">
             {terminal
-              ? "No enabled rule reported an issue for these filters. Check coverage: excluded or failed files were not reviewed."
-              : "Results appear as each engine finishes."}
+              ? "Nothing matches these filters. Files that could not be checked are listed under Files checked."
+              : "Findings appear as each check finishes."}
           </p>
         </Empty>
       ) : null}
       {rows.length > 0 ? (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table findings-table">
             <caption className="visually-hidden">Findings</caption>
             <thead>
               <tr>
                 <th scope="col">Severity</th>
                 <th scope="col">Finding</th>
-                <th scope="col">Location</th>
-                <th scope="col">Rule</th>
-                <th scope="col">Issue</th>
+                <th scope="col">Where</th>
+                <th scope="col">Status</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((finding) => (
-                <tr
-                  key={finding.id}
-                  className="clickable"
-                  data-testid="finding-row"
-                  onClick={() => {
-                    navigate(`#/findings/${finding.id}`);
-                  }}
-                >
-                  <td>
-                    <SeverityChip severity={finding.severity} />
-                  </td>
-                  <th scope="row" style={{ fontWeight: 600 }}>
-                    <a href={`#/findings/${finding.id}`}>{finding.title}</a>
-                    <div className="muted small">{titleCase(finding.category)}</div>
-                    {(finding.also_reported_by ?? []).length > 0 ? (
-                      <div className="also" data-testid="also-reported">
-                        <Icon name="branch" size={12} /> also reported by{" "}
-                        {(finding.also_reported_by ?? []).map((other) => other.engine).join(", ")}
+              {rows.map((finding) => {
+                const others = finding.also_reported_by ?? [];
+                return (
+                  <tr
+                    key={finding.id}
+                    className="clickable"
+                    data-testid="finding-row"
+                    onClick={() => {
+                      navigate(`#/findings/${finding.id}`);
+                    }}
+                  >
+                    <td>
+                      <SeverityChip severity={finding.severity} />
+                    </td>
+                    <th scope="row" style={{ fontWeight: 600 }}>
+                      <a href={`#/findings/${finding.id}`}>{finding.title}</a>
+                      <div className="muted small">
+                        {categoryLabel(finding.category)} · {checkName(finding.engine)}
                       </div>
-                    ) : null}
-                  </th>
-                  <td className="mono small wrap-anywhere">{findingLocation(finding)}</td>
-                  <td className="small wrap-anywhere" style={{ maxWidth: 220 }}>
-                    <span className="badge badge-neutral">{finding.engine}</span>{" "}
-                    <span className="mono">{finding.rule_id}</span>
-                  </td>
-                  <td>{finding.issue ? <StatusBadge state={finding.issue.status} /> : "—"}</td>
-                </tr>
-              ))}
+                      {others.length > 0 ? (
+                        <div className="also" data-testid="also-reported">
+                          <Icon name="check" size={12} /> Also found by{" "}
+                          {[...new Set(others.map((other) => checkName(other.engine)))].join(", ")}
+                        </div>
+                      ) : null}
+                    </th>
+                    <td className="location">
+                      <FileLocation
+                        path={finding.path}
+                        line={finding.start_line}
+                        endLine={finding.end_line}
+                        {...(finding.start_line === null
+                          ? {
+                              note:
+                                finding.anchor_kind === "dependency" ? "dependency" : "whole file",
+                            }
+                          : {})}
+                      />
+                    </td>
+                    <td>{finding.issue ? <StatusBadge state={finding.issue.status} /> : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -400,12 +470,18 @@ function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }
             );
           }}
         >
-          Load more
+          Show more
         </button>
       ) : null}
     </section>
   );
 }
+
+const OUTCOMES: Record<string, { state: string; label: string }> = {
+  ANALYZED: { state: "SUCCEEDED", label: "Checked" },
+  FAILED: { state: "FAILED", label: "Could not read" },
+  NOT_ATTEMPTED: { state: "CANCELED", label: "Not checked" },
+};
 
 function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }) {
   const [engine, setEngine] = useState("");
@@ -419,88 +495,77 @@ function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }
       <div className="card-head" style={{ marginBottom: 0 }}>
         <div>
           <h2 id="coverage-title" className="card-title">
-            Per-file coverage
+            Files checked
           </h2>
           <p className="card-sub">
-            Eligible files per engine and what actually happened to each. Failed and not-attempted
-            files were not reviewed.
+            Each file and what every check did with it. Files that could not be read or were not
+            checked may still contain problems.
           </p>
         </div>
       </div>
       <div className="row">
         <select
-          aria-label="Coverage engine"
+          aria-label="Coverage check"
           value={engine}
-          style={{ width: "auto" }}
           onChange={(event) => {
             setEngine(event.target.value);
           }}
         >
-          <option value="">All engines</option>
-          {ENGINES.map((name) => (
+          <option value="">All checks</option>
+          {CHECK_ORDER.map((name) => (
             <option key={name} value={name}>
-              {ENGINE_LABELS[name]}
+              {checkName(name)}
             </option>
           ))}
         </select>
         <select
           aria-label="Coverage outcome"
           value={outcome}
-          style={{ width: "auto" }}
           onChange={(event) => {
             setOutcome(event.target.value);
           }}
         >
-          <option value="">All outcomes</option>
-          <option value="ANALYZED">Analyzed</option>
-          <option value="FAILED">Failed</option>
-          <option value="NOT_ATTEMPTED">Not attempted</option>
+          <option value="">All results</option>
+          {Object.entries(OUTCOMES).map(([value, info]) => (
+            <option key={value} value={value}>
+              {info.label}
+            </option>
+          ))}
         </select>
       </div>
       {page.error ? <Alert tone="bad">{page.error}</Alert> : null}
       {page.loading && !page.data ? <Loading /> : null}
-      {page.data?.items.length === 0 ? <Empty title="No coverage rows" /> : null}
+      {page.data?.items.length === 0 ? <Empty title="No files match" /> : null}
       {page.data && page.data.items.length > 0 ? (
         <div className="table-wrap" style={{ maxHeight: 560 }}>
           <table className="data-table">
-            <caption className="visually-hidden">Per-file engine coverage</caption>
+            <caption className="visually-hidden">Files and checks</caption>
             <thead>
               <tr>
                 <th scope="col">File</th>
-                <th scope="col">Engine</th>
-                <th scope="col">Outcome</th>
-                <th scope="col">Reason</th>
+                <th scope="col">Check</th>
+                <th scope="col">Result</th>
+                <th scope="col">Note</th>
               </tr>
             </thead>
             <tbody>
-              {page.data.items.map((row) => (
-                <tr key={`${row.file_id}-${row.engine}`} data-testid="coverage-row">
-                  <th scope="row" className="mono small" style={{ fontWeight: 500 }}>
-                    {row.path}
-                  </th>
-                  <td>{row.engine}</td>
-                  <td>
-                    <StatusBadge
-                      state={
-                        row.outcome === "ANALYZED"
-                          ? "SUCCEEDED"
-                          : row.outcome === "FAILED"
-                            ? "FAILED"
-                            : "CANCELED"
-                      }
-                      label={titleCase(row.outcome)}
-                    />
-                  </td>
-                  <td className="small secondary">
-                    {row.cached ? (
-                      <span className="badge badge-neutral" style={{ marginRight: 6 }}>
-                        cached
-                      </span>
-                    ) : null}
-                    {row.cached ? "" : (row.reason ?? "—")}
-                  </td>
-                </tr>
-              ))}
+              {page.data.items.map((row) => {
+                const info = OUTCOMES[row.outcome] ?? { state: "CANCELED", label: row.outcome };
+                return (
+                  <tr key={`${row.file_id}-${row.engine}`} data-testid="coverage-row">
+                    <th scope="row" className="mono small" style={{ fontWeight: 500 }}>
+                      {row.path}
+                    </th>
+                    <td>{checkName(row.engine)}</td>
+                    <td>
+                      <StatusBadge state={info.state} label={info.label} />
+                    </td>
+                    <td className="small secondary">
+                      {row.cached ? "Unchanged since an earlier review" : (row.reason ?? "—")}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -509,56 +574,38 @@ function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }
   );
 }
 
-const GROUPS: { key: keyof GroupSet; label: string; hint: string; state: string }[] = [
-  { key: "new", label: "New", hint: "Reported now, not before", state: "OPEN" },
-  {
-    key: "unchanged",
-    label: "Still present",
-    hint: "Reported in both scans",
-    state: "VERIFIED_PRESENT",
-  },
+type GroupKey = "new" | "verified_absent" | "unchanged" | "unverified";
+
+const GROUPS: { key: GroupKey; label: string; hint: string; state: string }[] = [
+  { key: "new", label: "New", hint: "Found now, not before", state: "OPEN" },
   {
     key: "verified_absent",
-    label: "Verified absent",
-    hint: "Compatible engine analyzed the file and did not report it",
+    label: "Fixed",
+    hint: "Checked again and gone",
     state: "VERIFIED_ABSENT",
   },
   {
-    key: "not_rechecked",
-    label: "Not rechecked",
-    hint: "Engine failed or the file was not analyzed",
-    state: "NOT_RECHECKED",
+    key: "unchanged",
+    label: "Still present",
+    hint: "Found in both reviews",
+    state: "VERIFIED_PRESENT",
   },
   {
-    key: "unknown",
-    label: "Unknown",
-    hint: "File deleted/renamed, or engine version or rules changed",
+    key: "unverified",
+    label: "Couldn't verify",
+    hint: "File changed, moved or not checked again",
     state: "UNKNOWN",
   },
-  {
-    key: "rule_obsolete",
-    label: "Rule obsolete",
-    hint: "Rule no longer enabled",
-    state: "RULE_OBSOLETE",
-  },
 ];
-
-interface GroupSet {
-  new: ComparisonGroup;
-  unchanged: ComparisonGroup;
-  verified_absent: ComparisonGroup;
-  not_rechecked: ComparisonGroup;
-  unknown: ComparisonGroup;
-  rule_obsolete: ComparisonGroup;
-}
 
 function CompareTab({ scan }: { scan: Scan }) {
   const scans = useAsync((signal) => listScans(scan.project_id, signal), [scan.project_id]);
   const candidates = (scans.data ?? []).filter(
     (other) => other.id !== scan.id && isTerminalScan(other.state),
   );
+  const numbers = reviewNumbers(scans.data ?? []);
   const [base, setBase] = useState("");
-  const [group, setGroup] = useState<keyof GroupSet>("new");
+  const [group, setGroup] = useState<GroupKey>("new");
   const baseId =
     base ||
     candidates.find((other) => other.created_at < scan.created_at)?.id ||
@@ -572,36 +619,51 @@ function CompareTab({ scan }: { scan: Scan }) {
   if (!scans.data) return <Loading />;
   if (candidates.length === 0) {
     return (
-      <Empty title="Nothing to compare with yet">
-        <p className="small">Run another scan of this project (any snapshot) to compare results.</p>
-      </Empty>
+      <section className="card">
+        <Empty title="Nothing to compare with yet">
+          <p className="small">Review this project again later to see what changed.</p>
+        </Empty>
+      </section>
     );
   }
   const data = comparison.data;
-  const selected = data ? data[group] : null;
+  const unverified: ComparisonItem[] = data
+    ? [...data.not_rechecked.items, ...data.unknown.items, ...data.rule_obsolete.items]
+    : [];
+  const counts: Record<GroupKey, number> = data
+    ? {
+        new: data.new.count,
+        verified_absent: data.verified_absent.count,
+        unchanged: data.unchanged.count,
+        unverified: data.not_rechecked.count + data.unknown.count + data.rule_obsolete.count,
+      }
+    : { new: 0, verified_absent: 0, unchanged: 0, unverified: 0 };
+  const items: ComparisonItem[] = data
+    ? group === "unverified"
+      ? unverified
+      : data[group].items
+    : [];
   return (
     <section className="card stack" aria-labelledby="compare-title">
       <div className="card-head" style={{ marginBottom: 0 }}>
         <div>
           <h2 id="compare-title" className="card-title">
-            Compare with an earlier scan
+            Changes since an earlier review
           </h2>
           <p className="card-sub">
-            Absence counts as fixed only when a compatible, completed engine analyzed the file.
+            A finding counts as fixed only when its file was checked again and the problem is gone.
           </p>
         </div>
         <select
-          aria-label="Base scan"
+          aria-label="Compare with"
           value={baseId}
-          style={{ width: "auto" }}
           onChange={(event) => {
             setBase(event.target.value);
           }}
         >
           {candidates.map((other) => (
             <option key={other.id} value={other.id}>
-              {formatRelative(other.created_at)} · {titleCase(other.state)} ·{" "}
-              {shortHash(other.manifest_sha256, 8)}
+              {reviewLabel(numbers, other.id)} · {formatRelative(other.created_at)}
             </option>
           ))}
         </select>
@@ -610,7 +672,7 @@ function CompareTab({ scan }: { scan: Scan }) {
       {!data ? <Loading /> : null}
       {data ? (
         <>
-          <div className="tiles" role="group" aria-label="Comparison groups">
+          <div className="tiles tiles-4" role="group" aria-label="Changes">
             {GROUPS.map((item) => (
               <button
                 key={item.key}
@@ -623,12 +685,12 @@ function CompareTab({ scan }: { scan: Scan }) {
                 }}
               >
                 <StatusBadge state={item.state} label={item.label} />
-                <span className="tile-value">{data[item.key].count}</span>
+                <span className="tile-value">{counts[item.key]}</span>
                 <span className="tile-label">{item.hint}</span>
               </button>
             ))}
           </div>
-          {selected && selected.items.length > 0 ? (
+          {items.length > 0 ? (
             <div className="table-wrap" style={{ maxHeight: 420 }}>
               <table className="data-table">
                 <caption className="visually-hidden">
@@ -638,12 +700,11 @@ function CompareTab({ scan }: { scan: Scan }) {
                   <tr>
                     <th scope="col">Severity</th>
                     <th scope="col">Finding</th>
-                    <th scope="col">Engine</th>
                     <th scope="col">Why</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selected.items.map((item) => (
+                  {items.map((item) => (
                     <tr key={item.fingerprint}>
                       <td>
                         <SeverityChip severity={item.severity} />
@@ -654,9 +715,6 @@ function CompareTab({ scan }: { scan: Scan }) {
                         </a>
                         <div className="mono small muted">{item.path}</div>
                       </th>
-                      <td className="small">
-                        <span className="badge badge-neutral">{item.engine}</span>
-                      </td>
                       <td className="small secondary">{item.reason ?? "—"}</td>
                     </tr>
                   ))}
@@ -664,55 +722,61 @@ function CompareTab({ scan }: { scan: Scan }) {
               </table>
             </div>
           ) : (
-            <Empty title="No findings in this group" />
+            <Empty title="Nothing in this group" />
           )}
-          {selected?.truncated ? (
-            <p className="hint">Showing the first {selected.items.length} items.</p>
-          ) : null}
-          <div className="table-wrap">
-            <table className="data-table">
-              <caption className="visually-hidden">Engine compatibility</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Engine</th>
-                  <th scope="col">Base</th>
-                  <th scope="col">This scan</th>
-                  <th scope="col">Compatibility</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.engines.map((engine) => (
-                  <tr key={engine.engine}>
-                    <th scope="row">{ENGINE_LABELS[engine.engine] ?? engine.engine}</th>
-                    <td className="small">
-                      {engine.base_state ? titleCase(engine.base_state) : "—"}{" "}
-                      <span className="mono muted">{engine.base_version ?? ""}</span>
-                    </td>
-                    <td className="small">
-                      {engine.target_state ? titleCase(engine.target_state) : "—"}{" "}
-                      <span className="mono muted">{engine.target_version ?? ""}</span>
-                    </td>
-                    <td className="small">
-                      <StatusBadge
-                        state={engine.compatible ? "SUCCEEDED" : "PARTIAL"}
-                        label={engine.compatible ? "Compatible" : "Limited"}
-                      />{" "}
-                      <span className="secondary">{engine.note}</span>
-                    </td>
+          <Disclosure>
+            <div className="table-wrap">
+              <table className="data-table">
+                <caption className="visually-hidden">Check compatibility</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Check</th>
+                    <th scope="col">Earlier</th>
+                    <th scope="col">This review</th>
+                    <th scope="col">Comparable</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <ul className="small secondary" style={{ margin: 0, paddingLeft: 18 }}>
-            {data.notes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
+                </thead>
+                <tbody>
+                  {data.engines.map((engine) => (
+                    <tr key={engine.engine}>
+                      <th scope="row">{checkName(engine.engine)}</th>
+                      <td className="small">
+                        {engine.base_state ? titleCase(engine.base_state) : "—"}{" "}
+                        <span className="mono muted">{engine.base_version ?? ""}</span>
+                      </td>
+                      <td className="small">
+                        {engine.target_state ? titleCase(engine.target_state) : "—"}{" "}
+                        <span className="mono muted">{engine.target_version ?? ""}</span>
+                      </td>
+                      <td className="small">
+                        <StatusBadge
+                          state={engine.compatible ? "SUCCEEDED" : "PARTIAL"}
+                          label={engine.compatible ? "Yes" : "Limited"}
+                        />{" "}
+                        <span className="secondary">{engine.note}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="small secondary" style={{ margin: 0, paddingLeft: 18 }}>
+              {data.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </Disclosure>
         </>
       ) : null}
     </section>
   );
+}
+
+function tookLabel(scan: Scan): string | null {
+  if (!scan.started_at || !scan.finished_at) return null;
+  const ms = new Date(scan.finished_at).getTime() - new Date(scan.started_at).getTime();
+  if (ms < 60_000) return `took ${String(Math.max(1, Math.round(ms / 1000)))} s`;
+  return `took ${String(Math.round(ms / 60_000))} min`;
 }
 
 export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
@@ -726,6 +790,20 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
       }),
     [scanId, tick],
   );
+  const projectId = scan.data?.project_id ?? null;
+  const snapshotId = scan.data?.snapshot_id ?? null;
+  const project = useAsync(
+    (signal) => (projectId ? fetchProject(projectId, signal) : Promise.resolve(null)),
+    [projectId],
+  );
+  const snapshot = useAsync(
+    (signal) => (snapshotId ? fetchSnapshot(snapshotId, signal) : Promise.resolve(null)),
+    [snapshotId],
+  );
+  const siblings = useAsync(
+    (signal) => (projectId ? listScans(projectId, signal) : Promise.resolve([])),
+    [projectId, terminalSeen],
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (scan.error && !scan.data) return <Alert tone="bad">{scan.error}</Alert>;
@@ -737,72 +815,88 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
     : [];
   const byCategory = (data.summary?.by_category ?? {}) as Record<string, number>;
   const base = `#/scans/${scanId}`;
+  const label = reviewLabel(reviewNumbers(siblings.data ?? []), scanId);
+  const took = tookLabel(data);
+  const reviewAgain = (mode: "use" | "refresh") => {
+    setBusy(true);
+    startScan(data.project_id, data.snapshot_id, mode).then(
+      (next) => {
+        navigate(`#/scans/${next.id}`);
+        setBusy(false);
+      },
+      (caught: unknown) => {
+        setActionError(describeError(caught));
+        setBusy(false);
+      },
+    );
+  };
 
   return (
     <>
       <PageHeader
         eyebrow={
           <>
-            <a href={`#/projects/${data.project_id}`}>Project</a> <span aria-hidden="true">/</span>
-            <a href={`#/snapshots/${data.snapshot_id}`}>
-              Snapshot {shortHash(data.manifest_sha256, 8)}
+            <a href={`#/projects/${data.project_id}`} data-testid="project-link">
+              {project.data?.name ?? "Project"}
             </a>
-            <span aria-hidden="true">/</span> Scan
+            <span aria-hidden="true">/</span>
+            <a href={`#/snapshots/${data.snapshot_id}`} data-testid="upload-link">
+              {snapshot.data?.source_name ?? "Upload"}
+            </a>
+            <span aria-hidden="true">/</span> {label}
           </>
         }
         title={
           <span className="row">
-            Baseline scan <StatusBadge state={data.state} />
+            Review results <StatusBadge state={data.state} />
           </span>
         }
-        sub={`Started ${formatRelative(data.started_at ?? data.created_at)} · policy ${data.policy_version} · ${data.cache_mode === "refresh" ? "full rescan" : "cache reuse on"} · source-only analysis (no build or runtime verification)`}
+        sub={`Started ${formatRelative(data.started_at ?? data.created_at)}${took ? ` · ${took}` : ""}`}
         actions={
           terminal ? (
             <>
-              <a
-                className="btn btn-ghost"
-                href={exportUrl(scanId, "sarif")}
-                download
-                data-testid="export-sarif"
-              >
-                <Icon name="file" size={16} /> SARIF
-              </a>
-              <a
-                className="btn btn-ghost"
-                href={exportUrl(scanId, "json")}
-                download
-                data-testid="export-json"
-              >
-                <Icon name="file" size={16} /> JSON
-              </a>
-              {(["use", "refresh"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={mode === "use" ? "btn btn-primary" : "btn btn-ghost"}
-                  disabled={busy}
-                  title={
-                    mode === "use"
-                      ? "Reuse compatible per-file results for unchanged files"
-                      : "Ignore cached results and analyze every file again"
-                  }
-                  onClick={() => {
-                    setBusy(true);
-                    startScan(data.project_id, data.snapshot_id, mode).then(
-                      (next) => {
-                        navigate(`#/scans/${next.id}`);
-                        setBusy(false);
-                      },
-                      (caught: unknown) => {
-                        setActionError(describeError(caught));
-                        setBusy(false);
-                      },
-                    );
-                  }}
+              <div className="btn-group" role="group" aria-label="Download report">
+                <a
+                  className="btn btn-ghost"
+                  href={exportUrl(scanId, "json")}
+                  download
+                  data-testid="export-json"
+                  title="Full report as JSON"
                 >
-                  <Icon name="scan" size={16} /> {mode === "use" ? "Re-run" : "Full rescan"}
-                </button>
-              ))}
+                  <Icon name="download" size={16} /> Report
+                </a>
+                <a
+                  className="btn btn-ghost"
+                  href={exportUrl(scanId, "sarif")}
+                  download
+                  data-testid="export-sarif"
+                  title="SARIF 2.1.0 for code-scanning tools"
+                >
+                  SARIF
+                </a>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy}
+                title="Check every file again, ignoring results saved from earlier reviews"
+                onClick={() => {
+                  reviewAgain("refresh");
+                }}
+              >
+                Full review
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                title="Review the same upload again; unchanged files reuse earlier results"
+                onClick={() => {
+                  reviewAgain("use");
+                }}
+              >
+                <Icon name="scan" size={16} /> Review again
+              </button>
             </>
           ) : (
             <button
@@ -823,58 +917,46 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
                 );
               }}
             >
-              <Icon name="x" size={16} /> {data.cancel_requested_at ? "Cancelling…" : "Cancel scan"}
+              <Icon name="x" size={16} /> {data.cancel_requested_at ? "Stopping…" : "Stop review"}
             </button>
           )
         }
       />
       {actionError ? <Alert tone="bad">{actionError}</Alert> : null}
-      <section aria-label="Pipeline progress" aria-live="polite">
-        <Pipeline scan={data} />
+      <section aria-label="Review progress" aria-live="polite">
+        <Progress scan={data} />
       </section>
-      <div className="grid grid-3">
-        {data.engines.map((run) => (
-          <EngineCard key={run.engine} run={run} />
-        ))}
-      </div>
+      {terminal && data.state !== "SUCCEEDED" && limitations.length > 0 ? (
+        <Alert tone="warn">
+          <p>
+            <strong>Some files could not be checked.</strong> The findings below are still valid,
+            but problems in those files may be missing. Details are under “What was checked”.
+          </p>
+        </Alert>
+      ) : null}
       {terminal ? (
         <div className="grid grid-2">
           <section className="card" aria-labelledby="sev-title">
             <h2 id="sev-title" className="card-title" style={{ marginBottom: 12 }}>
-              Findings by severity
+              By severity
             </h2>
             <SeverityBars counts={severityCounts(data.summary?.by_severity)} />
           </section>
           <section className="card" aria-labelledby="cat-title">
             <h2 id="cat-title" className="card-title" style={{ marginBottom: 12 }}>
-              Findings by category
+              By type
             </h2>
             <CategoryBars counts={byCategory} />
           </section>
         </div>
       ) : null}
-      {limitations.length > 0 ? (
-        <Alert tone={data.state === "SUCCEEDED" ? "info" : "warn"}>
-          <p>
-            <strong>Limitations of this result</strong>
-          </p>
-          <ul
-            className="small"
-            style={{ margin: "6px 0 0", paddingLeft: 18 }}
-            data-testid="limitations"
-          >
-            {limitations.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </Alert>
-      ) : null}
+      <ChecksPanel scan={data} limitations={limitations} />
       <Tabs
         current={tab}
         items={[
           { id: "findings", label: "Findings", href: base },
-          { id: "coverage", label: "Coverage", href: `${base}?tab=coverage` },
-          { id: "compare", label: "Compare", href: `${base}?tab=compare` },
+          { id: "coverage", label: "Files checked", href: `${base}?tab=coverage` },
+          { id: "compare", label: "Changes", href: `${base}?tab=compare` },
         ]}
       />
       {tab === "coverage" ? <CoverageTab scanId={scanId} terminal={terminal} /> : null}
@@ -882,7 +964,9 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
         terminal ? (
           <CompareTab scan={data} />
         ) : (
-          <Empty title="Comparison is available when the scan finishes" />
+          <section className="card">
+            <Empty title="Changes appear when the review finishes" />
+          </section>
         )
       ) : null}
       {tab !== "coverage" && tab !== "compare" ? (

@@ -8,7 +8,16 @@ from sqlalchemy import func, select
 
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
-from crp_api.schemas import ProjectCreate, ProjectOverview, ProjectPage, ProjectResponse
+from crp_api.routes.intakes import intake_response
+from crp_api.schemas import (
+    ProjectCreate,
+    ProjectOverview,
+    ProjectPage,
+    ProjectResponse,
+    SampleProjectCreate,
+    SampleProjectResponse,
+)
+from crp_api.services import demo, samples
 from crp_api.services import projects as project_service
 from crp_core.db.models import Scan, Snapshot, Source
 from crp_core.db.session import transaction
@@ -33,6 +42,8 @@ async def create_project(
 ) -> ProjectResponse:
     try:
         async with transaction(container.session_factory) as session:
+            if principal.is_demo and principal.role_in(body.workspace_id) is not None:
+                await demo.enforce_project_quota(session, body.workspace_id, container.settings)
             project = await project_service.create_project(
                 session,
                 principal,
@@ -53,6 +64,45 @@ async def create_project(
             {"slug": str(exc)},
         ) from exc
     return ProjectResponse.model_validate(project, from_attributes=True)
+
+
+@router.post(
+    "/sample",
+    status_code=202,
+    response_model=SampleProjectResponse,
+    responses={
+        **_NOT_FOUND,
+        403: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+async def create_sample_project(
+    body: SampleProjectCreate, principal: CurrentPrincipal, container: Container
+) -> SampleProjectResponse:
+    """Create the built-in sample project (a small, deliberately flawed online store) and start
+    freezing its snapshot. Poll the returned intake, then start a scan of its snapshot."""
+    try:
+        created = await samples.create_sample_project(container, principal, body.workspace_id)
+    except project_service.WorkspaceAccessError as exc:
+        raise _workspace_not_found() from exc
+    except project_service.InsufficientRoleError as exc:
+        raise ApiError(403, "insufficient_role", "A member role is required") from exc
+    except project_service.ProjectSlugConflictError as exc:
+        raise ApiError(
+            409, "project_slug_conflict", "Too many sample projects exist in this workspace"
+        ) from exc
+    if created.start_error is not None:
+        raise ApiError(
+            503,
+            "workflow_unavailable",
+            f"{created.start_error}; retry by finalizing the intake (it is idempotent)",
+            {"project_id": str(created.project.id), "intake_id": str(created.intake.id)},
+        )
+    return SampleProjectResponse(
+        project=ProjectResponse.model_validate(created.project, from_attributes=True),
+        intake=intake_response(created.intake, container.settings),
+    )
 
 
 @router.get("", response_model=ProjectPage, responses=_NOT_FOUND)

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:crp:schema:scan-export:v1",
-  "title": "Code Review Platform scan export v1",
+  "title": "refactorX scan export v1",
   "description": "One scan of one frozen snapshot: provenance, engine outcomes and coverage, findings with evidence anchors, and explicit limitations. Source text is never included.",
   "type": "object",
   "additionalProperties": false,

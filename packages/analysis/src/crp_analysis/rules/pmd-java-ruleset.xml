@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Trusted Code Review Platform PMD ruleset (crp-pmd-java-v1).
+  Trusted refactorX PMD ruleset (crp-pmd-java-v1).
   Owned by the platform; projects cannot supply or modify it. Rules are PMD built-ins
   (PMD license: BSD-style). Every enabled rule has an entry in rules/catalog.json.
 -->

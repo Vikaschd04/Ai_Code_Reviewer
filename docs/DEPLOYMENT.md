@@ -1,6 +1,6 @@
 # Deployment
 
-Ways to run the complete application (web UI, API, scans with PMD, ESLint, Opengrep and Trivy, PostgreSQL) in the cloud:
+Ways to run **refactorX** — the complete application (web UI, API, reviews with PMD, ESLint, Opengrep and Trivy, PostgreSQL) — in the cloud:
 
 | | Cost | Always on | Notes |
 |---|---|---|---|
@@ -23,8 +23,9 @@ Railway is not used: its free credit is a one-time $5 trial and then $1/month wi
    If Render still asks for payment, check that every resource shows plan **Free**; a workspace can have only one free PostgreSQL database, so delete an older free database first if you already have one.
 4. Wait for the first build and deploy (roughly 10–20 minutes: Java, Node, Python dependencies, analyzers and the vulnerability database are built into the image). Follow it under the service's **Events/Logs**; the deploy is done when the log shows the server listening and the service is **Live**.
 5. Open the service URL shown at the top of the service page (normally `https://ai-code-reviewer.onrender.com`; Render adds a suffix if the name is taken — no configuration change needed, the service reads its own address from Render).
-6. Sign in: service → **Environment** → reveal `CRP_ACCESS_TOKEN` → copy it → paste it on the sign-in page.
-7. Test end to end: create a project, upload a ZIP (up to 25 MB), start a scan, then open findings, issues, architecture, compare and the JSON/SARIF exports. Trivy works from the first scan (its database is inside the image).
+6. Quickest test: click **Try the demo** on the sign-in page, then **Run the sample review** — the sample online store is uploaded and reviewed by every analyzer (about a minute or two on the free instance), and you land on its results.
+7. Owner sign-in: service → **Environment** → reveal `CRP_ACCESS_TOKEN` → copy it → paste it under "or sign in with your access token". The owner's workspace is separate from the demo workspace, and only the owner sees **System status**.
+8. Test end to end: create a project, upload a ZIP (up to 25 MB), start a review, then open findings, issues, architecture, changes and the report downloads. Trivy works from the first review (its database is inside the image).
 
 ### What runs where
 
@@ -59,6 +60,8 @@ The CI job proves the lite profile inside these limits on every push: it runs th
 
 ## Operating the service
 
+- **Demo account:** on by default in `render.yaml` (`CRP_DEMO_ENABLED=true`) so anyone with the URL can try refactorX in a **shared** demo workspace (they see each other's uploads; limited to 30 projects and 20 reviews per hour). It never sees the owner's projects. Set `CRP_DEMO_ENABLED=false` under service → Environment before storing real customer code on the same deployment (ADR 0011).
+
 - **Rotate the sign-in token:** service → Environment → edit `CRP_ACCESS_TOKEN` (≥ 32 random characters) → save; the service restarts and all sessions and upload links are invalidated.
 - **Custom domain:** add it under service → Settings → Custom Domains, then add environment variables `CRP_EXTRA_PUBLIC_HOSTS=<your domain>` and `CRP_ALLOWED_WEB_ORIGINS=https://<your domain>,https://<service>.onrender.com`.
 - **Logs and health:** service → Logs; `GET /v1/health/live` (public) and `/v1/health/ready` (signed in) report dependencies. Lines starting `crp-hosted:` report migrations and the Trivy DB date/refresh.
@@ -80,7 +83,7 @@ Full speed and private, but only running while you use it.
 
 1. Open <https://github.com/Vikaschd04/Ai_Code_Reviewer>, click **Code → Codespaces → Create codespace on main** (machine: 2-core, 8 GB is enough).
 2. Wait. `.devcontainer/devcontainer.json` runs `bash deploy/codespace.sh up`, which builds the application image and starts it with PostgreSQL via Docker Compose (standard profile). The **first** start takes about 10–15 minutes (image build); later starts take about a minute. Progress: **View → Terminal**, the "postStartCommand" log.
-3. When it prints `Code Review Platform is running: https://<codespace-name>-8080.app.github.dev`, open that URL (or **Ports** tab → globe icon for port 8080).
+3. When it prints `refactorX is running: https://<codespace-name>-8080.app.github.dev`, open that URL (or **Ports** tab → globe icon for port 8080), then use **Try the demo** or sign in with the token.
 4. Get the sign-in token in the codespace terminal: `bash deploy/codespace.sh token`.
 
 Commands: `bash deploy/codespace.sh logs` (application logs), `down` (stop; data kept), `up` (start again), `reset` (stop and delete all data). `CRP_PROFILE=lite bash deploy/codespace.sh up` runs the Render free configuration (512 MB, 0.1 CPU) instead.

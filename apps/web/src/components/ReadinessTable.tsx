@@ -2,10 +2,10 @@ import type { DependencyCheck } from "../api/client";
 import { StatusBadge } from "./Status";
 
 const NAMES: Record<string, string> = {
-  database: "PostgreSQL database",
-  workflow_service: "Temporal workflow service",
-  workflow_worker: "Workflow worker",
-  artifact_store: "Artifact store",
+  database: "Database",
+  workflow_service: "Review scheduler",
+  workflow_worker: "Review runner",
+  artifact_store: "File storage",
 };
 
 function formatDetail(value: string | number | boolean | null): string {
@@ -15,10 +15,10 @@ function formatDetail(value: string | number | boolean | null): string {
 export function ReadinessTable({ checks }: { checks: DependencyCheck[] }) {
   return (
     <table className="data-table">
-      <caption className="visually-hidden">Dependency readiness checks</caption>
+      <caption className="visually-hidden">Service status</caption>
       <thead>
         <tr>
-          <th scope="col">Dependency</th>
+          <th scope="col">Service</th>
           <th scope="col">Status</th>
           <th scope="col">Summary</th>
           <th scope="col">Details</th>

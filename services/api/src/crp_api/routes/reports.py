@@ -91,7 +91,7 @@ async def build_export(session: Any, scan: Scan) -> dict[str, Any]:
     return {
         "format": EXPORT_FORMAT,
         "generated_at": datetime.now(UTC).isoformat(),
-        "tool": {"name": "Code Review Platform", "version": __version__},
+        "tool": {"name": "refactorX", "version": __version__},
         "project": {"id": str(project.id), "slug": project.slug, "name": project.name},
         "snapshot": {
             "id": str(snapshot.id),

@@ -81,3 +81,15 @@ Not implemented yet: upload/intake controls, analyzer sandboxing and resource li
 | Build supply chain | Digest-pinned base images, SHA-256 + cosign-verified Linux engines, SHA-256 Temporal CLI, SHA-pinned GitHub Actions, frozen lockfiles | Dockerfile, ci.yml, engines.py |
 | Data location | Uploaded source stored in the owner's Render account: in PostgreSQL only (free lite profile, ADR 0010) or on the disk + database (standard); no AI egress | DEPLOYMENT.md |
 | Offline vulnerability DB | Baked into the image (digest-pinned build); the daily refresh is the only network use, downloads into a new directory and swaps a symlink atomically, never while a scan in the same process reads it | trivy_db.py, test_trivy_db.py |
+
+### Added for the demo account and sample project (ADR 0011)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Demo is opt-in | `CRP_DEMO_ENABLED` (default false); `POST /v1/auth/demo-session` returns 404 when disabled; demo cookies stop being accepted when it is disabled | test_demo_and_sample.py |
+| Demo isolation | Subject `demo:guest` has MEMBER access to the `demo` workspace only; all data routes resolve through workspace grants, so owner projects return 404; not an operator (no diagnostics/system status); no bearer-token access | test_demo_and_sample.py, test_sample_project.py |
+| Demo abuse bounds | Allowed Origin required to start a demo session; quotas on demo projects and scans per hour (429 `demo_limit_reached`); upload size limits apply | test_demo_and_sample.py, test_sample_project.py |
+| Shared-demo disclosure | Every page shows that the demo workspace is shared with other visitors | ui-tour.spec.ts |
+| Sample secrets | The sample's fake access token is generated at runtime, never committed | test_demo_and_sample.py |
+
+Residual risk: demo visitors share one workspace (they see each other's uploads) and their archives are analysed by the same unsandboxed engines as the owner's on a single-tenant instance. Disable the demo before storing real customer code on the same deployment.

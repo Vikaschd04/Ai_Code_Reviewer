@@ -1,7 +1,7 @@
 [project]
 name = "crp-worker"
 version = "0.1.0"
-description = "Code Review Platform Temporal worker (workflows and activities)."
+description = "refactorX Temporal worker (workflows and activities)."
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "crp-analysis",

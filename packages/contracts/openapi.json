@@ -37,6 +37,25 @@
         "title": "ArtifactProbeResult",
         "type": "object"
       },
+      "AuthOptions": {
+        "additionalProperties": false,
+        "description": "Public sign-in options for the web UI (no credentials needed).",
+        "properties": {
+          "demo_enabled": {
+            "title": "Demo Enabled",
+            "type": "boolean"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/DeploymentEnvironment"
+          }
+        },
+        "required": [
+          "environment",
+          "demo_enabled"
+        ],
+        "title": "AuthOptions",
+        "type": "object"
+      },
       "Capability": {
         "additionalProperties": false,
         "properties": {
@@ -419,6 +438,16 @@
         ],
         "title": "DependencyCheck",
         "type": "object"
+      },
+      "DeploymentEnvironment": {
+        "description": "Supported deployment tiers. Hosted multi-tenant deployment is absent until P07.\n\n``hosted`` is a single-user deployment behind an HTTPS reverse proxy (see\ndocs/DEPLOYMENT.md): public bind, Host-header allowlist, HTTPS-only web origins and secure\ncookies. It is not a multi-tenant or SSO deployment.",
+        "enum": [
+          "local",
+          "test",
+          "hosted"
+        ],
+        "title": "DeploymentEnvironment",
+        "type": "string"
       },
       "DiagnosticRunResponse": {
         "additionalProperties": false,
@@ -2766,6 +2795,11 @@
             "title": "Display Name",
             "type": "string"
           },
+          "is_demo": {
+            "description": "Signed in with the shared demo account (demo workspace only)",
+            "title": "Is Demo",
+            "type": "boolean"
+          },
           "is_operator": {
             "title": "Is Operator",
             "type": "boolean"
@@ -2793,6 +2827,7 @@
           "display_name",
           "auth_method",
           "is_operator",
+          "is_demo",
           "workspaces"
         ],
         "title": "PrincipalResponse",
@@ -3055,6 +3090,39 @@
           "in_catalog"
         ],
         "title": "RuleGuidance",
+        "type": "object"
+      },
+      "SampleProjectCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ],
+        "title": "SampleProjectCreate",
+        "type": "object"
+      },
+      "SampleProjectResponse": {
+        "additionalProperties": false,
+        "description": "The new sample project and the intake that is freezing its snapshot.",
+        "properties": {
+          "intake": {
+            "$ref": "#/components/schemas/IntakeResponse"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectResponse"
+          }
+        },
+        "required": [
+          "project",
+          "intake"
+        ],
+        "title": "SampleProjectResponse",
         "type": "object"
       },
       "ScanComparison": {
@@ -3702,12 +3770,54 @@
     }
   },
   "info": {
-    "description": "Control-plane API: local authentication, readiness, projects, ZIP/local-runner intake, frozen snapshots, baseline PMD/ESLint scans with coverage, findings and exact source evidence. Source-only analysis; no AI provider is used.",
-    "title": "Code Review Platform API",
+    "description": "refactorX control-plane API: authentication (access token or optional demo account), readiness, projects and sample projects, ZIP/local-runner intake, frozen snapshots, scans (PMD, ESLint, Opengrep, Trivy, structure, graph) with coverage, findings, issues, comparison and exports. Source-only analysis; no AI provider is used.",
+    "title": "refactorX API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/auth/demo-session": {
+      "post": {
+        "description": "Sign in to the shared demo account (demo workspace only) when the demo is enabled.",
+        "operationId": "create_demo_session_v1_auth_demo_session_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Create Demo Session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/v1/auth/me": {
       "get": {
         "operationId": "current_principal_v1_auth_me_get",
@@ -3734,6 +3844,38 @@
           }
         },
         "summary": "Current Principal",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/options": {
+      "get": {
+        "description": "Public: which sign-in methods the web UI should offer (no credentials required).",
+        "operationId": "sign_in_options_v1_auth_options_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Host not allowed (hosted mode)"
+          }
+        },
+        "summary": "Sign In Options",
         "tags": [
           "auth"
         ]
@@ -5217,6 +5359,98 @@
           }
         },
         "summary": "Create Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/v1/projects/sample": {
+      "post": {
+        "description": "Create the built-in sample project (a small, deliberately flawed online store) and start\nfreezing its snapshot. Poll the returned intake, then start a scan of its snapshot.",
+        "operationId": "create_sample_project_v1_projects_sample_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SampleProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleProjectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Create Sample Project",
         "tags": [
           "projects"
         ]

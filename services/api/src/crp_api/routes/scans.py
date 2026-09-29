@@ -35,6 +35,7 @@ from crp_api.schemas import (
     ScanPage,
     ScanResponse,
 )
+from crp_api.services import demo
 from crp_api.services.scope import decode_offset, encode_offset, get_scoped
 from crp_core.db.models import (
     EngineRun,
@@ -155,6 +156,12 @@ async def create_scan(
             raise ApiError(404, "snapshot_not_found", "Snapshot not found in this project")
         if snapshot.capture_status != CaptureStatus.FROZEN.value:
             raise ApiError(409, "snapshot_not_ready", "Only frozen snapshots can be scanned")
+        if principal.is_demo:
+            repeated = await session.scalar(
+                select(Scan.id).where(Scan.project_id == project.id, Scan.idempotency_key == key)
+            )
+            if repeated is None:
+                await demo.enforce_scan_quota(session, project.workspace_id, container.settings)
         scan_id = (
             await session.execute(
                 insert(Scan)

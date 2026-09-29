@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — refactorX: demo account, sample project and reviewer-first UI (30 September 2026)
+
+- Product renamed **refactorX** in every user-facing place (UI, brand mark and favicon, page title, OpenAPI title, SARIF tool name, docs); internal `crp` identifiers unchanged (ADR 0011).
+- Demo account: `GET /v1/auth/options` (public), `POST /v1/auth/demo-session`, `is_demo` on `/v1/auth/me`; a separate member-only demo workspace with project and hourly scan quotas (`CRP_DEMO_ENABLED`, `CRP_DEMO_MAX_PROJECTS`, `CRP_DEMO_MAX_SCANS_PER_HOUR`); enabled in `render.yaml`, Codespaces and local development.
+- Sample project: `POST /v1/projects/sample` creates "Sample: Online store" (Java + TypeScript with deliberate security flaws, bugs, vulnerable log4j/lodash and a generated fake token) through the normal intake path; one-click "Run the sample review" in the UI.
+- Reviewer-first UI redesign: new sign-in page, overview with onboarding, plain-language reviews/uploads/findings/issues/changes/architecture, merged duplicate findings, file-name-first locations, "Technical details" disclosures for provenance, System status for administrators only, compact mobile layout; UI tour E2E with light/dark/mobile screenshots.
+
 ## Unreleased — Free deployment on Render (30 September 2026)
 
 - Lite profile `CRP_PROFILE=lite` (ADR 0010) for 512 MB free instances: one process (`crp_devtools.lite_server`) with `InlineWorkflowGateway` running the same intake/scan activities without a Temporal server, resuming unfinished intakes and scans after a restart; analyzers one at a time with smaller heaps (`CRP_ESLINT_HEAP_MB`, `CRP_OPENGREP_JOBS`); uploads up to 25 MB.

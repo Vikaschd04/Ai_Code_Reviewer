@@ -2,6 +2,7 @@
 import {
   api,
   toApiError,
+  type AuthOptions,
   type Capability,
   type CoveragePage,
   type DiagnosticRun,
@@ -21,6 +22,7 @@ import {
   type Project,
   type ProjectOverview,
   type ReadinessReport,
+  type SampleProject,
   type Scan,
   type ScanComparison,
   type Snapshot,
@@ -30,6 +32,18 @@ export async function fetchPrincipal(signal?: AbortSignal): Promise<Principal> {
   const { data, error, response } = await api.GET("/v1/auth/me", { signal: signal ?? null });
   if (data) return data;
   throw toApiError(response, error);
+}
+
+export async function fetchAuthOptions(signal?: AbortSignal): Promise<AuthOptions> {
+  const { data, error, response } = await api.GET("/v1/auth/options", { signal: signal ?? null });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Sign in to the shared demo account (only when the server enables it). */
+export async function startDemoSession(): Promise<void> {
+  const { data, error, response } = await api.POST("/v1/auth/demo-session");
+  if (!data) throw toApiError(response, error);
 }
 
 export async function signIn(token: string): Promise<void> {
@@ -122,6 +136,14 @@ export async function fetchProject(projectId: string, signal?: Sig): Promise<Pro
 
 export async function fetchIntakePolicy(signal?: Sig): Promise<IntakePolicy> {
   const { data, error, response } = await api.GET("/v1/intake-policy", { signal: signal ?? null });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function createSampleProject(workspaceId: string): Promise<SampleProject> {
+  const { data, error, response } = await api.POST("/v1/projects/sample", {
+    body: { workspace_id: workspaceId },
+  });
   if (data) return data;
   throw toApiError(response, error);
 }

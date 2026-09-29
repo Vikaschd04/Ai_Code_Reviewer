@@ -1,5 +1,18 @@
 # User experience specification
 
+Product name: **refactorX** (user-facing everywhere; internal identifiers such as `crp_*` packages and `CRP_*` settings are unchanged — ADR 0011).
+
+## Reviewer-first presentation (product rule for all current and future screens)
+
+refactorX is built for a global audience of reviewers, team leads and developers, not for the people who operate it. Every screen, including future phases (AI investigation, fixes, Git, policies), follows these rules:
+
+1. **Show what a reviewer needs to act:** what was found, how severe it is, where it is (file name first), why it matters, how to fix it, what changed since the last review and what the team decided.
+2. **Plain language.** Use the product vocabulary in `apps/web/src/lib/labels.ts`: *review* (not scan), *upload* (not snapshot), check names such as "Security patterns" or "Dependencies & secrets" (not engine ids), "Complete / Partly complete / Waiting / In progress", "Fixed / Still present / Not rechecked", "Not a problem" (false positive), "Acknowledged" (triaged). Server text that says "scan" is reworded in the UI.
+3. **Technical provenance is one click away, never in the way.** Engine and rule versions, rule-set ids, fingerprints, snapshot hashes, policy versions, cache statistics, compatibility tables and resolution details live in a collapsed **"Technical details"** disclosure (`Disclosure` component) — still available for audit, never deleted.
+4. **Operational pages are for administrators only.** Service readiness and diagnostics appear under *Administration → System status* for operators; demo and member users never see them. Developer-only affordances (CLI commands, local runner, token file paths) appear only in the local development environment.
+5. **Honesty is not simplified away:** partial results, files that could not be checked and limitations are still stated — in plain words, with the detail behind the disclosure.
+6. **Every screen is checked visually** in light, dark and mobile (390 px, no horizontal page scroll) by `apps/web/e2e/ui-tour.spec.ts` screenshots before a change is complete.
+
 ## Implemented in P00
 
 Sign-in (local token → HttpOnly session), Overview (live readiness table with icon+text status, workflow diagnostic with an explicit "no code analysis" note, scope statement), Projects (list with "Synthetic fixture" labels, create form), capability-driven navigation where future screens are disabled with their phase and reason. Semantic tables with captions and row headers, labelled controls, `aria-live` regions, focus moved to the page heading on navigation, light/dark colour schemes. Verified by vitest, Playwright E2E and screenshots (P00 report).
@@ -11,6 +24,10 @@ Dark-first "deep space" design system (glass surfaces, gradient accents, grid ba
 ## Implemented in P02
 
 Scan page: six-stage pipeline (Structure, Graph, PMD, ESLint, Opengrep, Trivy), engine cards with rule counts, cache reuse ("N reused · M run" or "not cacheable") and offline vulnerability-DB age/staleness; findings table with dependency locations (`pom.xml · dependency`, never an invented line), "also reported by" correlation, issue status column and issue-status filter; coverage rows mark cached results; header actions JSON/SARIF download, Re-run (cache reuse) and Full rescan; Compare tab (selectable base scan, six group tiles with explanations, per-group table with reasons, engine compatibility table, notes). Finding page: dependency panel (package, installed, fixed-in, advisory, status, PURL), correlated findings, guidance source labelled (catalog or offline Trivy DB), triage panel (status, owner, reason, exception expiry ≤ 1 year, optimistic version, history timeline; locked with an explanation for RESOLVED/FIX_PROPOSED). Project page: Issues tab (status tiles as filters, recheck-state filters with counts, search, paged table linking to the latest finding) and Architecture tab for the latest snapshot. Snapshot page: "Scope & files" and "Architecture" tabs. Architecture view: build tiles, edge-classification legend (line style + icon + label + count), module map SVG (keyboard-focusable nodes, ≤24 modules) with a module-dependency table, node search, bounded radial neighborhood SVG (1–2 hops, kind glyphs, dashed/dotted lines for non-resolved edges) with a full relation table including evidence path/line/text, impact list with caveats, resolution-gap list. Reviewed in light and dark themes (E2E screenshots).
+
+## Implemented for refactorX (30 September 2026)
+
+Sign-in page with product introduction, **Try the demo** (shared demo workspace, no token) and access-token sign-in with an environment-appropriate hint. Overview: welcome, "Try the sample project" (one-click dry run: create the sample, freeze it, review it) and "Review your own code" cards when empty; otherwise stat tiles (projects, findings, critical & high, reviews) and project cards without hashes. Demo banner on every page for the demo account. Projects: list (name, sample badge, description, created) plus create form and sample card. Project: tabs Overview · Issues · Architecture · Reviews (numbered "Review 1…") · Uploads · Upload code; upload success offers **Start review**. Upload page: files/languages/technologies cards, file list with Reviewed/Skipped filters and plain skip reasons, technical details disclosure. Review results: progress steps with check names, severity and type charts, "What was checked" disclosure (per-check coverage, limitations, nested technical details), findings with file-name-first locations and merged duplicates ("Also found by…"), Files checked, Changes (New / Fixed / Still present / Couldn't verify). Finding: code, why it matters, how to fix, vulnerable-library card, decision panel with readable history, technical details. Architecture map: files/parts/connections, modules map with an optional table, search, neighbourhood and impact, technical details. System status (administrators): plain headline, service table, advanced pipeline test. Mobile: compact top navigation, two-column tiles.
 
 ## First journey
 
@@ -36,7 +53,7 @@ Navigation and buttons must correspond to available phases. A disabled future ca
 
 ## Display rules
 
-Snapshot identity is always visible; optional Git metadata supplements it. Display counts with meaningful denominators. Distinguish pending/failed/excluded/unsupported/unreviewed from clean. Severity and evidence confidence are separate. Risk acceptance/suppression is not a fix. Never show a secret value or absolute host path in a source snippet/error.
+Each review names the upload it reviewed (file name and date); the exact snapshot fingerprint is always available under Technical details, and optional Git metadata supplements it. Display counts with meaningful denominators. Distinguish pending/failed/excluded/unsupported/unreviewed from clean. Severity and evidence confidence are separate. Risk acceptance/suppression is not a fix. Never show a secret value or absolute host path in a source snippet/error.
 
 Use accessible labels, keyboard/focus behavior, semantic tables, color-independent status indicators, responsive layout and reasonable contrast. Provide source/diff line navigation without arbitrary HTML. Large file/results lists are virtualized or paginated; graph neighborhoods are bounded.
 

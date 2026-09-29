@@ -1,1 +1,1 @@
-"""Code Review Platform Temporal worker."""
+"""refactorX Temporal worker."""

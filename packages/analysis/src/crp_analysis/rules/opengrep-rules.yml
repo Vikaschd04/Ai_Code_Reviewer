@@ -1,4 +1,4 @@
-# Trusted Code Review Platform Opengrep rules (crp-opengrep-v1).
+# Trusted refactorX Opengrep rules (crp-opengrep-v1).
 # Written and owned by this project (no third-party rule packs are embedded). Every rule id has
 # an entry in rules/catalog.json and positive/negative fixtures in packages/analysis/tests.
 rules:

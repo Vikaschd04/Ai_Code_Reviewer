@@ -7,7 +7,7 @@ import { createProject, signIn } from "./helpers";
 
 test("rejects a wrong token with an understandable message", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("Local API token").fill("definitely-not-the-token");
+  await page.getByLabel("Access token").fill("definitely-not-the-token");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("alert")).toContainText("The token is not valid");
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -15,7 +15,12 @@ test("rejects a wrong token with an understandable message", async ({ page }) =>
 
 test("shows real service readiness on the operations page", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("link", { name: "Operations" }).click();
+  await page.getByRole("link", { name: "System status" }).click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "All services are running" }),
+  ).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(async () => {
     await page.getByRole("button", { name: "Re-check" }).click();
     await expect(page.getByTestId("overall-readiness")).toContainText("Ready", { timeout: 2_000 });
@@ -24,16 +29,15 @@ test("shows real service readiness on the operations page", async ({ page }) => 
     await expect(page.getByTestId(`check-${name}`)).toContainText("OK");
   }
   await expect(page.getByTestId("check-database")).toContainText("schema at head");
-  // Future capabilities are visible but disabled with their phase, not fake links.
-  await expect(
-    page.getByText("P03: Requires Phase 3 and an approved provider and data-egress policy"),
-  ).toBeVisible();
+  // Future capabilities are announced as "coming soon", never as working links.
+  await expect(page.getByRole("list", { name: "Coming soon" })).toContainText("AI investigation");
   await expect(page.getByRole("link", { name: "AI investigation" })).toHaveCount(0);
 });
 
 test("runs the durable diagnostic workflow on the real worker", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("link", { name: "Operations" }).click();
+  await page.getByRole("link", { name: "System status" }).click();
+  await page.getByText("Advanced: test the review pipeline").click();
   await page.getByRole("button", { name: "Run diagnostic workflow" }).click();
   await expect(page.getByTestId("diagnostic-status")).toHaveText("COMPLETED", { timeout: 45_000 });
   const result = page.getByTestId("diagnostic-result");
@@ -67,7 +71,7 @@ test("theme toggle switches between dark and light", async ({ page }) => {
 test("signing out returns to the sign-in form", async ({ page }) => {
   await signIn(page);
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByLabel("Local API token")).toBeVisible();
+  await expect(page.getByLabel("Access token")).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Local API token")).toBeVisible();
+  await expect(page.getByLabel("Access token")).toBeVisible();
 });

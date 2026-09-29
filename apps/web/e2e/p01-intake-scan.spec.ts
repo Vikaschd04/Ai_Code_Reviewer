@@ -15,12 +15,14 @@ test("uploads a ZIP, reviews scope, scans and navigates to exact source", async 
   await expect(page.getByTestId("snapshot-link")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("snapshot-link").click();
 
-  // Scope review: identity, exclusions and the untrusted instruction-file notice.
+  // Scope review: exclusions, the untrusted instruction-file notice and (behind "Technical
+  // details") the snapshot identity.
+  await expect(page.getByText(/AI-assistant instruction files \(AGENTS\.md\)/)).toBeVisible();
+  await page.getByTestId("snapshot-technical").getByText("Technical details").click();
   await expect(page.getByTestId("manifest-sha")).toHaveText(/^[0-9a-f]{64}$/);
-  await expect(page.getByText(/agent instruction files \(AGENTS\.md\)/)).toBeVisible();
-  await page.getByRole("button", { name: "Excluded", exact: true }).click();
+  await page.getByRole("button", { name: "Skipped", exact: true }).click();
   await expect(page.getByRole("rowheader", { name: ".env" })).toBeVisible();
-  await expect(page.getByRole("row", { name: /\.env/ })).toContainText("secret candidate");
+  await expect(page.getByRole("row", { name: /\.env/ })).toContainText("Looks like a secrets file");
   await expect(
     page.getByRole("rowheader", { name: "node_modules/leftpad/index.js" }),
   ).toBeVisible();
@@ -30,8 +32,13 @@ test("uploads a ZIP, reviews scope, scans and navigates to exact source", async 
       .or(page.getByRole("rowheader", { name: "Spring Boot" })),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Start baseline scan" }).click();
-  await expect(page.getByTestId("stage-publish")).toContainText(/Partial/, { timeout: 120_000 });
+  await page.getByRole("button", { name: "Start review" }).click();
+  await expect(page.getByTestId("stage-publish")).toContainText(/Partly complete/, {
+    timeout: 120_000,
+  });
+  // Problems open "What was checked"; versions stay behind its "Technical details".
+  await expect(page.getByTestId("limitations")).toBeVisible();
+  await page.getByTestId("checks-technical").getByText("Technical details").click();
   await expect(page.getByTestId("engine-pmd")).toContainText("7.27.0");
   await expect(page.getByTestId("engine-eslint")).toContainText("10.11.0");
   await expect(page.getByTestId("limitations")).toContainText("pmd: 1 of 3 eligible files failed");
@@ -45,18 +52,18 @@ test("uploads a ZIP, reviews scope, scans and navigates to exact source", async 
   await expect(flagged.first()).toContainText('status == "PAID"');
   await expect(page.getByTestId("recommendation")).toContainText("equals()");
 
-  await page.getByRole("link", { name: "Back to scan" }).click();
-  await page.getByRole("link", { name: "Coverage" }).click();
+  await page.getByRole("link", { name: "Back to review results" }).click();
+  await page.getByRole("link", { name: "Files checked" }).click();
   await page.getByLabel("Coverage outcome").selectOption("FAILED");
-  // One row per file and engine; other engines may still parse these files (error recovery).
+  // One row per file and check; other checks may still read these files (error recovery).
   const rows = page.getByTestId("coverage-row");
-  await expect(rows.filter({ hasText: "Analyzed" })).toHaveCount(0);
-  await expect(rows.filter({ hasText: "Broken.java" }).filter({ hasText: "pmd" })).toContainText(
-    "Failed",
-  );
-  await expect(rows.filter({ hasText: "broken.ts" }).filter({ hasText: "eslint" })).toContainText(
-    "Failed",
-  );
+  await expect(rows.filter({ hasText: "Checked" })).toHaveCount(0);
+  await expect(
+    rows.filter({ hasText: "Broken.java" }).filter({ hasText: "Java quality" }),
+  ).toContainText("Could not read");
+  await expect(
+    rows.filter({ hasText: "broken.ts" }).filter({ hasText: "JavaScript & TypeScript quality" }),
+  ).toContainText("Could not read");
 });
 
 test("rejects a traversal archive with an understandable message", async ({ page }) => {
@@ -65,9 +72,9 @@ test("rejects a traversal archive with an understandable message", async ({ page
   await page.getByLabel("ZIP archive to upload").setInputFiles(env("CRP_E2E_MALICIOUS_ZIP"));
   const rejection = page.getByTestId("intake-rejection");
   await expect(rejection).toBeVisible({ timeout: 60_000 });
-  await expect(rejection).toContainText("Archive rejected");
-  await expect(rejection).toContainText("path_traversal");
+  await expect(rejection).toContainText("This archive was not accepted");
   await expect(
     rejection.locator("..").getByRole("listitem").filter({ hasText: "../../escape.sh" }),
   ).toBeVisible();
+  await expect(rejection.locator("..")).toContainText("path_traversal");
 });

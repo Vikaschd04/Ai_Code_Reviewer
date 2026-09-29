@@ -12,9 +12,9 @@ export const token = readFileSync(env("CRP_E2E_TOKEN_FILE"), "utf8").trim();
 
 export async function signIn(page: Page) {
   await page.goto("/");
-  await page.getByLabel("Local API token").fill(token);
+  await page.getByLabel("Access token").fill(token);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Command center" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
 }
 
 export async function createProject(page: Page, name: string) {
@@ -25,5 +25,5 @@ export async function createProject(page: Page, name: string) {
   await page.getByLabel("Name").fill(name);
   await page.getByRole("button", { name: "Create project" }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Upload a ZIP archive" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Upload your code" })).toBeVisible();
 }

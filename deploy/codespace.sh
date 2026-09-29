@@ -39,8 +39,8 @@ case "$command" in
     for _ in $(seq 1 "${CRP_START_TIMEOUT_TICKS:-300}"); do
       if curl -fsS http://127.0.0.1:8080/v1/health/live > /dev/null 2>&1; then
         echo
-        echo "Code Review Platform is running:  https://${CRP_PUBLIC_HOST}"
-        echo "Sign-in token:                   bash deploy/codespace.sh token"
+        echo "refactorX is running:  https://${CRP_PUBLIC_HOST}"
+        echo "Sign-in token:         bash deploy/codespace.sh token (or use Try the demo)"
         exit 0
       fi
       sleep 2

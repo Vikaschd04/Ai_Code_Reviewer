@@ -1,9 +1,12 @@
-"""Local-token identity provider for loopback single-user development.
+"""Local-token identity provider for the single-user local and hosted modes.
 
 The generated token (outside source control) authenticates API clients via
 ``Authorization: Bearer``. Browsers exchange it once for a signed, HttpOnly, SameSite=Strict
 session cookie so the token itself is not kept in page storage. Rotating the token file
 invalidates every issued session because the signing key is derived from it.
+
+When the demo account is enabled, a demo session (no credentials) is a cookie for the demo
+subject; it is accepted only while the demo stays enabled and never via the bearer token.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from datetime import UTC, datetime
 from fastapi import Request
 
 from crp_api.auth.provider import AuthenticatedSubject, AuthMethod
-from crp_core.db.identity import LOCAL_SUBJECT
+from crp_core.db.identity import DEMO_SUBJECT, LOCAL_SUBJECT
 
 SESSION_COOKIE = "crp_session"
 _SESSION_VERSION = "v1"
@@ -44,8 +47,11 @@ class IssuedSession:
 
 
 class LocalTokenProvider:
-    def __init__(self, token: str, session_ttl_seconds: int) -> None:
+    def __init__(self, token: str, session_ttl_seconds: int, *, demo_enabled: bool = False) -> None:
         self._token = token.encode("utf-8")
+        self._subjects = frozenset(
+            {LOCAL_SUBJECT, DEMO_SUBJECT} if demo_enabled else {LOCAL_SUBJECT}
+        )
         self._signing_key = hmac.new(
             self._token, b"crp-session-signing-v1", hashlib.sha256
         ).digest()
@@ -92,12 +98,16 @@ class LocalTokenProvider:
     def token_matches(self, presented: str) -> bool:
         return hmac.compare_digest(presented.encode("utf-8"), self._token)
 
-    def issue_session(self, now: float | None = None) -> IssuedSession:
+    def issue_session(
+        self, now: float | None = None, *, subject: str = LOCAL_SUBJECT
+    ) -> IssuedSession:
+        if subject not in self._subjects:
+            raise ValueError("sessions can only be issued for known, enabled subjects")
         issued = int(time.time() if now is None else now)
         expires = issued + self._ttl
         payload = _b64e(
             json.dumps(
-                {"sub": LOCAL_SUBJECT, "iat": issued, "exp": expires, "sid": secrets.token_hex(8)},
+                {"sub": subject, "iat": issued, "exp": expires, "sid": secrets.token_hex(8)},
                 separators=(",", ":"),
             ).encode()
         )
@@ -125,9 +135,10 @@ class LocalTokenProvider:
         current = time.time() if now is None else now
         if not isinstance(claims, dict) or not isinstance(claims.get("exp"), int):
             return None
-        if claims["exp"] <= current or claims.get("sub") != LOCAL_SUBJECT:
+        subject = claims.get("sub")
+        if claims["exp"] <= current or subject not in self._subjects:
             return None
-        return LOCAL_SUBJECT
+        return str(subject)
 
     async def authenticate(self, request: Request) -> AuthenticatedSubject | None:
         authorization = request.headers.get("authorization")

@@ -1,3 +1,3 @@
-"""Code Review Platform local runner."""
+"""refactorX local runner."""
 
 __version__ = "0.1.0"

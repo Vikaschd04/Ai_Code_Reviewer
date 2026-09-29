@@ -1,7 +1,7 @@
 [project]
 name = "crp-runner"
 version = "0.1.0"
-description = "User-invoked local runner for the Code Review Platform (folder capture/upload arrives in Phase 1)."
+description = "User-invoked local runner for refactorX (folder capture/upload arrives in Phase 1)."
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "httpx==0.28.1",

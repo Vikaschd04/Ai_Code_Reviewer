@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crp_api.auth.provider import AuthMethod
+from crp_core.db.identity import DEMO_SUBJECT
 from crp_core.db.models import Membership, User, Workspace
 from crp_core.domain.states import MembershipRole
 
@@ -42,6 +43,10 @@ class Principal:
     @property
     def workspace_ids(self) -> tuple[UUID, ...]:
         return tuple(grant.workspace_id for grant in self.grants)
+
+    @property
+    def is_demo(self) -> bool:
+        return self.subject == DEMO_SUBJECT
 
     @property
     def is_operator(self) -> bool:

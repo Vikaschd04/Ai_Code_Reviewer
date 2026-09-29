@@ -6,7 +6,7 @@ import { formatDate, formatRelative, titleCase } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 import { Alert, Loading } from "./Common";
 import { Icon } from "./Icon";
-import { StatusBadge } from "./Status";
+import { StatusBadge, statusLabel } from "./Status";
 
 const TRIAGE = ["OPEN", "TRIAGED", "ACCEPTED_RISK", "FALSE_POSITIVE"] as const;
 type TriageStatus = (typeof TRIAGE)[number];
@@ -16,13 +16,38 @@ function defaultExpiry(): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Server explanations say "scan"; the product calls it a review. */
+function reviewWording(text: string): string {
+  return text.replace(/\bscans?\b/g, (word) => (word === "scan" ? "review" : "reviews"));
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  status: "Status",
+  owner: "Owner",
+  exception_reason: "Reason",
+  exception_expires_at: "Accepted until",
+  recheck_state: "Latest review",
+};
+
+function describeValue(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === "") return "none";
+  const text =
+    typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? String(value)
+      : JSON.stringify(value);
+  if (field === "exception_expires_at") return formatDate(text);
+  if (field === "status" || field === "recheck_state") return statusLabel(text);
+  return text;
+}
+
 function describeEvent(event: IssueEvent): string {
-  const changes = Object.entries(event.changes).map(([field, value]) => {
-    const pair = Array.isArray(value) ? value : [null, value];
-    const from = pair[0] === null || pair[0] === undefined ? "—" : String(pair[0]);
-    const to = pair[1] === null || pair[1] === undefined ? "—" : String(pair[1]);
-    return `${titleCase(field)}: ${from} → ${to}`;
-  });
+  const changes = Object.entries(event.changes)
+    .filter(([field]) => field !== "exception_reason" || !event.reason)
+    .map(([field, value]) => {
+      const pair = Array.isArray(value) ? value : [null, value];
+      const label = FIELD_LABELS[field] ?? titleCase(field);
+      return `${label}: ${describeValue(field, pair[0])} → ${describeValue(field, pair[1])}`;
+    });
   return changes.join(" · ");
 }
 
@@ -79,7 +104,7 @@ function TriageForm({
         >
           {TRIAGE.map((value) => (
             <option key={value} value={value}>
-              {titleCase(value)}
+              {statusLabel(value)}
             </option>
           ))}
         </select>
@@ -111,7 +136,7 @@ function TriageForm({
       ) : null}
       {status === "ACCEPTED_RISK" ? (
         <label>
-          Exception expires (at most one year)
+          Accept the risk until (at most one year)
           <input
             type="date"
             value={expiry}
@@ -124,7 +149,7 @@ function TriageForm({
       ) : null}
       <div className="row">
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          <Icon name="check" size={15} /> Save triage
+          <Icon name="check" size={15} /> Save decision
         </button>
       </div>
       {error ? <Alert tone="bad">{error}</Alert> : null}
@@ -156,24 +181,24 @@ export function IssuePanel({
     <section className="card stack" aria-labelledby="issue-title" data-testid="issue-panel">
       <div className="card-head" style={{ marginBottom: 0 }}>
         <h2 id="issue-title" className="card-title">
-          <Icon name="shield" size={16} /> Issue
+          <Icon name="shield" size={16} /> Your decision
         </h2>
-        <div className="row">
-          <StatusBadge state={issue.status} />
-          <StatusBadge state={issue.recheck_state} />
-        </div>
+        <StatusBadge state={issue.status} />
       </div>
-      <p className="small secondary" style={{ margin: 0 }} data-testid="recheck-reason">
-        {issue.recheck_reason ?? "Not yet rechecked."}
-      </p>
+      <div className="row small secondary" data-testid="recheck-reason">
+        <span>Latest review:</span> <StatusBadge state={issue.recheck_state} />
+        {issue.recheck_reason ? (
+          <span className="muted">{reviewWording(issue.recheck_reason)}</span>
+        ) : null}
+      </div>
       {issue.exception_expired ? (
-        <Alert tone="warn">The accepted-risk exception has expired.</Alert>
+        <Alert tone="warn">The accepted-risk period has ended; decide again.</Alert>
       ) : null}
       {locked ? (
         <Alert tone="info">
           {issue.status === "RESOLVED"
-            ? "Resolved by a verified absence in a compatible scan. It reopens automatically if reported again."
-            : "A fix proposal owns this issue's status."}
+            ? "Fixed: a later review checked the file and the problem is gone. It reopens automatically if it comes back."
+            : "A proposed fix is handling this issue."}
         </Alert>
       ) : (
         <TriageForm
@@ -184,7 +209,7 @@ export function IssuePanel({
       )}
       {saved?.issue.id === issueId ? (
         <span className="small" role="status">
-          Saved (version {issue.version})
+          Saved
         </span>
       ) : null}
       <dl className="kv">
@@ -196,7 +221,7 @@ export function IssuePanel({
         <dd>{issue.owner ?? "—"}</dd>
         {issue.exception_expires_at ? (
           <>
-            <dt>Expires</dt>
+            <dt>Accepted until</dt>
             <dd>{formatDate(issue.exception_expires_at)}</dd>
           </>
         ) : null}
@@ -211,7 +236,7 @@ export function IssuePanel({
               <div className="small">
                 <strong>{titleCase(event.kind)}</strong>{" "}
                 <span className="muted">
-                  {event.actor_kind === "system" ? "by scan" : "by user"} ·{" "}
+                  {event.actor_kind === "system" ? "by a review" : "by a reviewer"} ·{" "}
                   {formatRelative(event.created_at)}
                 </span>
               </div>

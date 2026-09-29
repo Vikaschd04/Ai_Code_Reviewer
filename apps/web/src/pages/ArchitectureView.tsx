@@ -7,7 +7,7 @@ import {
   fetchNeighborhood,
   searchGraphNodes,
 } from "../api/endpoints";
-import { Alert, Empty, Loading } from "../components/Common";
+import { Alert, Disclosure, Empty, Loading } from "../components/Common";
 import { Icon } from "../components/Icon";
 import { StatusBadge } from "../components/Status";
 import { formatNumber, titleCase } from "../lib/format";
@@ -15,11 +15,21 @@ import { useAsync } from "../lib/useAsync";
 
 const CLASSES = ["resolved", "declared", "inferred", "unresolved"] as const;
 const CLASS_HELP: Record<string, string> = {
-  resolved: "target located in this snapshot by a deterministic rule",
-  declared: "external target consistent with a declaration (JDK, Node built-in, manifest)",
-  inferred: "heuristic match, e.g. Maven groupId prefix",
-  unresolved: "target unknown: missing classpath, undeclared package or dynamic",
+  resolved: "Confirmed: the target was found in your code",
+  declared:
+    "Declared: comes from a library or platform your project declares (for example the JDK)",
+  inferred: "Likely: matched by name, not fully confirmed",
+  unresolved:
+    "Not found: could not be traced (missing library, undeclared package or dynamic import)",
 };
+const ECOSYSTEMS: Record<string, string> = { maven: "Maven", npm: "npm", gradle: "Gradle" };
+
+/** "module:maven:app" → "app (Maven)"; other keys unchanged. */
+function moduleName(key: string): string {
+  const match = /^module:([^:]+):(.+)$/.exec(key);
+  if (!match?.[1] || !match[2]) return key;
+  return `${match[2]} (${ECOSYSTEMS[match[1]] ?? match[1]})`;
+}
 const GLYPH: Record<string, string> = {
   module: "M",
   file: "F",
@@ -44,7 +54,7 @@ function activate(handler: () => void) {
 
 function Legend({ counts }: { counts: Record<string, number> }) {
   return (
-    <div className="legend" aria-label="Edge classification legend">
+    <div className="legend" aria-label="What the connection styles mean">
       {CLASSES.map((name) => (
         <span key={name} title={CLASS_HELP[name]}>
           <span className="legend-swatch" data-class={name} aria-hidden="true" />
@@ -364,19 +374,19 @@ function Neighborhood({
             })}
           </svg>
           <div className="legend small">
-            <span>M module · F file · T type · P package · E external</span>
-            <span>Dashed/dotted lines: not resolved inside the snapshot</span>
+            <span>M module · F file · T class or type · P package · E external library</span>
+            <span>Dashed or dotted lines: connections outside your code or not confirmed</span>
           </div>
           <div className="table-wrap" style={{ maxHeight: 360 }}>
             <table className="data-table">
-              <caption className="visually-hidden">Relations in this neighborhood</caption>
+              <caption className="visually-hidden">Connections around this item</caption>
               <thead>
                 <tr>
                   <th scope="col">From</th>
-                  <th scope="col">Relation</th>
-                  <th scope="col">Target</th>
-                  <th scope="col">Classification</th>
-                  <th scope="col">Evidence</th>
+                  <th scope="col">Connection</th>
+                  <th scope="col">To</th>
+                  <th scope="col">Confidence</th>
+                  <th scope="col">Where in the code</th>
                 </tr>
               </thead>
               <tbody>
@@ -409,13 +419,13 @@ function Neighborhood({
       {impactOn ? (
         <div className="stack" data-testid="impact">
           <h3 className="card-title" style={{ fontSize: "0.95rem" }}>
-            Impact: what depends on this (up to 3 hops)
+            What depends on this (up to 3 steps away)
           </h3>
           {impact.error ? <Alert tone="bad">{impact.error}</Alert> : null}
           {impact.data ? (
             <>
               {impact.data.dependents.length === 0 ? (
-                <p className="small secondary">No dependents found by syntax-level relations.</p>
+                <p className="small secondary">Nothing in the code depends on this.</p>
               ) : (
                 <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {impact.data.dependents.map((item) => (
@@ -468,13 +478,13 @@ function NodeSearch({
   return (
     <section className="card stack" aria-labelledby="search-title">
       <h2 id="search-title" className="card-title">
-        Explore
+        Find a file, class or package
       </h2>
       <div className="row">
         <input
           type="search"
           aria-label="Search graph nodes"
-          placeholder="Search files, types, modules…"
+          placeholder="Type a name…"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -488,7 +498,7 @@ function NodeSearch({
             setKind(event.target.value);
           }}
         >
-          <option value="">All kinds</option>
+          <option value="">Everything</option>
           {["module", "file", "type", "package", "external"].map((value) => (
             <option key={value} value={value}>
               {titleCase(value)}
@@ -523,7 +533,7 @@ function NodeSearch({
       {results.data ? (
         <p className="hint">
           {results.data.total} match{results.data.total === 1 ? "" : "es"}
-          {results.data.next_cursor ? " · refine the search to see more" : ""}
+          {results.data.next_cursor ? " · type more of the name to narrow the list" : ""}
         </p>
       ) : null}
     </section>
@@ -538,35 +548,37 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
   const data = summary.data;
   if (data.status === "none") {
     return (
-      <Empty title="No architecture graph yet">
-        <p className="small">Scan this snapshot to extract modules, files, types and relations.</p>
-      </Empty>
+      <section className="card">
+        <Empty title="No architecture map yet">
+          <p className="small">Review this upload to map its modules, files and connections.</p>
+        </Empty>
+      </section>
     );
   }
   if (data.status === "failed") return <Alert tone="bad">{data.message}</Alert>;
   const build = data.build;
+  const gaps = Object.entries(data.unresolved_reasons);
   return (
     <div className="stack" data-testid="architecture">
       <section className="card stack" aria-labelledby="graph-title">
         <div className="card-head" style={{ marginBottom: 0 }}>
           <div>
             <h2 id="graph-title" className="card-title">
-              <Icon name="graph" size={16} /> Architecture graph
+              <Icon name="graph" size={16} /> Architecture map
             </h2>
             <p className="card-sub">
-              {data.message}. Syntax-level relations with evidence; nothing inferred by AI.
+              How your code is organised and how its parts depend on each other. Built from the code
+              itself; nothing is guessed by AI.
             </p>
           </div>
-          {build ? <StatusBadge state={build.state} /> : null}
+          {build && build.state !== "SUCCEEDED" ? <StatusBadge state={build.state} /> : null}
         </div>
         {build ? (
-          <div className="tiles">
+          <div className="tiles tiles-3">
             {[
-              ["Nodes", build.node_count],
-              ["Relations", build.edge_count],
-              ["Unresolved", build.unresolved_count],
-              ["Files parsed", build.files_parsed],
-              ["Parse failures", build.files_failed],
+              ["Files mapped", build.files_parsed],
+              ["Parts", build.node_count],
+              ["Connections", build.edge_count],
             ].map(([label, value]) => (
               <div key={String(label)} className="tile">
                 <span className="tile-value">{formatNumber(Number(value))}</span>
@@ -576,85 +588,93 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
           </div>
         ) : null}
         <Legend counts={data.edges_by_classification} />
-        <p className="hint mono">{build?.extractor}</p>
       </section>
       <section className="card stack" aria-labelledby="modules-title">
         <h2 id="modules-title" className="card-title">
-          Modules and dependencies
+          Modules
         </h2>
         <ModuleMap summary={data} onSelect={setSelected} />
-        <div className="table-wrap" style={{ maxHeight: 300 }}>
-          <table className="data-table">
-            <caption className="visually-hidden">Module dependencies</caption>
-            <thead>
-              <tr>
-                <th scope="col">From</th>
-                <th scope="col">To</th>
-                <th scope="col">Kind</th>
-                <th scope="col">Relations</th>
-                <th scope="col">Classification</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.module_dependencies.map((dep) => (
-                <tr
-                  key={`${dep.source_key}-${dep.target_key}-${dep.relation}`}
-                  data-testid="module-dependency"
-                >
-                  <th scope="row" className="mono small" style={{ fontWeight: 500 }}>
-                    {dep.source_key}
-                  </th>
-                  <td className="mono small">{dep.target_key}</td>
-                  <td className="small">{dep.relation === "depends_on" ? "manifest" : "code"}</td>
-                  <td>{dep.edges}</td>
-                  <td>
-                    <StatusBadge
-                      state={dep.classification === "mixed" ? "PARTIAL" : dep.classification}
-                      label={titleCase(dep.classification)}
-                    />
-                  </td>
+        <Disclosure summary="Show module connections as a table" testId="module-table">
+          <div className="table-wrap" style={{ maxHeight: 300 }}>
+            <table className="data-table">
+              <caption className="visually-hidden">Module connections</caption>
+              <thead>
+                <tr>
+                  <th scope="col">From</th>
+                  <th scope="col">To</th>
+                  <th scope="col">Declared in</th>
+                  <th scope="col">Connections</th>
+                  <th scope="col">Confidence</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {data.module_dependencies.map((dep) => (
+                  <tr
+                    key={`${dep.source_key}-${dep.target_key}-${dep.relation}`}
+                    data-testid="module-dependency"
+                  >
+                    <th scope="row" className="small" style={{ fontWeight: 500 }}>
+                      {moduleName(dep.source_key)}
+                    </th>
+                    <td className="small">{moduleName(dep.target_key)}</td>
+                    <td className="small">
+                      {dep.relation === "depends_on" ? "build file" : "code"}
+                    </td>
+                    <td>{dep.edges}</td>
+                    <td>
+                      {dep.classification === "mixed" ? (
+                        <StatusBadge state="PARTIAL" label="Mixed" />
+                      ) : (
+                        <StatusBadge state={dep.classification} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Disclosure>
       </section>
-      <div className="grid grid-2">
-        <NodeSearch snapshotId={snapshotId} onSelect={setSelected} />
-        {Object.keys(data.unresolved_reasons).length > 0 ? (
-          <section className="card stack" aria-labelledby="gaps-title">
-            <h2 id="gaps-title" className="card-title">
-              Resolution gaps
-            </h2>
+      <NodeSearch snapshotId={snapshotId} onSelect={setSelected} />
+      {selected ? (
+        <Neighborhood snapshotId={snapshotId} node={selected} onSelect={setSelected} />
+      ) : (
+        <section className="card">
+          <Empty title="Pick a module above or search for a name">
+            <p className="small">
+              See what it connects to and what would be affected if it changes.
+            </p>
+          </Empty>
+        </section>
+      )}
+      <Disclosure testId="architecture-technical">
+        {build ? (
+          <dl className="kv">
+            <dt>Connections not traced</dt>
+            <dd>{formatNumber(build.unresolved_count)}</dd>
+            <dt>Files that could not be read</dt>
+            <dd>{formatNumber(build.files_failed)}</dd>
+            <dt>Map builder</dt>
+            <dd className="mono">{build.extractor}</dd>
+          </dl>
+        ) : null}
+        {gaps.length > 0 ? (
+          <>
+            <strong className="small">Why some connections could not be traced</strong>
             <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-              {Object.entries(data.unresolved_reasons).map(([reason, count]) => (
+              {gaps.map(([reason, count]) => (
                 <li key={reason}>
                   <strong>{count}</strong> {reason}
                 </li>
               ))}
             </ul>
-            <p className="hint">
-              Unresolved relations are listed, never guessed. Missing classpaths, undeclared
-              packages and dynamic imports stay unresolved.
-            </p>
-          </section>
-        ) : (
-          <section className="card">
-            <Empty title="No resolution gaps" />
-          </section>
-        )}
-      </div>
-      {selected ? (
-        <Neighborhood snapshotId={snapshotId} node={selected} onSelect={setSelected} />
-      ) : (
-        <section className="card">
-          <Empty title="Select a module or search for a node">
-            <p className="small">
-              Explore up to two hops of relations and see what depends on a file or type.
-            </p>
-          </Empty>
-        </section>
-      )}
+          </>
+        ) : null}
+        <p className="hint">
+          {data.message}. Untraced connections are listed, never guessed: missing libraries,
+          undeclared packages and dynamic imports stay untraced.
+        </p>
+      </Disclosure>
     </div>
   );
 }

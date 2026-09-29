@@ -1,1 +1,1 @@
-"""Code Review Platform shared core package."""
+"""refactorX shared core package."""

@@ -1,9 +1,9 @@
-# uv workspace root for the Code Review Platform Python packages.
+# uv workspace root for refactorX Python packages.
 # The root is virtual (not built); members are the deployable/importable packages.
 [project]
 name = "code-review-platform"
 version = "0.0.0"
-description = "Workspace root for the Code Review Platform (not a distributable package)."
+description = "Workspace root for refactorX (not a distributable package)."
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "crp-core",

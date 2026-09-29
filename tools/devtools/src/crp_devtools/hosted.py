@@ -45,6 +45,7 @@ _PASS_THROUGH_PREFIXES = (
     "CRP_ESLINT_HEAP_MB",
     "CRP_OPENGREP_JOBS",
     "CRP_ARTIFACT_",
+    "CRP_DEMO_",
 )
 # Lite profile (free tiers: ~512 MB memory, no persistent disk; ADR 0010): one process, no
 # Temporal server, artifacts in PostgreSQL, one engine at a time with small heaps, and smaller

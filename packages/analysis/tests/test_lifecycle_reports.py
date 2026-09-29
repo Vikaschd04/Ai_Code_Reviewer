@@ -97,7 +97,7 @@ def _export() -> dict[str, Any]:
     return {
         "format": "crp-scan-export/v1",
         "generated_at": "2026-09-27T10:00:00+00:00",
-        "tool": {"name": "Code Review Platform", "version": "0.1.0"},
+        "tool": {"name": "refactorX", "version": "0.1.0"},
         "project": {"id": ids[0], "slug": "demo", "name": "Demo"},
         "snapshot": {
             "id": ids[1],

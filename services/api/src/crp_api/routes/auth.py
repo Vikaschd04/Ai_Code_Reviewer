@@ -3,15 +3,18 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 
 from crp_api.auth.dependencies import Container, CurrentPrincipal, require_allowed_origin
-from crp_api.auth.local_token import SESSION_COOKIE
+from crp_api.auth.local_token import SESSION_COOKIE, IssuedSession
+from crp_api.container import AppContainer
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
+    AuthOptions,
     PrincipalResponse,
     SessionRequest,
     SessionResponse,
     WorkspaceGrantResponse,
 )
-from crp_core.db.identity import LOCAL_SUBJECT
+from crp_core.db.identity import DEMO_SUBJECT, LOCAL_SUBJECT, ensure_demo_identity
+from crp_core.db.session import transaction
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -37,6 +40,45 @@ async def create_session(
         container.login_throttle.record_failure()
         raise ApiError(401, "invalid_credentials", "The token is not valid")
     session = container.identity.issue_session()
+    _set_session_cookie(response, session, container)
+    return SessionResponse(subject=LOCAL_SUBJECT, expires_at=session.expires_at)
+
+
+@router.get(
+    "/options",
+    response_model=AuthOptions,
+    responses={403: {"model": ErrorResponse, "description": "Host not allowed (hosted mode)"}},
+)
+async def sign_in_options(container: Container) -> AuthOptions:
+    """Public: which sign-in methods the web UI should offer (no credentials required)."""
+    return AuthOptions(
+        environment=container.settings.environment,
+        demo_enabled=container.settings.demo_enabled,
+    )
+
+
+@router.post(
+    "/demo-session",
+    response_model=SessionResponse,
+    responses={403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+async def create_demo_session(
+    request: Request, response: Response, container: Container
+) -> SessionResponse:
+    """Sign in to the shared demo account (demo workspace only) when the demo is enabled."""
+    require_allowed_origin(request, container)
+    if not container.settings.demo_enabled:
+        raise ApiError(404, "demo_disabled", "The demo account is not enabled on this server")
+    async with transaction(container.session_factory) as session:
+        await ensure_demo_identity(session)
+    issued = container.identity.issue_session(subject=DEMO_SUBJECT)
+    _set_session_cookie(response, issued, container)
+    return SessionResponse(subject=DEMO_SUBJECT, expires_at=issued.expires_at)
+
+
+def _set_session_cookie(
+    response: Response, session: IssuedSession, container: AppContainer
+) -> None:
     response.set_cookie(
         SESSION_COOKIE,
         session.cookie_value,
@@ -47,7 +89,6 @@ async def create_session(
         secure=container.settings.hosted,
         path="/",
     )
-    return SessionResponse(subject=LOCAL_SUBJECT, expires_at=session.expires_at)
 
 
 @router.delete("/session", status_code=204)
@@ -71,6 +112,7 @@ async def current_principal(principal: CurrentPrincipal) -> PrincipalResponse:
         display_name=principal.display_name,
         auth_method=principal.auth_method.value,
         is_operator=principal.is_operator,
+        is_demo=principal.is_demo,
         workspaces=[
             WorkspaceGrantResponse(
                 workspace_id=grant.workspace_id, slug=grant.slug, name=grant.name, role=grant.role

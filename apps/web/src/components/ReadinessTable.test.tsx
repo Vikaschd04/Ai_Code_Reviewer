@@ -37,7 +37,7 @@ describe("ReadinessTable", () => {
     render(<ReadinessTable checks={checks} />);
     const database = screen.getByTestId("check-database");
     expect(within(database).getByText("OK")).toBeInTheDocument();
-    expect(within(database).getByText("PostgreSQL database")).toBeInTheDocument();
+    expect(within(database).getByText("Database")).toBeInTheDocument();
 
     const worker = screen.getByTestId("check-workflow_worker");
     expect(within(worker).getByText("Unavailable")).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("ReadinessTable", () => {
 
   it("uses a semantic table with a caption and row headers", () => {
     render(<ReadinessTable checks={checks} />);
-    expect(screen.getByRole("table", { name: "Dependency readiness checks" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Service status" })).toBeInTheDocument();
     expect(screen.getAllByRole("rowheader")).toHaveLength(3);
   });
 });

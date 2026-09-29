@@ -1,7 +1,7 @@
 [project]
 name = "crp-core"
 version = "0.1.0"
-description = "Code Review Platform shared core: typed settings, persistence, migrations, artifact store and workflow contracts."
+description = "refactorX shared core: typed settings, persistence, migrations, artifact store and workflow contracts."
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "alembic==1.20.0",

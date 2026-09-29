@@ -1,4 +1,4 @@
-// Trusted Code Review Platform ESLint configuration (crp-eslint-v1).
+// Trusted refactorX ESLint configuration (crp-eslint-v1).
 // Platform-owned: uploaded projects cannot supply or modify it, and inline
 // `eslint-disable` / config comments are ignored (allowInlineConfig: false).
 // Every enabled rule has an entry in packages/analysis/.../rules/catalog.json.

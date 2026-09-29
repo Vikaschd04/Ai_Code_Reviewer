@@ -1,0 +1,8 @@
+{
+  "name": "online-store-web",
+  "version": "1.4.0",
+  "private": true,
+  "dependencies": {
+    "lodash": "4.17.15"
+  }
+}

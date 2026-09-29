@@ -1,1 +1,1 @@
-"""Trusted-development tooling for the Code Review Platform."""
+"""Trusted-development tooling for refactorX."""

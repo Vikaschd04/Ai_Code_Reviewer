@@ -54,7 +54,9 @@ def create_app(
         if settings.local_token_file is None:  # guaranteed by Settings validation in local mode
             raise RuntimeError("local token file is not configured")
         identity = LocalTokenProvider(
-            read_secret_file(settings.local_token_file), settings.session_ttl_seconds
+            read_secret_file(settings.local_token_file),
+            settings.session_ttl_seconds,
+            demo_enabled=settings.demo_enabled,
         )
         if settings.hosted and identity.token_length < 32:
             raise RuntimeError("hosted mode requires an access token of at least 32 characters")
@@ -80,12 +82,14 @@ def create_app(
             await engine.dispose()
 
     app = FastAPI(
-        title="Code Review Platform API",
+        title="refactorX API",
         version=__version__,
         description=(
-            "Control-plane API: local authentication, readiness, projects, ZIP/local-runner "
-            "intake, frozen snapshots, baseline PMD/ESLint scans with coverage, findings and "
-            "exact source evidence. Source-only analysis; no AI provider is used."
+            "refactorX control-plane API: authentication (access token or optional demo "
+            "account), readiness, projects and sample projects, ZIP/local-runner intake, frozen "
+            "snapshots, scans (PMD, ESLint, Opengrep, Trivy, structure, graph) with coverage, "
+            "findings, issues, comparison and exports. Source-only analysis; no AI provider is "
+            "used."
         ),
         lifespan=lifespan,
         docs_url=f"{API_PREFIX}/docs",

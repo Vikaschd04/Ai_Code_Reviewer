@@ -64,7 +64,7 @@ def _limits(settings: Settings) -> IntakeLimits:
     )
 
 
-def _response(intake: Intake, settings: Settings) -> IntakeResponse:
+def intake_response(intake: Intake, settings: Settings) -> IntakeResponse:
     return IntakeResponse(
         id=intake.id,
         project_id=intake.project_id,
@@ -164,7 +164,7 @@ async def create_intake(
         session.add(intake)
         await session.flush()
         await session.refresh(intake)
-        response = _response(intake, settings)
+        response = intake_response(intake, settings)
     await expire_abandoned(container)
     return response
 
@@ -185,7 +185,7 @@ async def list_intakes(
                 .limit(50)
             )
         ).scalars()
-        return IntakePage(items=[_response(row, container.settings) for row in rows])
+        return IntakePage(items=[intake_response(row, container.settings) for row in rows])
 
 
 @router.get("/intakes/{intake_id}", response_model=IntakeResponse, responses=_ERRORS)
@@ -196,7 +196,7 @@ async def get_intake(
         intake = await get_scoped(
             session, principal, Intake, intake_id, not_found="intake_not_found"
         )
-        return _response(intake, container.settings)
+        return intake_response(intake, container.settings)
 
 
 def _file_chunks(path: Path) -> Iterator[bytes]:
@@ -333,7 +333,7 @@ async def upload_content(
         intake.archive_bytes = size
         await session.flush()
         await session.refresh(intake)
-        return _response(intake, settings)
+        return intake_response(intake, settings)
 
 
 @router.put(
@@ -375,7 +375,7 @@ async def upload_client_manifest(
         intake.client_manifest_key = str(key)
         await session.flush()
         await session.refresh(intake)
-        return _response(intake, container.settings)
+        return intake_response(intake, container.settings)
 
 
 @router.post(
@@ -407,7 +407,7 @@ async def finalize_intake(
         needs_start = IntakeState(intake.state) is IntakeState.VALIDATING
         await session.flush()
         await session.refresh(intake)
-        response = _response(intake, container.settings)
+        response = intake_response(intake, container.settings)
     if needs_start:
         try:
             await container.workflows.start_intake(intake_id)
@@ -426,7 +426,7 @@ async def cancel_intake(
         intake = await _intake(session, principal, intake_id, for_update=True)
         state = IntakeState(intake.state)
         if state is IntakeState.CANCELED:
-            return _response(intake, container.settings)
+            return intake_response(intake, container.settings)
         if state.is_terminal:
             raise _conflict(intake, "cancel")
         intake.state = IntakeState.CANCELED.value
@@ -434,7 +434,7 @@ async def cancel_intake(
         keys = [k for k in (intake.archive_key, intake.client_manifest_key) if k]
         await session.flush()
         await session.refresh(intake)
-        response = _response(intake, container.settings)
+        response = intake_response(intake, container.settings)
     for key in keys:
         await asyncio.to_thread(container.artifacts.delete, ArtifactKey(key))
     return response

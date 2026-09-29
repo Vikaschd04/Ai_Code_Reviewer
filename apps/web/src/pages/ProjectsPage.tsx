@@ -4,8 +4,10 @@ import { describeError, type Principal } from "../api/client";
 import { createProject, listProjects } from "../api/endpoints";
 import { Alert, Empty, Loading } from "../components/Common";
 import { Icon } from "../components/Icon";
+import { SampleCard } from "../components/SampleCard";
 import { formatDate } from "../lib/format";
 import { navigate } from "../lib/router";
+import { writableWorkspace } from "../lib/session";
 import { useAsync } from "../lib/useAsync";
 
 function CreateProjectForm({ principal }: { principal: Principal }) {
@@ -33,7 +35,7 @@ function CreateProjectForm({ principal }: { principal: Principal }) {
         name: name.trim(),
         description,
       });
-      navigate(`#/projects/${project.id}?tab=source`);
+      navigate(`#/projects/${project.id}?tab=upload`);
     } catch (caught) {
       setError(describeError(caught));
       setBusy(false);
@@ -76,7 +78,7 @@ function CreateProjectForm({ principal }: { principal: Principal }) {
           required
           maxLength={200}
           value={name}
-          placeholder="e.g. Billing service"
+          placeholder="e.g. Payments service"
           onChange={(event) => {
             setName(event.target.value);
           }}
@@ -108,6 +110,9 @@ function CreateProjectForm({ principal }: { principal: Principal }) {
 export function ProjectsPage({ principal }: { principal: Principal }) {
   const projects = useAsync((signal) => listProjects(signal), []);
   const names = new Map(principal.workspaces.map((w) => [w.workspace_id, w.name]));
+  const manyWorkspaces = principal.workspaces.length > 1;
+  const workspace = writableWorkspace(principal);
+  const newestFirst = [...(projects.data ?? [])].reverse();
   return (
     <div className="split">
       <section className="card" aria-labelledby="projects-title">
@@ -122,37 +127,36 @@ export function ProjectsPage({ principal }: { principal: Principal }) {
           {projects.loading && !projects.data ? <Loading /> : null}
           {projects.data?.length === 0 ? (
             <Empty title="No projects yet">
-              <p>Create one to upload source and run a scan.</p>
+              <p>Create one to upload code and start a review, or try the sample project.</p>
             </Empty>
           ) : null}
-          {projects.data && projects.data.length > 0 ? (
+          {newestFirst.length > 0 ? (
             <div className="table-wrap">
               <table className="data-table">
                 <caption className="visually-hidden">Projects you can access</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Workspace</th>
-                    <th scope="col">Origin</th>
+                    <th scope="col">Project</th>
+                    {manyWorkspaces ? <th scope="col">Workspace</th> : null}
                     <th scope="col">Created</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.data.map((project) => (
+                  {newestFirst.map((project) => (
                     <tr key={project.id}>
                       <th scope="row">
-                        <a href={`#/projects/${project.id}`}>{project.name}</a>
-                        <div className="muted small mono">{project.slug}</div>
+                        <div className="row" style={{ gap: 8 }}>
+                          <a href={`#/projects/${project.id}`}>{project.name}</a>
+                          {project.origin === "synthetic_fixture" ? (
+                            <span className="badge badge-neutral">Sample</span>
+                          ) : null}
+                        </div>
+                        {project.description ? (
+                          <div className="muted small clamp-2">{project.description}</div>
+                        ) : null}
                       </th>
-                      <td>{names.get(project.workspace_id) ?? project.workspace_id}</td>
-                      <td>
-                        {project.origin === "synthetic_fixture" ? (
-                          <span className="badge badge-neutral">Synthetic fixture</span>
-                        ) : (
-                          "User"
-                        )}
-                      </td>
-                      <td>{formatDate(project.created_at)}</td>
+                      {manyWorkspaces ? <td>{names.get(project.workspace_id) ?? "—"}</td> : null}
+                      <td className="nowrap">{formatDate(project.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -161,7 +165,10 @@ export function ProjectsPage({ principal }: { principal: Principal }) {
           ) : null}
         </div>
       </section>
-      <CreateProjectForm principal={principal} />
+      <div className="stack">
+        <CreateProjectForm principal={principal} />
+        {workspace ? <SampleCard workspaceId={workspace} compact /> : null}
+      </div>
     </div>
   );
 }

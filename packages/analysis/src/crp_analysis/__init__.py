@@ -1,1 +1,1 @@
-"""Code Review Platform analysis pipeline components."""
+"""refactorX analysis pipeline components."""

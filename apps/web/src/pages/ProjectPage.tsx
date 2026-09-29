@@ -12,17 +12,35 @@ import {
   startScan,
   uploadArchive,
 } from "../api/endpoints";
-import { Alert, CopyBlock, Empty, Loading, PageHeader, Tabs } from "../components/Common";
+import {
+  Alert,
+  CopyBlock,
+  Disclosure,
+  Empty,
+  Loading,
+  PageHeader,
+  Tabs,
+} from "../components/Common";
 import { Icon } from "../components/Icon";
 import { SeverityBars, severityCounts } from "../components/Severity";
 import { StatusBadge, findingTotal } from "../components/Status";
-import { formatBytes, formatDate, formatRelative, shortHash } from "../lib/format";
+import { formatBytes, formatDate, formatRelative } from "../lib/format";
+import { plural } from "../lib/labels";
+import { reviewLabel, reviewNumbers } from "../lib/reviews";
 import { navigate } from "../lib/router";
+import { isLocalDevelopment, useSession } from "../lib/session";
 import { useAsync } from "../lib/useAsync";
 import { ArchitectureView } from "./ArchitectureView";
 import { IssuesView } from "./IssuesView";
 
 type UploadPhase = "idle" | "uploading" | "validating" | "done";
+
+/** Old tab names still open the right tab (links from earlier versions). */
+const TAB_ALIASES: Record<string, string> = {
+  source: "upload",
+  snapshots: "uploads",
+  scans: "reviews",
+};
 
 async function waitForIntake(id: string): Promise<Intake> {
   for (let attempt = 0; attempt < 600; attempt++) {
@@ -30,7 +48,47 @@ async function waitForIntake(id: string): Promise<Intake> {
     if (["READY", "REJECTED", "FAILED", "CANCELED"].includes(intake.state)) return intake;
     await new Promise((resolve) => setTimeout(resolve, 700));
   }
-  throw new Error("Validation is taking longer than expected; check the intake later.");
+  throw new Error("Checking the upload is taking longer than expected; look again in a minute.");
+}
+
+function StartReviewButton({
+  projectId,
+  snapshotId,
+  label = "Start review",
+  primary = true,
+}: {
+  projectId: string;
+  snapshotId: string;
+  label?: string;
+  primary?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        className={primary ? "btn btn-primary" : "btn btn-ghost btn-sm"}
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          startScan(projectId, snapshotId).then(
+            (scan) => {
+              navigate(`#/scans/${scan.id}`);
+            },
+            (caught: unknown) => {
+              setError(describeError(caught));
+              setBusy(false);
+            },
+          );
+        }}
+      >
+        <Icon name="scan" size={primary ? 16 : 14} /> {busy ? "Starting…" : label}
+      </button>
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </>
+  );
 }
 
 function ZipUpload({ projectId }: { projectId: string }) {
@@ -47,11 +105,11 @@ function ZipUpload({ projectId }: { projectId: string }) {
     setError(null);
     setResult(null);
     if (!file.name.toLowerCase().endsWith(".zip")) {
-      setError("Choose a .zip archive.");
+      setError("Choose a .zip file.");
       return;
     }
     if (limit !== null && file.size > limit) {
-      setError(`The file is ${formatBytes(file.size)}; the upload limit is ${formatBytes(limit)}.`);
+      setError(`The file is ${formatBytes(file.size)}; the limit is ${formatBytes(limit)}.`);
       return;
     }
     try {
@@ -78,16 +136,17 @@ function ZipUpload({ projectId }: { projectId: string }) {
   }
 
   const busy = phase === "uploading" || phase === "validating";
+  const violations = (result?.error_details as { violations?: unknown } | null)?.violations;
   return (
     <section className="card stack" aria-labelledby="zip-title">
       <div>
         <h2 id="zip-title" className="card-title">
-          <Icon name="upload" size={16} /> Upload a ZIP archive
+          <Icon name="upload" size={16} /> Upload your code
         </h2>
         <p className="card-sub">
-          The archive is streamed to this server, validated (paths, symlinks, collisions, size and
-          compression limits) and frozen into an immutable snapshot. Bytes reach the server before
-          exclusions apply — remove secrets first, or use the local runner.
+          Upload a .zip of your source code. refactorX checks the archive for unsafe content, keeps
+          an exact copy for this review and skips dependencies, build output and secret files.
+          Remove passwords and keys before uploading.
         </p>
       </div>
       <label
@@ -103,10 +162,10 @@ function ZipUpload({ projectId }: { projectId: string }) {
         onDrop={onDrop}
       >
         <Icon name="upload" size={28} />
-        <strong>Drop a .zip here or choose a file</strong>
+        <strong>Drop a .zip file here or choose one</strong>
         <span className="muted small">
           {policy.data
-            ? `Up to ${formatBytes(policy.data.limits.max_upload_bytes)} · ${policy.data.limits.max_entries.toLocaleString()} entries · policy ${policy.data.version}`
+            ? `Up to ${formatBytes(policy.data.limits.max_upload_bytes)}`
             : "Loading limits…"}
         </span>
         <input
@@ -140,44 +199,51 @@ function ZipUpload({ projectId }: { projectId: string }) {
         ) : null}
         {phase === "validating" ? (
           <div className="row small secondary">
-            <span className="pulse-dot" /> Validating and freezing the snapshot…
+            <span className="pulse-dot" /> Checking the archive and preparing your code…
           </div>
         ) : null}
         {error ? <Alert tone="bad">{error}</Alert> : null}
         {result?.state === "READY" && result.snapshot_id ? (
-          <Alert tone="info">
+          <div className="success-panel" data-testid="upload-ready">
             <p>
-              <strong>Snapshot ready.</strong> Archive sha256{" "}
-              <span className="hash">{shortHash(result.archive_sha256, 16)}</span>.{" "}
-              <a href={`#/snapshots/${result.snapshot_id}`} data-testid="snapshot-link">
-                Review scope and start a scan →
-              </a>
+              <Icon name="check" size={16} /> <strong>Your code is ready for review.</strong>
             </p>
-          </Alert>
+            <div className="row">
+              <StartReviewButton projectId={projectId} snapshotId={result.snapshot_id} />
+              <a
+                className="btn btn-ghost"
+                href={`#/snapshots/${result.snapshot_id}`}
+                data-testid="snapshot-link"
+              >
+                See what was uploaded
+              </a>
+            </div>
+          </div>
         ) : null}
         {result && result.state !== "READY" ? (
           <Alert tone="bad">
             <p data-testid="intake-rejection">
               <strong>
                 {result.state === "REJECTED"
-                  ? "Archive rejected"
-                  : `Intake ${result.state.toLowerCase()}`}
+                  ? "This archive was not accepted"
+                  : "The upload could not be processed"}
                 :
               </strong>{" "}
-              {result.error_message} <code>{result.error_code}</code>
+              {result.error_message}
             </p>
-            {Array.isArray(
-              (result.error_details as { violations?: unknown } | null)?.violations,
-            ) ? (
+            {Array.isArray(violations) ? (
               <ul className="small">
-                {(
-                  result.error_details as { violations: { entry: string; message: string }[] }
-                ).violations.map((v) => (
+                {(violations as { entry: string; message: string }[]).map((v) => (
                   <li key={`${v.entry}-${v.message}`}>
                     <code>{v.entry}</code> — {v.message}
                   </li>
                 ))}
               </ul>
+            ) : null}
+            {result.error_code ? (
+              <p className="small muted" style={{ margin: 0 }}>
+                Reason code: <code>{result.error_code}</code>
+              </p>
             ) : null}
           </Alert>
         ) : null}
@@ -189,131 +255,60 @@ function ZipUpload({ projectId }: { projectId: string }) {
 function LocalRunner({ projectId }: { projectId: string }) {
   const command = `uv run crp-runner capture /path/to/folder --project-id ${projectId} --token-file .local/secrets/local-api-token --scan`;
   return (
-    <section className="card stack" aria-labelledby="runner-title">
-      <div>
-        <h2 id="runner-title" className="card-title">
-          <Icon name="terminal" size={16} /> Capture a local folder
-        </h2>
-        <p className="card-sub">
-          Run the local runner on your machine. It reads only the folder you name, skips secrets,
-          VCS metadata and dependency/build output <em>before</em> anything is sent, shows what it
-          will upload, and asks for confirmation.{" "}
-          <strong>The listed source files are uploaded to this platform.</strong> It never modifies
-          the folder or runs its scripts.
-        </p>
-      </div>
-      <CopyBlock label="Local runner command" text={command} />
-      <p className="hint">
-        Add <code>--dry-run</code> first to preview the capture without sending anything. A browser
-        cannot read local folders by path; this is why capture runs as a separate command.
+    <Disclosure summary="For developers: upload a folder from this machine">
+      <p className="small secondary" style={{ marginTop: 0 }}>
+        The local runner reads only the folder you name, skips secrets, version-control data and
+        build output before anything is sent, shows what it will upload and asks for confirmation.
+        It never changes the folder or runs its scripts. Add <code>--dry-run</code> to preview.
       </p>
-    </section>
+      <CopyBlock label="Local runner command" text={command} />
+    </Disclosure>
   );
 }
 
-function SnapshotsTable({ snapshots, projectId }: { snapshots: Snapshot[]; projectId: string }) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function UploadsTable({ snapshots, projectId }: { snapshots: Snapshot[]; projectId: string }) {
   if (snapshots.length === 0)
-    return <Empty title="No snapshots yet">Upload a ZIP or capture a folder.</Empty>;
-  return (
-    <>
-      {error ? <Alert tone="bad">{error}</Alert> : null}
-      <div className="table-wrap">
-        <table className="data-table">
-          <caption className="visually-hidden">Frozen snapshots</caption>
-          <thead>
-            <tr>
-              <th scope="col">Snapshot</th>
-              <th scope="col">Source</th>
-              <th scope="col" className="num">
-                Analyzable
-              </th>
-              <th scope="col" className="num">
-                Excluded
-              </th>
-              <th scope="col">Frozen</th>
-              <th scope="col">
-                <span className="visually-hidden">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshots.map((snapshot) => (
-              <tr key={snapshot.id}>
-                <th scope="row">
-                  <a href={`#/snapshots/${snapshot.id}`} className="hash">
-                    {shortHash(snapshot.manifest_sha256, 16)}
-                  </a>
-                </th>
-                <td>
-                  {snapshot.source_mode === "local_runner" ? "Local folder" : "ZIP"} ·{" "}
-                  {snapshot.source_name}
-                </td>
-                <td className="num">{snapshot.analyzable_count}</td>
-                <td className="num">{snapshot.excluded_count}</td>
-                <td>{formatRelative(snapshot.frozen_at)}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    disabled={busy !== null}
-                    onClick={() => {
-                      setBusy(snapshot.id);
-                      startScan(projectId, snapshot.id).then(
-                        (scan) => {
-                          navigate(`#/scans/${scan.id}`);
-                        },
-                        (caught: unknown) => {
-                          setError(describeError(caught));
-                          setBusy(null);
-                        },
-                      );
-                    }}
-                  >
-                    <Icon name="scan" size={14} /> Scan
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function ScansTable({ scans }: { scans: Scan[] }) {
-  if (scans.length === 0) return <Empty title="No scans yet">Start one from a snapshot.</Empty>;
+    return <Empty title="No uploads yet">Upload a ZIP of your code to get started.</Empty>;
   return (
     <div className="table-wrap">
       <table className="data-table">
-        <caption className="visually-hidden">Scans</caption>
+        <caption className="visually-hidden">Code uploads</caption>
         <thead>
           <tr>
-            <th scope="col">Scan</th>
-            <th scope="col">State</th>
+            <th scope="col">Upload</th>
             <th scope="col" className="num">
-              Findings
+              Files reviewed
             </th>
-            <th scope="col">Snapshot</th>
-            <th scope="col">Started</th>
+            <th scope="col" className="num">
+              Skipped
+            </th>
+            <th scope="col">Uploaded</th>
+            <th scope="col">
+              <span className="visually-hidden">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {scans.map((scan) => (
-            <tr key={scan.id}>
+          {snapshots.map((snapshot) => (
+            <tr key={snapshot.id}>
               <th scope="row">
-                <a href={`#/scans/${scan.id}`} className="hash">
-                  {shortHash(scan.id, 8)}
-                </a>
+                <a href={`#/snapshots/${snapshot.id}`}>{snapshot.source_name}</a>
+                <div className="muted small">
+                  {snapshot.source_mode === "local_runner" ? "Folder upload" : "ZIP upload"} ·{" "}
+                  {formatBytes(snapshot.total_bytes)}
+                </div>
               </th>
+              <td className="num">{snapshot.analyzable_count}</td>
+              <td className="num">{snapshot.excluded_count}</td>
+              <td className="nowrap">{formatRelative(snapshot.frozen_at)}</td>
               <td>
-                <StatusBadge state={scan.state} />
+                <StartReviewButton
+                  projectId={projectId}
+                  snapshotId={snapshot.id}
+                  label="Review"
+                  primary={false}
+                />
               </td>
-              <td className="num">{findingTotal(scan.summary) ?? "—"}</td>
-              <td className="hash">{shortHash(scan.manifest_sha256, 12)}</td>
-              <td>{formatDate(scan.started_at ?? scan.created_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -322,69 +317,113 @@ function ScansTable({ scans }: { scans: Scan[] }) {
   );
 }
 
-export function ProjectPage({ projectId, tab }: { projectId: string; tab: string }) {
+function ReviewsTable({ scans }: { scans: Scan[] }) {
+  if (scans.length === 0)
+    return <Empty title="No reviews yet">Upload code, then start a review.</Empty>;
+  const numbers = reviewNumbers(scans);
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <caption className="visually-hidden">Reviews</caption>
+        <thead>
+          <tr>
+            <th scope="col">Review</th>
+            <th scope="col">Status</th>
+            <th scope="col" className="num">
+              Findings
+            </th>
+            <th scope="col">Started</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scans.map((scan) => (
+            <tr key={scan.id}>
+              <th scope="row">
+                <a href={`#/scans/${scan.id}`}>{reviewLabel(numbers, scan.id)}</a>
+              </th>
+              <td>
+                <StatusBadge state={scan.state} />
+              </td>
+              <td className="num">{findingTotal(scan.summary) ?? "—"}</td>
+              <td className="nowrap">{formatDate(scan.started_at ?? scan.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function ProjectPage({ projectId, tab: requested }: { projectId: string; tab: string }) {
+  const { options } = useSession();
+  const tab = TAB_ALIASES[requested] ?? requested;
   const overview = useAsync((signal) => fetchProjectOverview(projectId, signal), [projectId]);
   const snapshots = useAsync((signal) => listSnapshots(projectId, signal), [projectId, tab]);
   const scans = useAsync((signal) => listScans(projectId, signal), [projectId, tab]);
   const project = overview.data?.project;
   if (overview.error) {
     const notFound = overview.error.includes("not found");
-    return (
-      <Alert tone="bad">{notFound ? "Project not found or not accessible." : overview.error}</Alert>
-    );
+    return <Alert tone="bad">{notFound ? "This project was not found." : overview.error}</Alert>;
   }
   if (!overview.data || !project) return <Loading />;
   const latest = overview.data.latest_scan;
+  const snapshot = overview.data.latest_snapshot;
   const base = `#/projects/${projectId}`;
   return (
     <>
       <PageHeader
         eyebrow={<a href="#/projects">Projects</a>}
-        title={project.name}
-        sub={
-          project.origin === "synthetic_fixture"
-            ? "Synthetic fixture project (labelled test data)."
-            : project.description || undefined
+        title={
+          <span className="row">
+            {project.name}
+            {project.origin === "synthetic_fixture" ? (
+              <span className="badge badge-neutral">Sample</span>
+            ) : null}
+          </span>
         }
+        sub={project.description || undefined}
         actions={
-          <a className="btn btn-primary" href={`${base}?tab=source`}>
-            <Icon name="upload" size={16} /> Add source
-          </a>
+          <>
+            {snapshot ? (
+              <StartReviewButton
+                projectId={projectId}
+                snapshotId={snapshot.id}
+                label="Review latest upload"
+                primary={false}
+              />
+            ) : null}
+            <a className="btn btn-primary" href={`${base}?tab=upload`}>
+              <Icon name="upload" size={16} /> Upload code
+            </a>
+          </>
         }
       />
       <Tabs
         current={tab}
         items={[
           { id: "overview", label: "Overview", href: base },
-          { id: "source", label: "Add source", href: `${base}?tab=source` },
-          {
-            id: "snapshots",
-            label: `Snapshots (${overview.data.snapshot_count})`,
-            href: `${base}?tab=snapshots`,
-          },
-          { id: "scans", label: `Scans (${overview.data.scan_count})`, href: `${base}?tab=scans` },
           { id: "issues", label: "Issues", href: `${base}?tab=issues` },
           { id: "architecture", label: "Architecture", href: `${base}?tab=architecture` },
+          {
+            id: "reviews",
+            label: `Reviews (${overview.data.scan_count})`,
+            href: `${base}?tab=reviews`,
+          },
+          {
+            id: "uploads",
+            label: `Uploads (${overview.data.snapshot_count})`,
+            href: `${base}?tab=uploads`,
+          },
+          { id: "upload", label: "Upload code", href: `${base}?tab=upload` },
         ]}
       />
       {tab === "issues" ? <IssuesView projectId={projectId} /> : null}
       {tab === "architecture" ? (
-        overview.data.latest_snapshot ? (
-          <>
-            <p className="small secondary" style={{ margin: 0 }}>
-              Latest snapshot{" "}
-              <a
-                href={`#/snapshots/${overview.data.latest_snapshot.id}?tab=architecture`}
-                className="mono"
-              >
-                {shortHash(overview.data.latest_snapshot.manifest_sha256, 12)}
-              </a>
-            </p>
-            <ArchitectureView snapshotId={overview.data.latest_snapshot.id} />
-          </>
+        snapshot ? (
+          <ArchitectureView snapshotId={snapshot.id} />
         ) : (
-          <Empty title="No snapshot yet">
-            <p>Add source and scan it to build the architecture graph.</p>
+          <Empty title="No code uploaded yet">
+            <p>Upload code and review it to see its architecture.</p>
           </Empty>
         )
       ) : null}
@@ -393,66 +432,82 @@ export function ProjectPage({ projectId, tab }: { projectId: string; tab: string
           <section className="card" aria-labelledby="latest-title">
             <div className="card-head">
               <h2 id="latest-title" className="card-title">
-                Latest scan
+                Latest review
               </h2>
               {latest ? <StatusBadge state={latest.state} /> : null}
             </div>
             {latest ? (
               <div className="stack">
+                <p className="small secondary" style={{ margin: 0 }}>
+                  {findingTotal(latest.summary) ?? 0} findings ·{" "}
+                  {formatRelative(latest.finished_at ?? latest.created_at)}
+                </p>
                 <SeverityBars counts={severityCounts(latest.summary?.by_severity)} />
-                <a className="btn btn-primary" href={`#/scans/${latest.id}`}>
-                  Open findings <Icon name="arrow" size={15} />
-                </a>
+                <div className="row">
+                  <a className="btn btn-primary" href={`#/scans/${latest.id}`}>
+                    See the findings <Icon name="arrow" size={15} />
+                  </a>
+                  <a className="btn btn-ghost" href={`${base}?tab=issues`}>
+                    Tracked issues
+                  </a>
+                </div>
               </div>
             ) : (
-              <Empty title="Nothing scanned yet">
-                <p>Add source to create a frozen snapshot, then start a baseline scan.</p>
-                <a className="btn btn-primary" href={`${base}?tab=source`}>
-                  Add source
-                </a>
+              <Empty title={snapshot ? "Ready for its first review" : "No code uploaded yet"}>
+                {snapshot ? (
+                  <StartReviewButton projectId={projectId} snapshotId={snapshot.id} />
+                ) : (
+                  <>
+                    <p>Upload a ZIP of your source code, then start a review.</p>
+                    <a className="btn btn-primary" href={`${base}?tab=upload`}>
+                      Upload code
+                    </a>
+                  </>
+                )}
               </Empty>
             )}
           </section>
           <section className="card" aria-labelledby="about-title">
             <h2 id="about-title" className="card-title" style={{ marginBottom: 12 }}>
-              About
+              About this project
             </h2>
             <dl className="kv">
-              <dt>Slug</dt>
-              <dd className="mono">{project.slug}</dd>
               <dt>Created</dt>
               <dd>{formatDate(project.created_at)}</dd>
-              <dt>Latest snapshot</dt>
-              <dd className="hash">
-                {shortHash(overview.data.latest_snapshot?.manifest_sha256, 20)}
+              <dt>Latest upload</dt>
+              <dd>
+                {snapshot ? <a href={`#/snapshots/${snapshot.id}`}>{snapshot.source_name}</a> : "—"}
               </dd>
-              <dt>Snapshot size</dt>
-              <dd>{formatBytes(overview.data.latest_snapshot?.total_bytes)}</dd>
+              <dt>Files reviewed</dt>
+              <dd>{snapshot ? plural(snapshot.analyzable_count, "file") : "—"}</dd>
+              <dt>Code size</dt>
+              <dd>{formatBytes(snapshot?.total_bytes)}</dd>
+              <dt>Reviews</dt>
+              <dd>{overview.data.scan_count}</dd>
             </dl>
-            {project.description ? <p className="secondary small">{project.description}</p> : null}
           </section>
         </div>
       ) : null}
-      {tab === "source" ? (
-        <div className="grid grid-2">
+      {tab === "upload" ? (
+        <div className="stack">
           <ZipUpload projectId={projectId} />
-          <LocalRunner projectId={projectId} />
+          {isLocalDevelopment(options) ? <LocalRunner projectId={projectId} /> : null}
         </div>
       ) : null}
-      {tab === "snapshots" ? (
+      {tab === "uploads" ? (
         <section className="card">
           {snapshots.error ? <Alert tone="bad">{snapshots.error}</Alert> : null}
           {snapshots.data ? (
-            <SnapshotsTable snapshots={snapshots.data} projectId={projectId} />
+            <UploadsTable snapshots={snapshots.data} projectId={projectId} />
           ) : (
             <Loading />
           )}
         </section>
       ) : null}
-      {tab === "scans" ? (
+      {tab === "reviews" ? (
         <section className="card">
           {scans.error ? <Alert tone="bad">{scans.error}</Alert> : null}
-          {scans.data ? <ScansTable scans={scans.data} /> : <Loading />}
+          {scans.data ? <ReviewsTable scans={scans.data} /> : <Loading />}
         </section>
       ) : null}
     </>

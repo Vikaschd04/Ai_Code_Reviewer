@@ -23,6 +23,8 @@ services:
           property: connectionString
       - key: CRP_ACCESS_TOKEN # sign-in secret: Render dashboard > service > Environment
         generateValue: true
+      - key: CRP_DEMO_ENABLED # "Try the demo" on the sign-in page; set to "false" when live
+        value: "true"
 
 databases:
   - name: ai-code-reviewer-db
