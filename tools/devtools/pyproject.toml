@@ -6,6 +6,7 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
     "crp-core",
     "crp-api",
+    "crp-worker",
     "httpx==0.28.1",
 ]
 
@@ -15,6 +16,7 @@ crp-dev = "crp_devtools.cli:main"
 [tool.uv.sources]
 crp-core = { workspace = true }
 crp-api = { workspace = true }
+crp-worker = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13"]

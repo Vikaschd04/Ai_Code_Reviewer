@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Run the complete application inside a GitHub Codespace (free monthly quota) and print its URL.
-# Usage: bash deploy/codespace.sh [up|down|logs|token]. Secrets live in .local/codespace/ (0600,
-# git-ignored) and survive codespace restarts; data lives in Docker volumes.
+# Usage: bash deploy/codespace.sh [up|down|reset|logs|token]. Secrets live in .local/codespace/
+# (0600, git-ignored) and survive codespace restarts; data lives in Docker volumes.
+# CRP_PROFILE=lite runs the Render free configuration (one process, 512 MB, 0.1 CPU).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 command="${1:-up}"
 compose=(docker compose -f deploy/docker-compose.yml)
+if [ "${CRP_PROFILE:-standard}" = "lite" ]; then
+  compose+=(-f deploy/docker-compose.lite.yml)
+fi
 state=.local/codespace
 mkdir -p "$state"
 chmod 700 "$state"
@@ -32,12 +36,11 @@ case "$command" in
     if [ "${CRP_SKIP_BUILD:-0}" = "1" ]; then build_flag=--no-build; fi
     echo "Starting the application (the first build takes several minutes)..."
     "${compose[@]}" up -d "$build_flag"
-    for _ in $(seq 1 300); do
+    for _ in $(seq 1 "${CRP_START_TIMEOUT_TICKS:-300}"); do
       if curl -fsS http://127.0.0.1:8080/v1/health/live > /dev/null 2>&1; then
         echo
         echo "Code Review Platform is running:  https://${CRP_PUBLIC_HOST}"
         echo "Sign-in token:                   bash deploy/codespace.sh token"
-        echo "The Trivy database downloads in the background during the first minutes."
         exit 0
       fi
       sleep 2
@@ -46,7 +49,8 @@ case "$command" in
     exit 1
     ;;
   down) "${compose[@]}" down ;;
+  reset) "${compose[@]}" down --volumes ;; # stop and delete all projects, scans and the database
   logs) "${compose[@]}" logs --tail 200 app ;;
   token) cat "$state/access-token" ;;
-  *) echo "usage: bash deploy/codespace.sh [up|down|logs|token]" >&2; exit 2 ;;
+  *) echo "usage: bash deploy/codespace.sh [up|down|reset|logs|token]" >&2; exit 2 ;;
 esac

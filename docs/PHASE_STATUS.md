@@ -15,4 +15,4 @@ Last updated: 27 September 2026 (P00, P01 and P02 gates run on macOS arm64).
 
 Allowed: NOT_STARTED, IN_PROGRESS, BLOCKED, COMPLETE. Link validation reports and list blocked capabilities separately. Passing documentation-link checks does not complete P00 or any software phase.
 
-Scope limits (not blockers): verified on macOS arm64 only; Linux/Windows, containers and hosted deployment are unverified; optional P01 intake modes (browser folder, registered mounts) not implemented. See docs/memory/KNOWN_ISSUES.md.
+Scope limits (not blockers): phase gates verified on macOS arm64; the Linux container image is built and smoke-tested in CI (standard profile, and lite profile under 512 MB / 0.1 CPU), but the live hosted deployment has not been created yet and Windows is untested; optional P01 intake modes (browser folder, registered mounts) not implemented. See docs/memory/KNOWN_ISSUES.md.

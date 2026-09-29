@@ -18,18 +18,17 @@ own https origin; add others if the UI is also hosted elsewhere), ``CRP_ALLOWED_
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
 import threading
 import time
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from crp_core.local_secrets import write_secret_file
+from crp_devtools import trivy_db
 from crp_devtools.dbtasks import migrate_and_provision, settings_from_env
-from crp_devtools.engines import OPENGREP, TRIVY, download_trivy_db, pmd_home
+from crp_devtools.engines import OPENGREP, TRIVY, pmd_home
 from crp_devtools.infra import InfraError, TemporalDevServer
 from crp_devtools.localenv import child_env
 from crp_devtools.paths import find_repo_root
@@ -37,9 +36,34 @@ from crp_devtools.supervisor import ServiceSpec, Supervisor
 
 logger = logging.getLogger("crp_devtools.hosted")
 TEMPORAL_PORT = 7233
-DB_REFRESH_AFTER = timedelta(hours=24)
-DB_CHECK_INTERVAL_SECONDS = 6 * 3600
-_PASS_THROUGH_PREFIXES = ("CRP_INTAKE_", "CRP_ENGINE_", "CRP_SESSION_TTL_SECONDS", "CRP_LOG_LEVEL")
+_PASS_THROUGH_PREFIXES = (
+    "CRP_INTAKE_",
+    "CRP_ENGINE_",
+    "CRP_SESSION_TTL_SECONDS",
+    "CRP_LOG_LEVEL",
+    "CRP_PMD_JAVA_HEAP",
+    "CRP_ESLINT_HEAP_MB",
+    "CRP_OPENGREP_JOBS",
+    "CRP_ARTIFACT_",
+)
+# Lite profile (free tiers: ~512 MB memory, no persistent disk; ADR 0010): one process, no
+# Temporal server, artifacts in PostgreSQL, one engine at a time with small heaps, and smaller
+# upload limits. Explicit CRP_* variables still override these (pass-through is applied later).
+LITE_DEFAULTS = {
+    "CRP_ARTIFACT_BACKEND": "postgres",
+    "CRP_ARTIFACT_MAX_OBJECT_BYTES": str(32 * 1024 * 1024),
+    "CRP_INTAKE_MAX_UPLOAD_BYTES": str(25 * 1024 * 1024),
+    "CRP_INTAKE_MAX_EXPANDED_BYTES": str(200 * 1024 * 1024),
+    "CRP_INTAKE_MAX_TEXT_FILE_BYTES": str(2 * 1024 * 1024),
+    "CRP_PMD_JAVA_HEAP": "192m",
+    "CRP_ESLINT_HEAP_MB": "256",
+    "CRP_OPENGREP_JOBS": "1",
+    "CRP_DATABASE_POOL_SIZE": "3",
+}
+
+
+def lite_profile(environ: dict[str, str]) -> bool:
+    return environ.get("CRP_PROFILE", "standard").strip().lower() == "lite"
 
 
 def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Path]:
@@ -49,9 +73,7 @@ def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Pat
         raise InfraError("CRP_ACCESS_TOKEN must be set to a random value of at least 32 characters")
     host = environ.get("CRP_PUBLIC_HOST") or environ.get("RENDER_EXTERNAL_HOSTNAME")
     if not host:
-        raise InfraError(
-            "set CRP_PUBLIC_HOST (or run on Render, which sets RENDER_EXTERNAL_HOSTNAME)"
-        )
+        raise InfraError("set CRP_PUBLIC_HOST (Render provides RENDER_EXTERNAL_HOSTNAME)")
     # The container serves the UI itself, so by default the only web origin is its own address.
     origins = environ.get("CRP_ALLOWED_WEB_ORIGINS", "").strip() or f"https://{host}"
     database = environ.get("CRP_DATABASE_URL") or environ.get("DATABASE_URL")
@@ -85,6 +107,9 @@ def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Pat
     static = Path(environ.get("CRP_WEB_STATIC_DIR", str(repo / "web-dist")))
     if (static / "index.html").is_file():
         env["CRP_WEB_STATIC_DIR"] = str(static)
+    if lite_profile(environ):
+        env.update(LITE_DEFAULTS)
+        env["CRP_TRIVY_DB_AUTO_REFRESH"] = environ.get("CRP_TRIVY_DB_AUTO_REFRESH", "1")
     if regex := environ.get("CRP_ALLOWED_WEB_ORIGIN_REGEX"):
         env["CRP_ALLOWED_WEB_ORIGIN_REGEX"] = regex
     for key, value in environ.items():
@@ -97,52 +122,44 @@ def _temporal_port(environ: dict[str, str]) -> int:
     return int(environ.get("CRP_TEMPORAL_PORT", str(TEMPORAL_PORT)))
 
 
-def _db_is_fresh(cache_dir: Path) -> bool:
-    meta = cache_dir / "db" / "metadata.json"
-    if not meta.is_file() or not (cache_dir / "db" / "trivy.db").is_file():
-        return False
-    try:
-        updated = datetime.fromisoformat(json.loads(meta.read_text())["UpdatedAt"][:26] + "+00:00")
-    except ValueError, KeyError, OSError:
-        return False
-    return datetime.now(UTC) - updated < DB_REFRESH_AFTER
-
-
-def keep_trivy_db_fresh(trivy_home: Path, cache_dir: Path, stop: threading.Event) -> None:
-    """Refresh the offline vulnerability DB daily; failures leave the last good copy in place."""
-    while not stop.is_set():
-        if not _db_is_fresh(cache_dir):
-            try:
-                meta = download_trivy_db(trivy_home, cache_dir)
-                print(f"crp-hosted: Trivy DB updated {meta.get('UpdatedAt')}", flush=True)
-            except (InfraError, OSError) as exc:
-                print(f"crp-hosted: Trivy DB refresh failed: {exc}", file=sys.stderr, flush=True)
-        stop.wait(DB_CHECK_INTERVAL_SECONDS)
+def _refresh_enabled(environ: dict[str, str]) -> bool:
+    return environ.get("CRP_TRIVY_DB_AUTO_REFRESH", "1") != "0"
 
 
 def run_hosted() -> int:
     repo = find_repo_root(Path(__file__).resolve().parent)
-    env, data = hosted_env(dict(os.environ), repo)
-    for directory in ("artifacts", "work", "trivy-cache", "temporal", "logs"):
+    environ = dict(os.environ)
+    env, data = hosted_env(environ, repo)
+    for directory in ("artifacts", "work", "temporal", "logs"):
         (data / directory).mkdir(parents=True, exist_ok=True, mode=0o700)
+    active = trivy_db.activate(data, repo / ".local" / "engines" / "trivy-cache")
+    updated = trivy_db.db_updated_at(active) if active is not None else None
+    print(f"crp-hosted: Trivy DB {updated or 'not available yet'}", flush=True)
+    if lite_profile(environ):
+        # One process only: migrate, then replace this process with the lite server (which
+        # also keeps the Trivy DB fresh), saving a supervisor process's memory.
+        revision, _ = migrate_and_provision(settings_from_env(env))
+        print(f"crp-hosted: lite profile; database migrated to {revision}", flush=True)
+        os.execvpe(  # noqa: S606 - fixed interpreter and module, validated environment
+            sys.executable,
+            [sys.executable, "-m", "crp_devtools.lite_server"],
+            child_env(env),
+        )
+    stop = threading.Event()
+    supervisor = Supervisor(echo=True)
     temporal = TemporalDevServer(
-        port=_temporal_port(dict(os.environ)),
+        port=_temporal_port(environ),
         log_file=data / "logs" / "temporal.log",
         db_file=data / "temporal" / "temporal.db",
     )
     temporal.start(detach=False, timeout=120)
     print("crp-hosted: Temporal dev server ready (SQLite on the data disk)", flush=True)
-    stop = threading.Event()
-    supervisor = Supervisor(echo=True)
     try:
         revision, _ = migrate_and_provision(settings_from_env(env))
         print(f"crp-hosted: database migrated to {revision}", flush=True)
-        if os.environ.get("CRP_TRIVY_DB_AUTO_REFRESH", "1") != "0":
-            threading.Thread(
-                target=keep_trivy_db_fresh,
-                args=(Path(env["CRP_TRIVY_HOME"]), Path(env["CRP_TRIVY_CACHE_DIR"]), stop),
-                daemon=True,
-            ).start()
+        if _refresh_enabled(environ):
+            # Scans run in the worker process, so replaced copies are deleted after a grace period.
+            trivy_db.start_refresh_thread(Path(env["CRP_TRIVY_HOME"]), data, stop)
         else:
             print("crp-hosted: automatic Trivy DB refresh disabled", flush=True)
         full_env = child_env(env)

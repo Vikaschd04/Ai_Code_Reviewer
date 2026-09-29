@@ -22,6 +22,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Text,
@@ -771,5 +772,26 @@ class EngineCacheEntry(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     last_used_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ArtifactObject(Base):
+    """Artifact bytes kept in PostgreSQL (``CRP_ARTIFACT_BACKEND=postgres``, lite deployments).
+
+    Keys are validated ``ArtifactKey`` strings; objects are size-bounded by the store.
+    """
+
+    __tablename__ = "artifact_objects"
+    __table_args__ = (
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256_format"),
+        CheckConstraint("size_bytes = octet_length(data)", name="size_matches_data"),
+    )
+
+    key: Mapped[str] = mapped_column(String(512), primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

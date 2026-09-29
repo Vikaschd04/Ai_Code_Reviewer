@@ -268,6 +268,7 @@ source = { editable = "tools/devtools" }
 dependencies = [
     { name = "crp-api" },
     { name = "crp-core" },
+    { name = "crp-worker" },
     { name = "httpx" },
 ]
 
@@ -275,6 +276,7 @@ dependencies = [
 requires-dist = [
     { name = "crp-api", editable = "services/api" },
     { name = "crp-core", editable = "packages/core" },
+    { name = "crp-worker", editable = "services/worker" },
     { name = "httpx", specifier = "==0.28.1" },
 ]
 

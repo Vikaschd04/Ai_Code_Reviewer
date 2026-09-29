@@ -70,12 +70,14 @@ class OpengrepAdapter:
         max_output_bytes: int,
         max_target_bytes: int,
         per_file_timeout_seconds: int = 30,
+        jobs: int = 2,
     ) -> None:
         self._home = home
         self._timeout = timeout_seconds
         self._max_output = max_output_bytes
         self._max_target = max_target_bytes
         self._file_timeout = per_file_timeout_seconds
+        self._jobs = jobs
 
     def is_eligible(self, path: str, language: str | None) -> bool:
         return language in {"java", "javascript", "typescript"} and path.endswith(_EXTENSIONS)
@@ -145,7 +147,7 @@ class OpengrepAdapter:
             "--max-target-bytes",
             str(self._max_target),
             "--jobs",
-            "2",
+            str(self._jobs),
             ".",
         ]
         env = scrubbed_env([], work / "home", {"XDG_CACHE_HOME": str(binary.parent / "cache")})

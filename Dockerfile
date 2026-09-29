@@ -1,5 +1,5 @@
 # Single-user hosted application in one container: web UI + API + Temporal worker + Temporal dev
-# server + analyzers.
+# server + analyzers (CRP_PROFILE=lite: one process without Temporal, for free tiers; ADR 0010).
 # Build context = repository root. See docs/DEPLOYMENT.md. Base images are pinned by digest;
 # analyzer binaries are pinned by SHA-256 (tools/devtools/src/crp_devtools/engines.py).
 
@@ -79,9 +79,11 @@ RUN uv sync --locked --no-dev --all-packages
 COPY --from=eslint-runner /out/eslint-runner engines/eslint-runner
 COPY --from=web /src/apps/web/dist web-dist
 
-# Analyzers: PMD, Opengrep, Trivy binaries (SHA-256 pinned). The Trivy vulnerability DB is data
-# and is downloaded at runtime onto the persistent disk, then refreshed daily.
-RUN crp-dev engines --skip-trivy-db \
+# Analyzers: PMD, Opengrep, Trivy binaries (SHA-256 pinned) plus the offline Trivy vulnerability
+# DB (data, ~1.3 GB). Baking the DB in makes Trivy work right after every start, also on hosts
+# without a persistent disk (Render free); crp-dev hosted refreshes it daily in the background
+# (crp_devtools/trivy_db.py).
+RUN crp-dev engines \
  && chown -R crp:crp /app/.local
 
 COPY deploy/entrypoint.sh /usr/local/bin/crp-entrypoint

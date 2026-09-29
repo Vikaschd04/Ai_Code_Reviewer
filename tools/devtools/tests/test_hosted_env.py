@@ -78,3 +78,15 @@ def test_same_origin_defaults_when_the_container_serves_the_ui(tmp_path: Path) -
     assert settings.web_static_dir == web
     missing = hosted_env(_environ(tmp_path, CRP_WEB_STATIC_DIR=str(tmp_path / "absent")), REPO)[0]
     assert "CRP_WEB_STATIC_DIR" not in missing  # no UI build: API only, nothing half-served
+
+
+def test_lite_profile_uses_postgres_artifacts_and_small_resources(tmp_path: Path) -> None:
+    env, _ = hosted_env(_environ(tmp_path, CRP_PROFILE="lite", CRP_ESLINT_HEAP_MB="320"), REPO)
+    settings = settings_from_env(env)
+    assert settings.artifact_backend.value == "postgres"
+    assert settings.pmd_java_heap == "192m" and settings.opengrep_jobs == 1
+    assert settings.eslint_heap_mb == 320  # explicit variables override the lite defaults
+    assert settings.intake_max_upload_bytes == 52428800  # (set explicitly in _environ)
+    assert env["CRP_TRIVY_DB_AUTO_REFRESH"] == "1"
+    standard, _ = hosted_env(_environ(tmp_path), REPO)
+    assert settings_from_env(standard).artifact_backend.value == "filesystem"

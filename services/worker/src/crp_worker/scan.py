@@ -75,6 +75,7 @@ with workflow.unsafe.imports_passed_through():
     )
     from crp_worker import engine_cache, graph_job
     from crp_worker.lifecycle import apply_lifecycle
+    from crp_worker.progress import heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -161,12 +162,14 @@ class ScanActivities:
                 node_executable=settings.node_executable,
                 timeout_seconds=settings.engine_timeout_seconds,
                 max_output_bytes=settings.engine_max_output_bytes,
+                heap_mb=settings.eslint_heap_mb,
             ),
             "opengrep": OpengrepAdapter(
                 settings.opengrep_home,
                 timeout_seconds=settings.engine_timeout_seconds,
                 max_output_bytes=settings.engine_max_output_bytes,
                 max_target_bytes=settings.intake_max_text_file_bytes,
+                jobs=settings.opengrep_jobs,
             ),
             "trivy": TrivyAdapter(
                 settings.trivy_home,
@@ -429,7 +432,7 @@ class ScanActivities:
         job = asyncio.ensure_future(asyncio.to_thread(work))
         try:
             while not job.done():
-                activity.heartbeat(f"{label} running")
+                heartbeat(f"{label} running")
                 await asyncio.wait({job}, timeout=1)
             return job.result()
         except asyncio.CancelledError:

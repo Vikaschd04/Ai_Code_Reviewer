@@ -1,0 +1,32 @@
+# PAID Render Blueprint (standard profile, always on): one Docker web service (web UI + API +
+# Temporal worker + Temporal dev server + analyzers) with a 10 GB disk and a private PostgreSQL
+# database. The free Blueprint is ../render.yaml. To use this one, enter the Blueprint path
+# deploy/render-standard.yaml when creating the Blueprint. Guide: docs/DEPLOYMENT.md.
+services:
+  - type: web
+    name: ai-code-reviewer
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore
+    plan: 1c-2g # analyzers need about 1-1.5 GB during a scan (docs/validation/P02_REPORT.md)
+    healthCheckPath: /v1/health/live
+    autoDeployTrigger: checksPass # deploy main only after GitHub Actions CI passes
+    disk:
+      name: crp-data # uploads, scan work area, Temporal history, offline Trivy DB
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: CRP_DATABASE_URL
+        fromDatabase:
+          name: ai-code-reviewer-db
+          property: connectionString
+      - key: CRP_ACCESS_TOKEN # sign-in secret: Render dashboard > service > Environment
+        generateValue: true
+
+databases:
+  - name: ai-code-reviewer-db
+    region: singapore
+    plan: 0.1c-256mb
+    postgresMajorVersion: "18"
+    ipAllowList: [] # no external connections; only the service above can reach it

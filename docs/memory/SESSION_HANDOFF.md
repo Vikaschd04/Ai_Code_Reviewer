@@ -1,5 +1,7 @@
 # Session handoff
 
+30 September 2026 — User wants a free public trial with complete functionality on Render or Railway; chose Render free (Railway's credit/memory/disk cannot hold the 1.3 GB Trivy DB). Added the lite profile (ADR 0010): `crp_devtools/lite_server.py`, `crp_worker/inline.py` (resume after restart), `PostgresArtifactStore` + migration 0004, Trivy DB baked into the image with atomic symlink refresh (`crp_devtools/trivy_db.py`), `render.yaml` = free Blueprint, paid one in `deploy/render-standard.yaml`, `deploy/docker-compose.lite.yml` + CI lite smoke under 512 MB / 0.1 CPU. Verified locally: `make check`, `make test` (incl. hosted smoke both profiles, kill-and-resume). Validation: docs/validation/HOSTED_LITE_REPORT.md. Pending owner action: Render → New → Blueprint → repo → Apply (free) → sign in with CRP_ACCESS_TOKEN. Then P03-01.
+
 29 September 2026 — User cannot pay for Render yet: added a free deployment path on GitHub Codespaces (`.devcontainer/`, `deploy/codespace.sh`, `deploy/docker-compose.yml`), verified in CI via a simulated codespace. Render Blueprint kept for later. Next: user creates a codespace (docs/DEPLOYMENT.md "Free: GitHub Codespaces"); then P03-01.
 
 

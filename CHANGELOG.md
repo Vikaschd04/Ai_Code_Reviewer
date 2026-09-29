@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Free deployment on Render (30 September 2026)
+
+- Lite profile `CRP_PROFILE=lite` (ADR 0010) for 512 MB free instances: one process (`crp_devtools.lite_server`) with `InlineWorkflowGateway` running the same intake/scan activities without a Temporal server, resuming unfinished intakes and scans after a restart; analyzers one at a time with smaller heaps (`CRP_ESLINT_HEAP_MB`, `CRP_OPENGREP_JOBS`); uploads up to 25 MB.
+- `CRP_ARTIFACT_BACKEND=postgres`: artifacts stored in PostgreSQL (migration `0004_artifact_objects`) for hosts without a persistent disk.
+- The offline Trivy vulnerability DB is baked into the image; hosted starts use the newest copy and the daily refresh swaps a symlink atomically (`crp_devtools/trivy_db.py`).
+- `render.yaml` is now the free Blueprint (free web service + free PostgreSQL 18); the paid Blueprint moved to `deploy/render-standard.yaml`. Railway fallback removed.
+- CI reruns the container smoke test in the lite profile with 512 MB, no swap and 0.1 CPU (`deploy/docker-compose.lite.yml`) and fails on restarts or out-of-memory kills; smoke tests now require Trivy to succeed.
+- `deploy/codespace.sh reset` deletes all data; `CRP_PROFILE=lite` selects the free configuration.
+
 ## Unreleased — Free deployment on GitHub Codespaces (29 September 2026)
 
 - `.devcontainer/devcontainer.json` + `deploy/codespace.sh` + `deploy/docker-compose.yml`: a codespace builds and starts the complete application with PostgreSQL automatically and prints its private https URL; secrets are generated into `.local/codespace/`.

@@ -41,8 +41,9 @@ _SEVERITY = {
     "LOW": "low",
     "UNKNOWN": "info",
 }
-# The vulnerability DB is a bolt file; serialize scans within a worker process.
-_DB_LOCK = threading.Lock()
+# The vulnerability DB is a bolt file; serialize scans within a worker process. Hosted DB refreshes
+# swap the active copy under the same lock (crp_devtools.trivy_db).
+DB_LOCK = threading.Lock()
 
 
 def secret_config_path() -> Path:
@@ -153,7 +154,7 @@ class TrivyAdapter:
             str(report),
             str(root),
         ]
-        with _DB_LOCK:
+        with DB_LOCK:
             result = run_bounded(
                 args,
                 cwd=work,

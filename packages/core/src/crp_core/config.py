@@ -46,6 +46,7 @@ class AuthMode(StrEnum):
 
 class ArtifactBackend(StrEnum):
     FILESYSTEM = "filesystem"
+    POSTGRES = "postgres"  # lite deployments without a persistent disk (bounded object sizes)
 
 
 def is_loopback_host(host: str) -> bool:
@@ -130,6 +131,8 @@ class Settings(BaseSettings):
     engine_timeout_seconds: Annotated[int, Field(ge=5, le=6 * 3600)] = 900
     engine_max_output_bytes: Annotated[int, Field(ge=1024)] = 64 * 1024 * 1024
     pmd_java_heap: Annotated[str, Field(pattern=r"^[1-9][0-9]{0,4}[mMgG]$")] = "1g"
+    eslint_heap_mb: Annotated[int, Field(ge=128, le=16384)] = 1024
+    opengrep_jobs: Annotated[int, Field(ge=1, le=16)] = 2
     structure_max_symbols_per_file: Annotated[int, Field(ge=10, le=100_000)] = 2000
 
     log_level: str = "INFO"

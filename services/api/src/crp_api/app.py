@@ -69,6 +69,10 @@ def create_app(
             identity=identity,
             login_throttle=FailedAttemptThrottle(),
         )
+        # In-process gateways (lite profile) resume unfinished work once the API is ready.
+        start = getattr(workflows, "start", None)
+        if callable(start):
+            await start()
         try:
             yield
         finally:

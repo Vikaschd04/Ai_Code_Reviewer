@@ -39,6 +39,7 @@ with workflow.unsafe.imports_passed_through():
         IntakeWorkflowInput,
         IntakeWorkflowResult,
     )
+    from crp_worker.progress import heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +103,13 @@ class IntakeActivities:
                 )
             session.expunge(intake)
 
-        activity.heartbeat("validating archive")
+        heartbeat("validating archive")
         try:
             outcome = await asyncio.to_thread(self._validate, intake)
         except IntakeRejectedError as exc:
             return await self._finish_rejected(intake, exc)
         inventory = build_inventory(outcome.entries, outcome.inventory_texts)
-        activity.heartbeat("persisting manifest")
+        heartbeat("persisting manifest")
         return await self._finish_ready(intake, outcome, inventory)
 
     async def _finish_rejected(

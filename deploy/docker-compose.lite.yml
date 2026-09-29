@@ -1,0 +1,10 @@
+# Override that reproduces the Render free instance (render.yaml): lite profile with 512 MB of
+# memory, no swap and 0.1 CPU. Usage: CRP_PROFILE=lite bash deploy/codespace.sh up
+# CI runs the smoke test under these limits on every push (ADR 0010).
+services:
+  app:
+    environment:
+      CRP_PROFILE: lite
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 0.1

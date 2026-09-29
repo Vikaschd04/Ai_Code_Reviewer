@@ -3,13 +3,16 @@
 Usage: python deploy/smoke_test.py http://127.0.0.1:8080 <access-token> [origin]
 Checks liveness, readiness, the web UI at /, the Host allowlist, a ticket-authorized upload with
 CORS, snapshot freezing and a real scan. Trivy may be UNAVAILABLE while the offline DB is not
-downloaded yet.
+downloaded yet, unless SMOKE_REQUIRE_TRIVY=1 (the image bakes the DB in). SMOKE_TIMEOUT_SECONDS
+(default 300) bounds each wait; slow hosts such as a 0.1-CPU free instance need more. The slowest
+API response observed while waiting is reported as ``max_api_seconds``.
 """
 
 from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -27,7 +30,22 @@ FILES = {
 }
 
 
+TIMEOUT = float(os.environ.get("SMOKE_TIMEOUT_SECONDS", "300"))
+REQUIRE_TRIVY = os.environ.get("SMOKE_REQUIRE_TRIVY", "0") == "1"
+slowest = [0.0]
+
+
 def call(
+    base: str, method: str, path: str, token: str | None, body: Any = None, **headers: str
+) -> tuple[int, dict[str, str], Any]:
+    started = time.monotonic()
+    try:
+        return _call(base, method, path, token, body, **headers)
+    finally:
+        slowest[0] = max(slowest[0], time.monotonic() - started)
+
+
+def _call(
     base: str, method: str, path: str, token: str | None, body: Any = None, **headers: str
 ) -> tuple[int, dict[str, str], Any]:
     data = json.dumps(body).encode() if body is not None else None
@@ -52,8 +70,8 @@ def check(condition: bool, detail: object) -> None:
         raise SystemExit(f"smoke test failed: {detail}")
 
 
-def wait(base: str, path: str, token: str, done: set[str], limit: float = 300) -> dict[str, Any]:
-    deadline = time.monotonic() + limit
+def wait(base: str, path: str, token: str, done: set[str]) -> dict[str, Any]:
+    deadline = time.monotonic() + TIMEOUT
     while time.monotonic() < deadline:
         status, _, body = call(base, "GET", path, token)
         if status == 200 and body["state"] in done:
@@ -65,7 +83,7 @@ def wait(base: str, path: str, token: str, done: set[str], limit: float = 300) -
 def main() -> int:
     base, token = sys.argv[1].rstrip("/"), sys.argv[2]
     origin = sys.argv[3] if len(sys.argv) > 3 else "https://ci.example.test"
-    deadline = time.monotonic() + 240
+    deadline = time.monotonic() + TIMEOUT
     while True:
         try:
             if call(base, "GET", "/v1/health/live", None)[0] == 200:
@@ -75,7 +93,7 @@ def main() -> int:
         if time.monotonic() > deadline:
             raise SystemExit("backend did not become live")
         time.sleep(2)
-    for _ in range(60):
+    for _ in range(int(TIMEOUT / 2)):
         status, _, ready = call(base, "GET", "/v1/health/ready", token)
         if status == 200:
             break
@@ -136,12 +154,20 @@ def main() -> int:
     engines = {e["engine"]: e["state"] for e in done["engines"]}
     print(
         json.dumps(
-            {"scan": done["state"], "engines": engines, "findings": done["summary"]["findings"]}
+            {
+                "scan": done["state"],
+                "engines": engines,
+                "findings": done["summary"]["findings"],
+                "max_api_seconds": round(slowest[0], 2),
+            }
         )
     )
     for engine in ("structure", "graph", "pmd", "eslint", "opengrep"):
         check(engines[engine] == "SUCCEEDED", engines)
-    check(engines["trivy"] in {"SUCCEEDED", "UNAVAILABLE"}, engines)
+    check(
+        engines["trivy"] in ({"SUCCEEDED"} if REQUIRE_TRIVY else {"SUCCEEDED", "UNAVAILABLE"}),
+        engines,
+    )
     _, _, page = call(base, "GET", f"/v1/scans/{scan['id']}/findings?limit=50", token)
     rules = {f["rule_id"] for f in page["items"]}
     check({"UseEqualsToCompareStrings", "no-eval", "crp.js.code-injection.eval"} <= rules, rules)

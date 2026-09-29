@@ -21,6 +21,13 @@ def create_artifact_store(settings: Settings) -> ArtifactStore:
             return FilesystemArtifactStore(
                 settings.artifact_root, max_object_bytes=settings.artifact_max_object_bytes
             )
+        case ArtifactBackend.POSTGRES:
+            from crp_core.artifacts.postgres import PostgresArtifactStore
+
+            return PostgresArtifactStore(
+                settings.database_url.get_secret_value(),
+                max_object_bytes=settings.artifact_max_object_bytes,
+            )
 
 
 __all__ = [

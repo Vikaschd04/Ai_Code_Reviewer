@@ -148,3 +148,36 @@ def test_probe_leaves_no_residue(store: FilesystemArtifactStore) -> None:
     assert store.probe() == "filesystem"
     probes = store.root / "health-probes"
     assert not probes.exists() or list(probes.iterdir()) == []
+
+
+@pytest.mark.integration
+def test_postgres_store_honours_the_artifact_contract(database_url: str) -> None:
+    from crp_core.artifacts.postgres import PostgresArtifactStore
+
+    pg = PostgresArtifactStore(database_url, max_object_bytes=1024)
+    try:
+        key = ArtifactKey("blobs/ab/abc")
+        ref = pg.put_stream(key, [b"hel", b"lo"])
+        assert ref.sha256 == hashlib.sha256(b"hello").hexdigest() and ref.size_bytes == 5
+        assert pg.read_bytes(key) == b"hello" and pg.stat(key) == ref and pg.exists(key)
+        with pg.open_read(key) as handle:
+            assert handle.read() == b"hello"
+        with pytest.raises(ArtifactExistsError):
+            pg.put_bytes(key, b"other")
+        assert pg.read_bytes(key) == b"hello"
+        pg.put_bytes(key, b"other", overwrite=True)
+        assert pg.read_bytes(key) == b"other"
+        with pytest.raises(ArtifactTooLargeError):
+            pg.put_bytes(ArtifactKey("big/one"), b"x" * 1025)
+        assert not pg.exists(ArtifactKey("big/one"))  # nothing partial is left behind
+        with pytest.raises(ArtifactTooLargeError):
+            pg.read_bytes(key, max_bytes=2)
+        missing = ArtifactKey("nope/none")
+        with pytest.raises(ArtifactNotFoundError):
+            pg.read_bytes(missing)
+        with pytest.raises(ArtifactNotFoundError):
+            pg.stat(missing)
+        assert pg.delete(key) and not pg.delete(key) and not pg.exists(key)
+        assert pg.probe() == "postgres"
+    finally:
+        pg.close()

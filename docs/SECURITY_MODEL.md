@@ -79,4 +79,5 @@ Not implemented yet: upload/intake controls, analyzer sandboxing and resource li
 | Direct uploads | 15-minute HMAC ticket bound to one intake, derived from the access token (rotation revokes); CORS only PUT, no credentials, configured origins | test_hosted_mode.py, test_hosted_smoke.py |
 | Container | Unprivileged uid 10001 after disk ownership fix; secrets passed as env, token written 0600, raw token not passed to children; engines keep scrubbed environments | entrypoint.sh, test_hosted_env.py |
 | Build supply chain | Digest-pinned base images, SHA-256 + cosign-verified Linux engines, SHA-256 Temporal CLI, SHA-pinned GitHub Actions, frozen lockfiles | Dockerfile, ci.yml, engines.py |
-| Data location | Uploaded source stored on the Render disk/database of the owner's account; no AI egress | DEPLOYMENT.md |
+| Data location | Uploaded source stored in the owner's Render account: in PostgreSQL only (free lite profile, ADR 0010) or on the disk + database (standard); no AI egress | DEPLOYMENT.md |
+| Offline vulnerability DB | Baked into the image (digest-pinned build); the daily refresh is the only network use, downloads into a new directory and swaps a symlink atomically, never while a scan in the same process reads it | trivy_db.py, test_trivy_db.py |

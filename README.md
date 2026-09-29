@@ -27,7 +27,7 @@ An upload-first code intelligence, review and validated-remediation application 
 
 ## Deployment
 
-Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. Free: open the repository in **GitHub Codespaces** — the complete application (web UI, API, worker, analyzers, PostgreSQL) starts automatically and prints its URL. Paid, always on: the Render Blueprint `render.yaml`. Both are a single-user mode signed in with one access token; every push to `main` runs CI (which also starts the app exactly as Codespaces does). Setup steps and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Repository: <https://github.com/Vikaschd04/Ai_Code_Reviewer>. Free with a public URL: the Render Blueprint `render.yaml` (Render free web service + free PostgreSQL; lite profile — every feature, one scan at a time, sleeps when idle). Free alternative: **GitHub Codespaces** (starts automatically, private URL). Paid, always on: `deploy/render-standard.yaml`. All are a single-user mode signed in with one access token; every push to `main` runs CI, which also runs the app under the Render free limits (512 MB, 0.1 CPU). Setup steps, free-tier limits and the security posture: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Quickstart (macOS, verified)
 
@@ -67,7 +67,7 @@ Create project → upload ZIP or capture a selected folder → inspect scope →
 
 ## Limitations
 
-Local development plus a single-user hosted mode (GitHub Codespaces for free, or Render); not a multi-tenant or SSO deployment. Engines run without a per-scan OS sandbox. The Linux container image is built and smoke-tested in CI; Windows is untested. Temporal runs as the single-node dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
+Local development plus a single-user hosted mode (Render free or GitHub Codespaces; paid Render later); not a multi-tenant or SSO deployment. Engines run without a per-scan OS sandbox. The Linux container image is built and smoke-tested in CI; Windows is untested. Temporal runs as the single-node dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
 
 ## Project quality
 

@@ -1,7 +1,10 @@
-# Render Blueprint: the complete application on Render - one Docker web service (web UI + API +
-# Temporal worker + Temporal dev server + analyzers) and a private PostgreSQL database.
-# No settings to enter: the service derives its own URL and generates the sign-in token.
+# FREE Render Blueprint: the complete application (web UI + API + scans with PMD, ESLint, Opengrep
+# and Trivy) on Render's free instance and free PostgreSQL. Lite profile (ADR 0010): one process
+# without a Temporal server, uploads and scan artifacts stored in PostgreSQL (the free instance has
+# no persistent disk), one analyzer at a time within 512 MB of memory; the Trivy DB is baked into
+# the image. Nothing to enter: the service derives its own URL and generates the sign-in token.
 # Pushes to main redeploy after GitHub Actions CI passes. Guide: docs/DEPLOYMENT.md.
+# Always-on paid variant: deploy/render-standard.yaml.
 services:
   - type: web
     name: ai-code-reviewer
@@ -9,14 +12,12 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     region: singapore
-    plan: 1c-2g # analyzers need about 1-1.5 GB during a scan (docs/validation/P02_REPORT.md)
+    plan: free # 512 MB / 0.1 CPU; sleeps after 15 idle minutes, wakes on the next visit
     healthCheckPath: /v1/health/live
     autoDeployTrigger: checksPass # deploy main only after GitHub Actions CI passes
-    disk:
-      name: crp-data # uploads, scan work area, Temporal history, offline Trivy DB
-      mountPath: /data
-      sizeGB: 10
     envVars:
+      - key: CRP_PROFILE
+        value: lite
       - key: CRP_DATABASE_URL
         fromDatabase:
           name: ai-code-reviewer-db
@@ -27,6 +28,6 @@ services:
 databases:
   - name: ai-code-reviewer-db
     region: singapore
-    plan: 0.1c-256mb
+    plan: free # 1 GB; Render expires free databases 30 days after creation (docs/DEPLOYMENT.md)
     postgresMajorVersion: "18"
     ipAllowList: [] # no external connections; only the service above can reach it
