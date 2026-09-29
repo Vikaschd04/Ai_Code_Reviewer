@@ -109,7 +109,7 @@ jobs:
           oom_flag="$(docker inspect -f '{{.State.OOMKilled}}' "$app")"
           oom_kills="$(docker exec "$app" awk '/^oom_kill /{print $2}' /sys/fs/cgroup/memory.events)"
           peak="$(docker exec "$app" cat /sys/fs/cgroup/memory.peak || echo unknown)"
-          echo "::notice title=Lite profile (512 MB, 0.1 CPU)::memory.peak=${peak} bytes;" \
+          echo "::notice title=Lite profile - 512 MB and 0.1 CPU::memory.peak=${peak} bytes;" \
             "restarts=${restarts}; oom_killed=${oom_flag}; oom_kill=${oom_kills};" \
             "$(head -1 smoke-lite.txt)"
           test "$restarts" = 0 && test "$oom_flag" = false && test "$oom_kills" = 0
