@@ -26,8 +26,14 @@ New and changed evidence:
 
 Reviewed: sign-in (desktop, mobile dark), overview (empty, populated, dark, mobile), review results (light, dark, mobile), finding, project, issues, architecture, upload, projects, system status. Issues found and fixed during review: progress list indented by default list padding; file paths truncated before the file name (now name first, folder muted); issue paths breaking mid-word; a single status tile stretching full width; finding guidance placed below the triage form (now under the code); four stat tiles stacked one per row on mobile (now two columns); legacy "Local · loopback only" badge and loopback-only footer shown in hosted mode; developer-only runner command and token hints shown in hosted mode. Dark-mode navigation text looked faint only because the screenshot was taken during the 150 ms colour transition; the tour now waits for it.
 
+## CI (commit 806df8d)
+
+`quality` and `container` succeeded. Container smoke tests (Linux image, Docker Compose with PostgreSQL 18), from the public check-run annotations:
+
+- Standard profile: smoke scan SUCCEEDED (all six engines); demo sign-in + sample review SUCCEEDED, 41 findings.
+- Lite profile under 512 MiB / no swap / 0.1 CPU (Render free): smoke scan SUCCEEDED (all six engines, slowest API response 0.9 s) and demo sample review SUCCEEDED, 41 findings; `memory.peak` 256,577,536 bytes (≈ 245 MiB); restarts 0; OOM kills 0.
+
 ## Remaining gaps
 
 - The demo workspace is shared by all demo visitors and has no automatic cleanup (K-P10-01, K-P10-02).
-- CI container results for this commit are recorded after the run (GitHub check annotations).
 - The live Render deployment has not been created yet (owner action).
