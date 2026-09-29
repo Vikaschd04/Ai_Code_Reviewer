@@ -78,18 +78,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Start the complete application with Docker Compose and smoke-test it
+        shell: bash # -eo pipefail: a failing smoke test fails the step despite tee
         env:
           SMOKE_REQUIRE_TRIVY: "1" # the vulnerability DB is baked into the image
         run: |
           bash deploy/codespace.sh up
           python3 deploy/smoke_test.py http://127.0.0.1:8080 "$(bash deploy/codespace.sh token)" \
-            https://ci-8080.app.github.dev
+            https://ci-8080.app.github.dev | tee smoke-standard.txt
+          echo "::notice title=Standard profile smoke test::$(head -1 smoke-standard.txt)"
       - name: Application logs (standard profile)
         if: always()
         run: bash deploy/codespace.sh logs || true
       # The free Render Blueprint (render.yaml) runs the lite profile on 512 MB and 0.1 CPU;
       # prove the complete flow fits those limits without restarts or out-of-memory kills.
       - name: Lite profile (Render free) within 512 MB memory and 0.1 CPU
+        shell: bash
         env:
           CRP_PROFILE: lite
           CRP_START_TIMEOUT_TICKS: "450"
@@ -99,15 +102,17 @@ jobs:
           bash deploy/codespace.sh reset
           bash deploy/codespace.sh up
           python3 deploy/smoke_test.py http://127.0.0.1:8080 "$(bash deploy/codespace.sh token)" \
-            https://ci-8080.app.github.dev
+            https://ci-8080.app.github.dev | tee smoke-lite.txt
           app="$(docker ps -q --filter label=com.docker.compose.project=ai-code-reviewer \
             --filter label=com.docker.compose.service=app)"
-          docker inspect -f 'restarts={{.RestartCount}} oom_killed={{.State.OOMKilled}}' "$app"
-          docker exec "$app" sh -c 'echo "memory.peak=$(cat /sys/fs/cgroup/memory.peak)"; \
-            grep oom_kill /sys/fs/cgroup/memory.events' || true
-          test "$(docker inspect -f '{{.RestartCount}}' "$app")" = 0
-          test "$(docker inspect -f '{{.State.OOMKilled}}' "$app")" = false
-          test "$(docker exec "$app" sh -c "awk '/^oom_kill /{print \$2}' /sys/fs/cgroup/memory.events")" = 0
+          restarts="$(docker inspect -f '{{.RestartCount}}' "$app")"
+          oom_flag="$(docker inspect -f '{{.State.OOMKilled}}' "$app")"
+          oom_kills="$(docker exec "$app" awk '/^oom_kill /{print $2}' /sys/fs/cgroup/memory.events)"
+          peak="$(docker exec "$app" cat /sys/fs/cgroup/memory.peak || echo unknown)"
+          echo "::notice title=Lite profile (512 MB, 0.1 CPU)::memory.peak=${peak} bytes;" \
+            "restarts=${restarts}; oom_killed=${oom_flag}; oom_kill=${oom_kills};" \
+            "$(head -1 smoke-lite.txt)"
+          test "$restarts" = 0 && test "$oom_flag" = false && test "$oom_kills" = 0
       - name: Application logs (lite profile)
         if: always()
         env:

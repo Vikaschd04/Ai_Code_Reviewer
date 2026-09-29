@@ -23,7 +23,9 @@ Earlier measurement of the lite profile (same machine, `security-mixed` fixture,
 
 ## CI (Linux image under Render free limits)
 
-The `container` job builds the image (Trivy DB baked in), runs the smoke test in the standard profile, then resets the data and reruns it in the lite profile with 512 MB memory, no swap and 0.1 CPU. The job requires Trivy SUCCEEDED and fails on any container restart or out-of-memory kill; it prints the cgroup `memory.peak`. Result for the pushing commit: recorded below after the run.
+The `container` job builds the image (Trivy DB baked in), runs the smoke test in the standard profile, then resets the data and reruns it in the lite profile with 512 MB memory, no swap and 0.1 CPU. The job requires Trivy SUCCEEDED and fails on any container restart or out-of-memory kill; it prints the cgroup `memory.peak`. Results:
+
+- Run 36614706192 (commit a62c8e2): `quality` and `container` succeeded. Image build 2 min 17 s; standard smoke 22 s; lite step (reset, start at 0.1 CPU, full smoke with Trivy required, restart/OOM checks) 2 min 17 s. The step fails on any restart, OOM flag or cgroup `oom_kill`, so success means none occurred. The printed `memory.peak` is only in the job log (sign-in required), so the workflow now also publishes it as a check annotation.
 
 ## Remaining gaps
 
