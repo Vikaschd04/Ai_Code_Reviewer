@@ -26,11 +26,12 @@ NPM_DEPENDENCY_SECTIONS = (
 
 @dataclass(slots=True)
 class DeclaredDependency:
-    ecosystem: str  # maven | npm
-    name: str  # groupId:artifactId or npm package name
+    ecosystem: str  # maven | npm | sap | sfdx
+    name: str  # groupId:artifactId, npm package, SAP extension or Salesforce package name
     version: str | None
     scope: str | None
     line: int | None
+    reason: str | None = None  # explanation when the target is outside the upload
 
 
 @dataclass(slots=True)

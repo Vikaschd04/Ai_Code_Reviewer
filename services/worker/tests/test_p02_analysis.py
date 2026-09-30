@@ -439,7 +439,14 @@ async def test_issue_lifecycle_comparison_and_triage_across_snapshots(
         assert "src/main/java/com/example/billing/CryptoUtil.java" in unknown_paths
         assert {i["path"] for i in comparison["not_rechecked"]["items"]} >= {"web/src/cart.ts"}
         assert comparison["unchanged"]["count"] > 0 and comparison["new"]["count"] == 0
-        assert all(e["compatible"] for e in comparison["engines"] if e["engine"] != "trivy")
+        applicable = [
+            e
+            for e in comparison["engines"]
+            if e["engine"] != "trivy" and e["base_state"] != "NOT_APPLICABLE"
+        ]
+        assert applicable and all(e["compatible"] for e in applicable)
+        idle = {e["engine"] for e in comparison["engines"] if e["base_state"] == "NOT_APPLICABLE"}
+        assert idle == {"pmd-apex", "frameworks"}  # platform checks: nothing to compare
 
         # Graph nodes are served only through their own snapshot's current build.
         node_a = (await stack.ok("GET", f"/v1/snapshots/{snap_a}/graph/nodes?limit=1"))["items"][0]

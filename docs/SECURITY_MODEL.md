@@ -117,3 +117,13 @@ Residual risk: demo visitors share one workspace (they see each other's uploads)
 | Scope and retention | Runs, calls, findings and transcripts are project-scoped (other workspaces get 404) and deleted with the project; `CRP_AI_KEEP_TRANSCRIPTS=false` stops storing transcripts | test_runs_of_other_workspaces_are_invisible, test_ai_run.py |
 
 Residual risk: masking is heuristic, so a secret the redactor misses would reach the provider for projects with AI switched on; the provider's own retention terms apply to what it receives. Switch AI on only for code you may share with that provider.
+
+### Framework packs (P04, ADR 0013)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Configuration is data | Spring XML, items.xml, ImpEx, extension descriptors and Salesforce metadata are parsed, never executed, built or deployed; ImpEx is read for header types and `springId` only | test_frameworks.py |
+| Secure XML | expat with DOCTYPE, entity, unparsed-entity and external-reference handlers that refuse the document; parameter entities disabled; element count bounded; refusals become FAILED coverage and partial capability | test_frameworks.py (billion laughs, XXE, external DTD) |
+| No platform credentials | No SAP distribution, Salesforce org or token is used; validation profiles are conditional and documented only | FRAMEWORK_ADAPTERS.md |
+| Untrusted repository config stays inert | Project PMD/ESLint configs, `.opencodereview`-style rule files and Salesforce Code Analyzer configs are never loaded; only platform-owned rule sets run | ENGINE_ADOPTION.md |
+

@@ -634,6 +634,31 @@ class ModuleDependency(ApiModel):
     classification: str
 
 
+class FrameworkCapability(ApiModel):
+    id: str
+    label: str
+    state: Literal["available", "partial", "unavailable"]
+    detail: str
+
+
+class FrameworkPack(ApiModel):
+    """What a framework pack (SAP Commerce, Salesforce) detected and covers for this upload."""
+
+    id: str
+    name: str
+    adapter: str
+    status: str = Field(description="experimental or sme_reviewed")
+    version: str | None
+    version_status: Literal["supported", "unsupported_version", "unknown_version"]
+    version_evidence: str | None = Field(description="path:line the version was read from")
+    supported_versions: str
+    capabilities: list[FrameworkCapability]
+    relations: dict[str, int]
+    components: dict[str, int]
+    rules: list[str]
+    notes: list[str]
+
+
 class GraphSummary(ApiModel):
     build: GraphBuildResponse | None
     status: Literal["current", "failed", "none"]
@@ -644,6 +669,7 @@ class GraphSummary(ApiModel):
     modules: list[ModuleSummary]
     module_dependencies: list[ModuleDependency]
     unresolved_reasons: dict[str, int]
+    frameworks: list[FrameworkPack] = Field(default_factory=list)
 
 
 class GraphNodePage(ApiModel):

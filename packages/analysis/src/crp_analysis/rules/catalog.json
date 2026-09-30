@@ -1,5 +1,5 @@
 {
- "catalog_version": "crp-rules-v2",
+ "catalog_version": "crp-rules-v3",
  "rules": {
   "eslint:@typescript-eslint/no-unused-vars": {
    "category": "maintainability",
@@ -323,6 +323,30 @@
    "title": "Invalid typeof comparison",
    "url": "https://eslint.org/docs/latest/rules/valid-typeof"
   },
+  "frameworks:crp.sap.extension.dependency-cycle": {
+   "category": "reliability",
+   "engine": "frameworks",
+   "explanation": "extensioninfo.xml files of this upload declare requires-extension entries that form a cycle.",
+   "family": "reliability.dependency-cycle",
+   "recommendation": "Break the cycle: move the shared code into a separate extension that both depend on, or invert one dependency (for example through a Spring interface defined in the lower extension).",
+   "rule_id": "crp.sap.extension.dependency-cycle",
+   "severity": "high",
+   "severity_rationale": "The platform cannot determine a load order for extensions in a cycle, so the build or startup fails or behaves unpredictably.",
+   "title": "Extensions require each other",
+   "url": "https://cwe.mitre.org/data/definitions/1047.html"
+  },
+  "frameworks:crp.sf.metadata.retired-api-version": {
+   "category": "reliability",
+   "engine": "frameworks",
+   "explanation": "A metadata file (apiVersion) or sfdx-project.json (sourceApiVersion) declares an API version in the retired range 21.0-30.0.",
+   "family": "compatibility.api-version",
+   "recommendation": "Raise the version to a supported release, re-run the Apex tests, and check release notes for behaviour that changed between the versions (for example security enforcement and SOQL semantics). Also check integrations that call the org with the old version.",
+   "rule_id": "crp.sf.metadata.retired-api-version",
+   "severity": "medium",
+   "severity_rationale": "Salesforce retired Platform API versions 21.0 through 30.0 in Summer '25: calls at these versions fail, and components pinned to them keep legacy behaviour and miss later platform fixes.",
+   "title": "Retired Salesforce API version",
+   "url": "https://help.salesforce.com/s/articleView?id=000389618&language=en_US&type=1"
+  },
   "opengrep:crp.java.command-injection.runtime-exec": {
    "category": "security",
    "engine": "opengrep",
@@ -334,6 +358,18 @@
    "severity_rationale": "Arbitrary command execution on the host if the input is attacker-controlled.",
    "title": "OS command built from input (Runtime.exec)",
    "url": "https://cwe.mitre.org/data/definitions/78.html"
+  },
+  "opengrep:crp.java.config.hardcoded-environment-url": {
+   "category": "maintainability",
+   "engine": "opengrep",
+   "explanation": "A URL pointing to a local, test, QA, stage or internal host is written into the code.",
+   "family": "maintainability.hardcoded-config",
+   "recommendation": "Read the endpoint from configuration (for example ConfigurationService or Spring properties) with a per-environment value, and fail clearly when it is missing.",
+   "rule_id": "crp.java.config.hardcoded-environment-url",
+   "severity": "low",
+   "severity_rationale": "The same build behaves differently per environment only if configuration changes; a compiled URL ties it to one environment.",
+   "title": "Environment URL hard-coded",
+   "url": "https://12factor.net/config"
   },
   "opengrep:crp.java.crypto.ecb-mode": {
    "category": "security",
@@ -370,6 +406,18 @@
    "severity_rationale": "Collision attacks make MD5/SHA-1 unsuitable for integrity or signatures.",
    "title": "Weak hash algorithm (MD5/SHA-1)",
    "url": "https://cwe.mitre.org/data/definitions/327.html"
+  },
+  "opengrep:crp.java.logging.sensitive-data": {
+   "category": "security",
+   "engine": "opengrep",
+   "explanation": "A log call includes a variable whose name suggests a password, secret, token, API key, card number, CVV or IBAN.",
+   "family": "secrets.logging",
+   "recommendation": "Remove the value from the message or log a masked form (for example the last four digits). Check existing logs and rotate any exposed credentials.",
+   "rule_id": "crp.java.logging.sensitive-data",
+   "severity": "high",
+   "severity_rationale": "Logs are copied to many systems and people; passwords, tokens or card numbers in them are effectively disclosed.",
+   "title": "Sensitive value written to a log",
+   "url": "https://cwe.mitre.org/data/definitions/532.html"
   },
   "opengrep:crp.java.sql-injection.string-concat": {
    "category": "security",
@@ -442,6 +490,206 @@
    "severity_rationale": "Untrusted strings rendered as HTML enable DOM-based cross-site scripting.",
    "title": "Dynamic HTML assigned to innerHTML/outerHTML",
    "url": "https://cwe.mitre.org/data/definitions/79.html"
+  },
+  "opengrep:crp.sap.cronjob.missing-abort-check": {
+   "category": "reliability",
+   "engine": "opengrep",
+   "explanation": "A job's perform() loops over work items without calling clearAbortRequestedIfNeeded(). This is a candidate: short fixed loops are fine.",
+   "family": "reliability.job-abort",
+   "recommendation": "Make the job abortable (isAbortable() returns true), check clearAbortRequestedIfNeeded(cronJob) inside long loops, and process work in idempotent batches that can resume safely.",
+   "rule_id": "crp.sap.cronjob.missing-abort-check",
+   "severity": "medium",
+   "severity_rationale": "A long job that ignores abort requests keeps running during deployments or incidents and may redo work after a restart.",
+   "title": "Job loop cannot be aborted",
+   "url": "https://help.sap.com/doc/9fef7037b3304324b8891e84f19f2bf3/2105/en-us/de/hybris/platform/servicelayer/cronjob/AbstractJobPerformable.html"
+  },
+  "opengrep:crp.sap.flexiblesearch.string-concat": {
+   "category": "security",
+   "engine": "opengrep",
+   "explanation": "A FlexibleSearch query string is assembled with + from a variable, so a value from a request or import becomes part of the query syntax.",
+   "family": "injection.sql",
+   "recommendation": "Use ?parameters in the query and FlexibleSearchQuery.addQueryParameter()/addQueryParameters(); never concatenate user-controlled values. Validate identifiers such as sort fields against an allowlist.",
+   "rule_id": "crp.sap.flexiblesearch.string-concat",
+   "severity": "critical",
+   "severity_rationale": "Input can change the FlexibleSearch statement, which the platform translates to SQL (data theft or modification).",
+   "title": "FlexibleSearch built by string concatenation",
+   "url": "https://cwe.mitre.org/data/definitions/89.html"
+  },
+  "opengrep:crp.sap.flexiblesearch.unbounded-result": {
+   "category": "performance",
+   "engine": "opengrep",
+   "explanation": "A FlexibleSearch result is materialized without setCount()/setStart(). This is a candidate: it matters only when the result can grow with data volume.",
+   "family": "performance.unbounded-query",
+   "recommendation": "If the result is not naturally small (for example a lookup by unique code), page it with setCount()/setStart(), use a paginated search service, or stream through batches. Confirm the expected size with production-like data before changing working code.",
+   "rule_id": "crp.sap.flexiblesearch.unbounded-result",
+   "severity": "medium",
+   "severity_rationale": "Unbounded results are loaded into memory; with production data volumes this can exhaust the heap or slow storefront pages.",
+   "title": "FlexibleSearch result without paging",
+   "url": "https://cwe.mitre.org/data/definitions/770.html"
+  },
+  "opengrep:crp.sap.interceptor.persisting-side-effect": {
+   "category": "reliability",
+   "engine": "opengrep",
+   "explanation": "A prepare, validate, remove or init-defaults interceptor calls ModelService.save/remove. Interceptors run inside another save; persisting from there re-enters the model lifecycle.",
+   "family": "reliability.interceptor-side-effect",
+   "recommendation": "Change only the intercepted model's own fields (the outer operation saves them). For related models, use InterceptorContext.registerElementFor(...) instead of ModelService.save()/remove(), as SAP's interceptor documentation advises, or move the side effect to an after-save event listener or business process.",
+   "rule_id": "crp.sap.interceptor.persisting-side-effect",
+   "severity": "medium",
+   "severity_rationale": "Saving from inside the save cycle can recurse, run other interceptors unexpectedly or persist partial state if the outer save fails.",
+   "title": "Interceptor saves or removes models",
+   "url": "https://help.sap.com/docs/SAP_COMMERCE/d0224eca81e249cb821f2cdf45a82ace/8bfbf43e8669101480d0f060d79b1baa.html"
+  },
+  "opengrep:crp.sap.jalo.deprecated-api": {
+   "category": "maintainability",
+   "engine": "opengrep",
+   "explanation": "Custom code imports de.hybris.platform.jalo classes or calls JaloSession.getCurrentSession(). Generated sources (gensrc, Generated* classes) are not reported.",
+   "family": "maintainability.deprecated-api",
+   "recommendation": "Use the ServiceLayer: models with ModelService, FlexibleSearchService, UserService, SessionService and CommonI18NService. Migrate one call path at a time and keep behaviour covered by tests.",
+   "rule_id": "crp.sap.jalo.deprecated-api",
+   "severity": "medium",
+   "severity_rationale": "The Jalo layer is SAP's legacy layer; it bypasses the ServiceLayer interceptors and validators that current code and ImpEx rely on.",
+   "title": "Jalo layer used in custom code",
+   "url": "https://help.sap.com/docs/SAP_COMMERCE/d0224eca81e249cb821f2cdf45a82ace/8c00066686691014a5a5d19875a1525b.html"
+  },
+  "opengrep:crp.sap.model.save-in-loop": {
+   "category": "performance",
+   "engine": "opengrep",
+   "explanation": "ModelService.save() or remove() is called once per iteration, so a batch of N items causes N persistence cycles.",
+   "family": "performance.persistence-in-loop",
+   "recommendation": "Collect the changed models and call saveAll()/removeAll() once, or process large sets in bounded batches. Keep per-item saves only where each item must commit independently, and document why.",
+   "rule_id": "crp.sap.model.save-in-loop",
+   "severity": "medium",
+   "severity_rationale": "Each save() is a separate persistence round trip (interceptors, flush, cache invalidation), multiplied by the loop size.",
+   "title": "Model saved inside a loop",
+   "url": "https://cwe.mitre.org/data/definitions/1050.html"
+  },
+  "pmd-apex:ApexCRUDViolation": {
+   "category": "security",
+   "engine": "pmd-apex",
+   "explanation": "A query or DML statement runs without an object/field permission check or user mode.",
+   "recommendation": "Decide the intended execution context first. For code acting on behalf of the user, use user-mode operations where your API version supports them (WITH USER_MODE, AccessLevel.USER_MODE) or Security.stripInaccessible; otherwise check Schema describe permissions. Code that must run as the system (for example integrations) should document that decision instead of adding checks that change business behaviour.",
+   "rule_id": "ApexCRUDViolation",
+   "severity": "high",
+   "severity_rationale": "Code running in system context can read or change records and fields the user is not allowed to access.",
+   "title": "Data access without CRUD/FLS enforcement",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_security.html#apexcrudviolation"
+  },
+  "pmd-apex:ApexInsecureEndpoint": {
+   "category": "security",
+   "engine": "pmd-apex",
+   "explanation": "An HTTP callout endpoint uses http:// instead of https://.",
+   "family": "transport.insecure",
+   "recommendation": "Use https:// (ideally through a Named Credential) and make sure the remote site or credential configuration also requires TLS.",
+   "rule_id": "ApexInsecureEndpoint",
+   "severity": "medium",
+   "severity_rationale": "Data sent over plain HTTP can be read or changed in transit.",
+   "title": "Callout to an unencrypted endpoint",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_security.html#apexinsecureendpoint"
+  },
+  "pmd-apex:ApexSOQLInjection": {
+   "category": "security",
+   "engine": "pmd-apex",
+   "explanation": "A variable is concatenated into a string passed to Database.query().",
+   "family": "injection.sql",
+   "recommendation": "Use static SOQL with bind variables, or Database.queryWithBinds(); if dynamic identifiers are unavoidable, check them against an allowlist and escape values with String.escapeSingleQuotes().",
+   "rule_id": "ApexSOQLInjection",
+   "severity": "critical",
+   "severity_rationale": "Input concatenated into dynamic SOQL can change the query and expose or filter records the user should not see.",
+   "title": "Dynamic SOQL built from input",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_security.html#apexsoqlinjection"
+  },
+  "pmd-apex:ApexSharingViolations": {
+   "category": "security",
+   "engine": "pmd-apex",
+   "explanation": "A class that runs queries or DML does not declare with sharing, without sharing or inherited sharing.",
+   "recommendation": "Declare the intended sharing explicitly: with sharing for user-facing logic, inherited sharing for utilities, without sharing only where required and documented.",
+   "rule_id": "ApexSharingViolations",
+   "severity": "medium",
+   "severity_rationale": "Without an explicit keyword the class inherits the caller's sharing, which can mean system-wide record access.",
+   "title": "Class without a sharing declaration",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_security.html#apexsharingviolations"
+  },
+  "pmd-apex:ApexSuggestUsingNamedCred": {
+   "category": "security",
+   "engine": "pmd-apex",
+   "explanation": "An HTTP callout sets an Authorization header from values assembled in Apex.",
+   "family": "secrets.credentials",
+   "recommendation": "Use a Named Credential (with an External Credential) so Salesforce stores and injects the secret; reference it as callout:Name in the endpoint.",
+   "rule_id": "ApexSuggestUsingNamedCred",
+   "severity": "medium",
+   "severity_rationale": "Credentials handled in Apex end up in code, custom settings or logs and are hard to rotate.",
+   "title": "Credential built in code for a callout",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_security.html#apexsuggestusingnamedcred"
+  },
+  "pmd-apex:ApexUnitTestClassShouldHaveAsserts": {
+   "category": "maintainability",
+   "engine": "pmd-apex",
+   "explanation": "A test method runs code but never asserts its outcome.",
+   "family": "testing.assertions",
+   "recommendation": "Assert the expected result with the Assert class (for example Assert.areEqual with a message) after Test.stopTest().",
+   "rule_id": "ApexUnitTestClassShouldHaveAsserts",
+   "severity": "medium",
+   "severity_rationale": "A test without assertions only raises coverage; it cannot detect wrong results.",
+   "title": "Test without assertions",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_bestpractices.html#apexunittestclassshouldhaveasserts"
+  },
+  "pmd-apex:ApexUnitTestShouldNotUseSeeAllDataTrue": {
+   "category": "maintainability",
+   "engine": "pmd-apex",
+   "explanation": "A test class or method is annotated @isTest(SeeAllData=true).",
+   "family": "testing.isolation",
+   "recommendation": "Create the test data inside the test (a test data factory or @TestSetup) and remove SeeAllData=true.",
+   "rule_id": "ApexUnitTestShouldNotUseSeeAllDataTrue",
+   "severity": "medium",
+   "severity_rationale": "Tests that read real org data pass or fail depending on the org and can change real-looking records.",
+   "title": "Test uses org data (SeeAllData=true)",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_bestpractices.html#apexunittestshouldnotuseseealldatatrue"
+  },
+  "pmd-apex:AvoidNonRestrictiveQueries": {
+   "category": "performance",
+   "engine": "pmd-apex",
+   "explanation": "A SOQL/SOSL query has neither a WHERE clause nor a LIMIT.",
+   "family": "performance.unbounded-query",
+   "recommendation": "Filter on what you actually need and add a LIMIT, or use Batch Apex / a QueryLocator when the full set is really required.",
+   "rule_id": "AvoidNonRestrictiveQueries",
+   "severity": "medium",
+   "severity_rationale": "The query returns every record of the object; with growing data it hits the 50,000-row limit or heap limits.",
+   "title": "Query without WHERE or LIMIT",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_performance.html#avoidnonrestrictivequeries"
+  },
+  "pmd-apex:OperationWithHighCostInLoop": {
+   "category": "performance",
+   "engine": "pmd-apex",
+   "explanation": "A costly operation such as Schema.getGlobalDescribe() runs on every loop iteration.",
+   "recommendation": "Call it once before the loop and reuse the result (for example a Map of SObjectTypes).",
+   "rule_id": "OperationWithHighCostInLoop",
+   "severity": "medium",
+   "severity_rationale": "Describe calls are slow and count toward CPU time; repeating them per record can exceed the CPU limit.",
+   "title": "Expensive call inside a loop",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_performance.html#operationwithhighcostinloop"
+  },
+  "pmd-apex:OperationWithLimitsInLoop": {
+   "category": "performance",
+   "engine": "pmd-apex",
+   "explanation": "A SOQL/SOSL query, DML statement or other limited operation runs once per loop iteration, so the code breaks on bulk loads, data imports and triggers with many records.",
+   "family": "performance.persistence-in-loop",
+   "recommendation": "Bulkify: collect IDs first, run one query with IN :ids before the loop, and perform one DML statement on a list after the loop.",
+   "rule_id": "OperationWithLimitsInLoop",
+   "severity": "high",
+   "severity_rationale": "Governor limits (100 SOQL queries, 150 DML statements per transaction) are exceeded as soon as enough records are processed together.",
+   "title": "Query or DML inside a loop",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_performance.html#operationwithlimitsinloop"
+  },
+  "pmd-apex:QueueableWithoutFinalizer": {
+   "category": "reliability",
+   "engine": "pmd-apex",
+   "explanation": "A Queueable implementation does not attach a Finalizer (System.attachFinalizer) to handle failures.",
+   "recommendation": "Attach a Finalizer that logs failures, alerts or re-enqueues with a bounded retry count, where the job's outcome matters.",
+   "rule_id": "QueueableWithoutFinalizer",
+   "severity": "low",
+   "severity_rationale": "Failures in asynchronous jobs go unnoticed unless something records or retries them.",
+   "title": "Queueable job without a finalizer",
+   "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_apex_bestpractices.html#queueablewithoutfinalizer"
   },
   "pmd:AssignmentInOperand": {
    "category": "maintainability",

@@ -1674,6 +1674,65 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** FrameworkCapability */
+        FrameworkCapability: {
+            /** Detail */
+            detail: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "partial" | "unavailable";
+        };
+        /**
+         * FrameworkPack
+         * @description What a framework pack (SAP Commerce, Salesforce) detected and covers for this upload.
+         */
+        FrameworkPack: {
+            /** Adapter */
+            adapter: string;
+            /** Capabilities */
+            capabilities: components["schemas"]["FrameworkCapability"][];
+            /** Components */
+            components: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes: string[];
+            /** Relations */
+            relations: {
+                [key: string]: number;
+            };
+            /** Rules */
+            rules: string[];
+            /**
+             * Status
+             * @description experimental or sme_reviewed
+             */
+            status: string;
+            /** Supported Versions */
+            supported_versions: string;
+            /** Version */
+            version: string | null;
+            /**
+             * Version Evidence
+             * @description path:line the version was read from
+             */
+            version_evidence: string | null;
+            /**
+             * Version Status
+             * @enum {string}
+             */
+            version_status: "supported" | "unsupported_version" | "unknown_version";
+        };
         /** GraphBuildResponse */
         GraphBuildResponse: {
             /**
@@ -1824,6 +1883,8 @@ export interface components {
             edges_by_relation: {
                 [key: string]: number;
             };
+            /** Frameworks */
+            frameworks?: components["schemas"]["FrameworkPack"][];
             /** Message */
             message: string;
             /** Module Dependencies */

@@ -16,10 +16,10 @@ Rows are NOT_IMPLEMENTED unless a status is given. Replace with evidence-backed 
 | Opengrep and Trivy | 2 M | Approved rules/images; partial states — **IMPLEMENTED** (Opengrep 1.30.0 owned rules; Trivy 0.69.3 offline vuln + secret; ADR 0007) |
 | JSON/SARIF export | 2 M | Schema-valid output and access checks — **IMPLEMENTED** (own JSON Schema + official SARIF 2.1.0 validation) |
 | Issue triage, exceptions with expiry, per-file engine cache | 2 M | Optimistic versions; invalidation by content/rules/config — **IMPLEMENTED** (ADR 0008) |
-| Provider AI review and repository Q&A | 3 M | Source citations and budget/injection tests |
-| Alibaba OCR integration | 3 evaluated | Adopt or record evidence-based rejection and working alternative |
-| SAP Commerce and Salesforce packs | 4 M | Versioned domain fixtures and coverage |
-| SAP build / Salesforce org validation | 4–5 C | Customer toolchain/environment |
+| Provider AI review and repository Q&A | 3 M | Source citations and budget/injection tests — **IMPLEMENTED offline; live-provider gate BLOCKED** (P03_REPORT; key not configured) |
+| Alibaba OCR integration | 3 evaluated | Adopt or record evidence-based rejection and working alternative — **EVALUATED, not adopted** (P03_OCR_EVALUATION; direct-provider path delivered) |
+| SAP Commerce and Salesforce packs | 4 M | Versioned domain fixtures and coverage — **IMPLEMENTED, experimental** (P04_REPORT; SAP 2105–2211, Salesforce API 31.0+; no SME review) |
+| SAP build / Salesforce org validation | 4–5 C | Customer toolchain/environment — NOT RUN (conditional profiles defined in FRAMEWORK_ADAPTERS.md) |
 | Patch workbench and download | 5 M | Independent validation and input preservation |
 | GitHub/incremental/PR publication | 6 M/C | Auth, webhook and freshness gates |
 | SSO/multi-tenant private execution | 7 M | Isolation and release qualification |

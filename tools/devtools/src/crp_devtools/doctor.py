@@ -196,7 +196,7 @@ def check_analyzers(settings: Settings) -> list[Finding]:
     from crp_analysis.engines.base import EngineAdapter
     from crp_analysis.engines.eslint import EslintAdapter
     from crp_analysis.engines.opengrep import OpengrepAdapter
-    from crp_analysis.engines.pmd import PmdAdapter
+    from crp_analysis.engines.pmd import APEX, PmdAdapter
     from crp_analysis.engines.trivy import TrivyAdapter
 
     trivy = TrivyAdapter(
@@ -219,6 +219,13 @@ def check_analyzers(settings: Settings) -> list[Finding]:
             settings.opengrep_home, timeout_seconds=1, max_output_bytes=1, max_target_bytes=1
         ),
         "trivy": trivy,
+        "pmd-apex": PmdAdapter(
+            settings.pmd_home,
+            java_heap=settings.pmd_java_heap,
+            timeout_seconds=1,
+            max_output_bytes=1,
+            ruleset=APEX,
+        ),
     }
     findings = []
     for name, adapter in adapters.items():

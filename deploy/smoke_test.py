@@ -121,7 +121,14 @@ def demo_sample_review(base: str, origin: str) -> dict[str, Any] | None:
         **auth,
     )
     engines = {e["engine"]: e["state"] for e in done["engines"]}
-    check(all(state == "SUCCEEDED" for state in engines.values()), engines)
+    # Core checks must succeed; platform packs (Salesforce Apex, SAP/Salesforce configuration)
+    # have no files in the sample and must say so rather than claim a clean result.
+    platform = {"pmd-apex", "frameworks"}
+    check(
+        all(state == "SUCCEEDED" for name, state in engines.items() if name not in platform)
+        and all(engines.get(name) == "NOT_APPLICABLE" for name in platform),
+        engines,
+    )
     check(done["summary"]["findings"] >= 30, done["summary"])
     project_path = f"/v1/projects/{sample['project']['id']}"
     status, _, body = call(base, "DELETE", project_path, None, **auth)

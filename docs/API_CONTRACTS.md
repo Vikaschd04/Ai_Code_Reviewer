@@ -84,6 +84,16 @@ Nodes are only reachable through their own snapshot's current build (404 otherwi
 
 Run states: QUEUED, RUNNING, SUCCEEDED, PARTIAL, BUDGET_EXHAUSTED, FAILED (`error_code` e.g. `interrupted`, `provider_rate_limited`, `no_result`), CANCELED. Runs are never retried automatically.
 
+## Implemented in P04 (framework packs, ADR 0013)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/snapshots/{id}/graph | viewer | adds `frameworks`: one pack report per detected platform (`id`, `name`, `adapter`, `status`, `version`, `version_status` supported/unsupported_version/unknown_version, `version_evidence` path:line, `supported_versions`, `capabilities` [id, label, state available/partial/unavailable, detail], `relations`, `components`, `rules`, `notes`); `module_dependencies[].relation` may be `config` (configuration links such as bean injection across modules) |
+| GET /v1/snapshots/{id}/graph/nodes?kind=component | viewer | framework components; `attributes.framework` (`sap`/`sf`) and `attributes.component_type` (spring_bean, spring_alias, itemtype, enumtype, sobject, field, apex_class, apex_trigger, lwc, flow, permission_set, custom_metadata_record) |
+| GET /v1/scans/{id} | viewer | engine runs may include `pmd-apex` and `frameworks` (NOT_APPLICABLE when the upload has no matching files) |
+| GET /v1/scans/{id}/compare | viewer | engines not applicable on both sides say so in `note` |
+| GET /v1/capabilities | credentials | adds `sap_commerce_pack` and `salesforce_pack` (available, experimental) |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

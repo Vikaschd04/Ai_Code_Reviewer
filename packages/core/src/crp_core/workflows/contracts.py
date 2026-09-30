@@ -78,7 +78,17 @@ class IntakeWorkflowResult(_Contract):
 # -- scan --------------------------------------------------------------------------------------
 
 SCAN_WORKFLOW_NAME = "ScanWorkflow"
-ENGINE_NAMES = ("structure", "graph", "pmd", "eslint", "opengrep", "trivy")
+ENGINE_NAMES = (
+    "structure",
+    "graph",
+    "pmd",
+    "eslint",
+    "opengrep",
+    "trivy",
+    "pmd-apex",
+    "frameworks",
+)
+ENGINE_PATTERN = "^(" + "|".join(re.escape(name) for name in ENGINE_NAMES) + ")$"
 # Platform extractors (not finding engines): their failures make a scan PARTIAL, never FAILED.
 EXTRACTOR_NAMES = frozenset({"structure", "graph"})
 
@@ -99,7 +109,7 @@ class ScanPlan(_Contract):
 
 class EngineTask(_Contract):
     scan_id: UUID
-    engine: str = Field(pattern="^(structure|graph|pmd|eslint|opengrep|trivy)$")
+    engine: str = Field(pattern=ENGINE_PATTERN)
 
 
 class EngineTaskResult(_Contract):

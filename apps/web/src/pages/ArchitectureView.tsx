@@ -8,6 +8,7 @@ import {
   searchGraphNodes,
 } from "../api/endpoints";
 import { Alert, Disclosure, Empty, Loading } from "../components/Common";
+import { FrameworkPanel } from "../components/Frameworks";
 import { Icon } from "../components/Icon";
 import { StatusBadge } from "../components/Status";
 import { formatNumber, titleCase } from "../lib/format";
@@ -22,13 +23,20 @@ const CLASS_HELP: Record<string, string> = {
   unresolved:
     "Not found: could not be traced (missing library, undeclared package or dynamic import)",
 };
-const ECOSYSTEMS: Record<string, string> = { maven: "Maven", npm: "npm", gradle: "Gradle" };
+const ECOSYSTEMS: Record<string, string> = {
+  maven: "Maven",
+  npm: "npm",
+  gradle: "Gradle",
+  sap: "SAP extension",
+  sfdx: "Salesforce package",
+};
 
-/** "module:maven:app" → "app (Maven)"; other keys unchanged. */
+/** "module:maven:app" → "app (Maven)"; deep folders show their last part; others unchanged. */
 function moduleName(key: string): string {
   const match = /^module:([^:]+):(.+)$/.exec(key);
   if (!match?.[1] || !match[2]) return key;
-  return `${match[2]} (${ECOSYSTEMS[match[1]] ?? match[1]})`;
+  const folder = match[2].split("/").pop() ?? match[2];
+  return `${folder} (${ECOSYSTEMS[match[1]] ?? match[1]})`;
 }
 const GLYPH: Record<string, string> = {
   module: "M",
@@ -37,7 +45,62 @@ const GLYPH: Record<string, string> = {
   package: "P",
   external: "E",
   function: "ƒ",
+  component: "C",
 };
+
+/** Framework components (SAP Commerce, Salesforce) by the pack's component type. */
+const COMPONENT_TYPES: Record<string, string> = {
+  spring_bean: "Spring bean",
+  spring_alias: "Spring alias",
+  itemtype: "Item type",
+  enumtype: "Enum type",
+  sobject: "Salesforce object",
+  field: "Field",
+  apex_class: "Apex class",
+  apex_trigger: "Apex trigger",
+  lwc: "Lightning web component",
+  flow: "Flow",
+  permission_set: "Permission set",
+  custom_metadata_record: "Custom metadata record",
+};
+
+function kindLabel(node: GraphNode): string {
+  if (node.kind !== "component") return titleCase(node.kind);
+  const type = node.attributes?.component_type;
+  return typeof type === "string" ? (COMPONENT_TYPES[type] ?? titleCase(type)) : "Component";
+}
+
+/** Plain names for configuration relations; code relations read well as they are. */
+const RELATION_LABELS: Record<string, string> = {
+  depends_on: "depends on",
+  loads_extension: "loads extension",
+  implemented_by: "implemented by",
+  extends_bean: "inherits bean",
+  alias_of: "alias of",
+  extends_type: "extends type",
+  relates_to: "relation to",
+  imports_data: "imports data into",
+  runs_bean: "runs job bean",
+  calls_apex: "calls Apex",
+  flow_calls_apex: "flow calls Apex",
+  references_schema: "uses field",
+  flow_triggers_on: "flow runs on",
+  flow_uses_object: "flow changes",
+  grants_object_access: "grants access to",
+  grants_class_access: "grants access to",
+  field_of: "field of",
+  lookup_to: "looks up",
+  record_of: "record of",
+};
+
+function relationLabel(relation: string): string {
+  return RELATION_LABELS[relation] ?? relation.replaceAll("_", " ");
+}
+
+function dependencyKind(relation: string): string {
+  if (relation === "depends_on") return "build file";
+  return relation === "config" ? "configuration" : "code";
+}
 
 function short(text: string, max = 22): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -138,7 +201,7 @@ function ModuleMap({
               markerEnd="url(#arrow-m)"
             >
               <title>
-                {`${dep.source_key} → ${dep.target_key}: ${String(dep.edges)} ${dep.relation === "depends_on" ? "manifest dependency" : "code reference(s)"} (${dep.classification})`}
+                {`${dep.source_key} → ${dep.target_key}: ${String(dep.edges)} ${dependencyKind(dep.relation)} link(s) (${dep.classification})`}
               </title>
             </line>
           </g>
@@ -258,7 +321,7 @@ function Neighborhood({
             <Icon name="graph" size={16} /> {node.label}
           </h2>
           <p className="card-sub mono">
-            {titleCase(node.kind)} · {node.path ?? node.key}
+            {kindLabel(node)} · {node.path ?? node.key}
             {node.start_line ? `:${String(node.start_line)}` : ""}
           </p>
         </div>
@@ -352,7 +415,7 @@ function Neighborhood({
                   transform={`translate(${String(point.x)},${String(point.y)})`}
                   tabIndex={0}
                   role="button"
-                  aria-label={`${titleCase(item.kind)} ${item.label}${center ? " (selected)" : ""}`}
+                  aria-label={`${kindLabel(item)} ${item.label}${center ? " (selected)" : ""}`}
                   onClick={() => {
                     onSelect(item);
                   }}
@@ -391,7 +454,7 @@ function Neighborhood({
                 {data.edges.map((edge) => (
                   <tr key={edge.id} data-testid="graph-edge-row">
                     <td className="small">{byId.get(edge.source_id)?.label ?? edge.source_id}</td>
-                    <td className="small">{edge.relation.replaceAll("_", " ")}</td>
+                    <td className="small">{relationLabel(edge.relation)}</td>
                     <th scope="row" className="mono small">
                       {edge.target_ref}
                     </th>
@@ -495,9 +558,9 @@ function NodeSearch({
           }}
         >
           <option value="">Everything</option>
-          {["module", "file", "type", "package", "external"].map((value) => (
+          {["module", "file", "type", "package", "component", "external"].map((value) => (
             <option key={value} value={value}>
-              {titleCase(value)}
+              {value === "component" ? "Framework component" : titleCase(value)}
             </option>
           ))}
         </select>
@@ -514,7 +577,9 @@ function NodeSearch({
                 onSelect(item);
               }}
             >
-              <span className="badge badge-neutral">{GLYPH[item.kind] ?? "?"}</span>
+              <span className="badge badge-neutral" title={kindLabel(item)}>
+                {GLYPH[item.kind] ?? "?"}
+              </span>
               <span className="mono">{item.path ?? item.label}</span>
             </button>
           </li>
@@ -550,6 +615,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
   const gaps = Object.entries(data.unresolved_reasons);
   return (
     <div className="stack" data-testid="architecture">
+      <FrameworkPanel packs={data.frameworks ?? []} />
       <section className="card stack" aria-labelledby="graph-title">
         <div className="card-head">
           <div>
@@ -607,9 +673,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
                       {moduleName(dep.source_key)}
                     </th>
                     <td className="small">{moduleName(dep.target_key)}</td>
-                    <td className="small">
-                      {dep.relation === "depends_on" ? "build file" : "code"}
-                    </td>
+                    <td className="small">{dependencyKind(dep.relation)}</td>
                     <td>{dep.edges}</td>
                     <td>
                       {dep.classification === "mixed" ? (

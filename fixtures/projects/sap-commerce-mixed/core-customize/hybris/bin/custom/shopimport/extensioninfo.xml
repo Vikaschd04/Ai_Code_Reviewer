@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensioninfo>
+  <extension name="shopimport">
+    <requires-extension name="shopexport"/>
+  </extension>
+</extensioninfo>

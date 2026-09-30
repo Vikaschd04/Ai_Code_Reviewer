@@ -1,0 +1,6 @@
+{
+  "commerceSuiteVersion": "2211.28",
+  "useCloudExtensionPack": false,
+  "extensions": ["shopcore", "shopfacades", "shopocc"],
+  "aspects": [{ "name": "backoffice", "properties": [] }]
+}

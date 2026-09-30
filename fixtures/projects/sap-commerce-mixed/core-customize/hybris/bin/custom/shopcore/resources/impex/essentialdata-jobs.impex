@@ -1,0 +1,12 @@
+# Synthetic ImpEx for tests: parsed for header types and springId only, never executed.
+$catalogVersion=catalogversion(catalog(id[default='shopProductCatalog']),version[default='Staged'])
+
+INSERT_UPDATE ServicelayerJob;code[unique=true];springId
+;loyaltyRecalculationJob;loyaltyRecalculationJob
+;safeCleanupJob;safeCleanupJob
+
+INSERT_UPDATE LoyaltyRecalculationCronJob;code[unique=true];job(code);batchSize;sessionLanguage(isocode)
+;nightlyLoyaltyRecalculation;loyaltyRecalculationJob;500;en
+
+INSERT_UPDATE Product;code[unique=true];$catalogVersion;name[lang=en]
+;LOYALTY-CARD;;Loyalty card

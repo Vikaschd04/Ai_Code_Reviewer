@@ -14,7 +14,7 @@ import pytest
 
 from crp_analysis.engines.base import CancelToken, EngineOutcome
 from crp_analysis.engines.eslint import EslintAdapter
-from crp_analysis.engines.pmd import PmdAdapter
+from crp_analysis.engines.pmd import APEX, PmdAdapter, rule_ids
 from crp_analysis.normalize import normalize
 from crp_core.domain.states import EngineState
 from crp_devtools.engines import pmd_home
@@ -107,6 +107,29 @@ def test_pmd_clean_fixture_is_clean(pmd_dir: Path, tmp_path: Path) -> None:
     assert outcome.problems == []
 
 
+def test_pmd_apex_rules_on_the_salesforce_fixture(pmd_dir: Path, tmp_path: Path) -> None:
+    root = _workspace(tmp_path, "salesforce-mixed")
+    adapter = PmdAdapter(
+        pmd_dir, java_heap="512m", timeout_seconds=120, max_output_bytes=10_000_000, ruleset=APEX
+    )
+    assert adapter.name == "pmd-apex" and adapter.is_eligible("a/B.cls", "apex")
+    assert not adapter.is_eligible("a/B.java", "java")
+    outcome = adapter.run(
+        root, _files(root, (".cls", ".trigger")), cancel=CancelToken(), heartbeat=_noop
+    )
+    assert outcome.engine_version == "7.27.0" and outcome.ruleset_id == "crp-pmd-apex-v1"
+    assert outcome.state is EngineState.SUCCEEDED, outcome.error_message
+    assert {f.rule_id for f in outcome.findings} == set(rule_ids(APEX))  # every rule has a positive
+    clean = {"SafeAccountService.cls", "SafeAccountServiceTest.cls", "LoyaltyInvocable.cls"}
+    assert not [f for f in outcome.findings if f.path.rsplit("/", 1)[-1] in clean]
+    assert ("ReportService.cls", 21) not in {
+        (f.path.rsplit("/", 1)[-1], f.start_line) for f in outcome.findings
+    }  # the describe call hoisted out of the loop is not reported
+    normalized = normalize("pmd-apex", root, outcome.findings)
+    injection = next(n for n in normalized if n.raw.rule_id == "ApexSOQLInjection")
+    assert injection.in_catalog and injection.severity == "critical"
+
+
 def test_eslint_seeded_fixture(tmp_path: Path) -> None:
     root = _workspace(tmp_path, "seeded-mixed")
     files = _files(root, (".js", ".ts", ".tsx"))
@@ -128,6 +151,14 @@ def test_eslint_seeded_fixture(tmp_path: Path) -> None:
     assert expected <= _rules(outcome), "the /* eslint-disable */ directive must be ignored"
     (problem,) = outcome.problems
     assert problem.path.endswith("broken.ts") and problem.outcome == "FAILED"
+
+
+def test_eslint_reads_lightning_web_component_decorators(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, "salesforce-mixed")
+    files = [f for f in _files(root, (".js",)) if "/lwc/" in f]
+    outcome = eslint(ESLINT_DIR).run(root, files, cancel=CancelToken(), heartbeat=_noop)
+    assert files and outcome.state is EngineState.SUCCEEDED, outcome.problems
+    assert outcome.problems == [] and outcome.findings == []  # @wire-only imports are used
 
 
 def test_eslint_clean_fixture_is_clean(tmp_path: Path) -> None:

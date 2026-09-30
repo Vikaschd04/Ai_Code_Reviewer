@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <actionCalls>
+        <name>Recalculate_Tier</name>
+        <actionName>LoyaltyInvocable</actionName>
+        <actionType>apex</actionType>
+    </actionCalls>
+    <label>Loyalty Member After Save</label>
+    <processType>AutoLaunchedFlow</processType>
+    <recordUpdates>
+        <name>Update_Account</name>
+        <object>Account</object>
+    </recordUpdates>
+    <start>
+        <object>Loyalty_Member__c</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordAfterSave</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>

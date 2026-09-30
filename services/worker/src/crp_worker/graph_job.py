@@ -19,6 +19,7 @@ from sqlalchemy import delete, insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crp_analysis.engines.base import CacheIdentity, CancelToken
+from crp_analysis.frameworks import registry as frameworks
 from crp_analysis.graph.extract import (
     GRAPH_EXTRACTOR,
     FileFacts,
@@ -89,6 +90,25 @@ def run_graph(
     modules: list[Module] = []
     tsconfigs: list[TsConfig] = []
     notes: list[str] = []
+    analyzable = [
+        s
+        for s in snapshot
+        if s.disposition == FileDisposition.ANALYZABLE.value and s.sha256 is not None
+    ]
+    detection = frameworks.detect({s.path for s in analyzable})
+    pack_texts: dict[str, str] = {}
+    if detection.any:
+        for item in analyzable:
+            if cancel.cancelled:
+                return GraphRun(facts, fresh, GraphData(), canceled=True)
+            if len(pack_texts) >= frameworks.MAX_PACK_FILES:
+                notes.append("framework mapping stopped at the file limit")
+                break
+            if item.sha256 is not None and frameworks.wants(item.path, detection):
+                data = _blob(store, item.sha256, max_file_bytes)
+                pack_texts[item.path] = data.decode("utf-8", errors="replace")
+    prepared = frameworks.prepare(pack_texts, detection)
+    modules.extend(prepared.modules)
     for item in snapshot:
         name = posixpath.basename(item.path)
         if name in _GRADLE:
@@ -118,6 +138,8 @@ def run_graph(
         tsconfigs=tsconfigs,
     )
     notes.extend(f"{m.manifest}: {n}" for m in modules for n in m.notes)
+    reports = frameworks.map_packs(graph, pack_texts, prepared)
+    graph.diagnostics["frameworks"] = [report.to_json() for report in reports]
     return GraphRun(facts, fresh, graph, sorted(set(notes))[:100])
 
 
@@ -229,7 +251,7 @@ async def publish(
             "evidence_start_line": e.start_line,
             "evidence_end_line": e.end_line,
             "evidence_text": e.text[:500] if e.text else None,
-            "extractor": GRAPH_EXTRACTOR,
+            "extractor": e.extractor or GRAPH_EXTRACTOR,
         }
         for e in data.edges
         if e.source in ids

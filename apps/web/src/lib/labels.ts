@@ -42,10 +42,47 @@ export const CHECKS: Record<string, CheckInfo> = {
     description: "Known vulnerabilities in dependencies and leaked credentials in files.",
     tool: "Trivy",
   },
+  "pmd-apex": {
+    name: "Salesforce Apex",
+    description:
+      "Bulk limits, access checks, query injection, callouts and test isolation in Apex.",
+    tool: "PMD (Apex rules)",
+  },
+  frameworks: {
+    name: "Platform configuration",
+    description: "SAP Commerce extension dependencies and Salesforce API versions in metadata.",
+    tool: "refactorX framework packs",
+  },
 };
 
-export const CHECK_ORDER = ["structure", "graph", "pmd", "eslint", "opengrep", "trivy"];
-export const FINDING_CHECKS = ["pmd", "eslint", "opengrep", "trivy"];
+export const CHECK_ORDER = [
+  "structure",
+  "graph",
+  "pmd",
+  "eslint",
+  "opengrep",
+  "trivy",
+  "pmd-apex",
+  "frameworks",
+];
+export const FINDING_CHECKS = ["pmd", "eslint", "opengrep", "trivy", "pmd-apex", "frameworks"];
+
+/** Checks that only apply to some platforms: shown only when they had files to check. */
+export const PLATFORM_CHECKS = new Set(["pmd-apex", "frameworks"]);
+
+/** Checks worth showing for a scan: core checks always, platform checks when they applied. */
+export function visibleChecks(
+  names: string[],
+  runs: { engine: string; state: string }[] | null,
+): string[] {
+  if (runs === null) return names.filter((name) => !PLATFORM_CHECKS.has(name));
+  const states = new Map(runs.map((run) => [run.engine, run.state]));
+  return names.filter((name) => {
+    if (!PLATFORM_CHECKS.has(name)) return true;
+    const state = states.get(name);
+    return state !== undefined && state !== "NOT_APPLICABLE";
+  });
+}
 
 export function checkName(engine: string): string {
   return CHECKS[engine]?.name ?? engine;

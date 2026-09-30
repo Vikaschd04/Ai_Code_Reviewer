@@ -351,6 +351,8 @@ async def compare_scans(
         )
         if compatible:
             note = "compatible: absences in analyzed files are verified"
+        elif b and t and b.state == t.state == "NOT_APPLICABLE":
+            note = "not applicable: no files for this check on either side"
         elif not completed:
             note = "one side did not complete; absences are not rechecked"
         else:

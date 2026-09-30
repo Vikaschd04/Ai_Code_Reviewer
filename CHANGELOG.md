@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — P04 SAP Commerce and Salesforce packs (30 September 2026)
+
+- Framework packs (experimental, ADR 0013): SAP Commerce (2105–2211) and Salesforce (API 31.0+) detection with version evidence, capability coverage and configuration-driven architecture links (extensions, Spring beans and injection, item types, interceptors, ImpEx; Salesforce packages, Apex, triggers, LWC, objects, Flows, permission sets, custom metadata). Metadata is read with a secure XML reader that refuses DTDs and entities.
+- New checks: 8 owned Opengrep rules for SAP Commerce/Java hygiene, 11 PMD Apex rules on the same pinned PMD (engine `pmd-apex`), and configuration checks for extension dependency cycles and retired Salesforce API versions (engine `frameworks`). Catalog `crp-rules-v3`; every rule cites a source.
+- UI: "Platform support" card on reviews and the Architecture tab; platform checks appear only when they apply; framework components searchable in the architecture map.
+- LWC JavaScript is parsed with the TypeScript parser so decorators no longer make those files fail the JavaScript check.
+- Migration `0006` (graph node kind `component`). Synthetic fixtures `sap-commerce-mixed` and `salesforce-mixed`.
+
 ## Unreleased — P03 AI review (30 September 2026)
 
 - AI results can be downloaded per run (JSON with its own schema, SARIF with AI findings only; rejected suggestions never appear as SARIF results), and a finding's page lists its earlier AI second opinions. AI findings deliberately stay out of tracked issues and scan exports: issues need deterministic re-checks.

@@ -1,6 +1,6 @@
 # Known issues and gaps
 
-Updated 30 September 2026 (P03 AI review). None of these block the P00–P02 gates; K-P03-01 blocks the P03 gate.
+Updated 30 September 2026 (P04 packs). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate.
 
 | ID | Symptom / gap | Scope | Severity | Evidence | Workaround / next action |
 |---|---|---|---|---|---|
@@ -35,6 +35,10 @@ Updated 30 September 2026 (P03 AI review). None of these block the P00–P02 gat
 | K-P03-03 | A model call already in flight when a run is cancelled or interrupted may still be billed by the provider; the call is not recorded if the process dies mid-call | AI usage | Low | orchestrator, ai_run.py | Provider dashboards remain the billing source of truth |
 | K-P03-04 | AI findings are exported per run and shown on the finding they assess, but by design never become tracked issues or part of scan comparisons (issues need deterministic re-checks); retrieval is lexical + P02 graph (no embeddings); one question, finding or ≤ 5 files per run | AI review | Low | P03_REPORT | Revisit with P05 validated fixes |
 | K-P03-05 | Alibaba OCR evaluation isolation exists for macOS only (`sandbox-exec`); no Linux profile | evaluation | Low | P03_OCR_EVALUATION | Needed only if OCR is reconsidered |
+| K-P04-01 | SAP Commerce and Salesforce packs are experimental: no domain-expert review; rules and mappings validated only on synthetic fixtures | P04 packs | Medium | P04_REPORT | SME review before strong support claims |
+| K-P04-02 | No SAP build or Salesforce org validation (no licensed distribution or authorized org); mapped links are configuration evidence, not runtime proof | P04 packs | Medium | FRAMEWORK_ADAPTERS.md | Run the conditional profiles in a customer-authorized environment |
+| K-P04-03 | Not mapped: SAP processes, integration objects, CMS, properties resolution, component scanning; Salesforce Aura, Visualforce, profiles, sharing rules, Apex call graph, DML target types | P04 packs | Low | P04_REPORT | Future pack versions |
+| K-P04-04 | Salesforce Code Analyzer engines beyond PMD (Flow Scanner, Graph Engine, RetireJS) and `@lwc/eslint-plugin-lwc` not integrated | Salesforce pack | Low | ENGINE_ADOPTION.md | Pinned, isolated evaluation |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 
 Known planned limitations: no Git ingestion until P06; no AI provider required in P00/P01; no universal defect detection; SAP/Salesforce runtime checks depend on authorized platform environments; private runner execution is distinct from local snapshot upload.

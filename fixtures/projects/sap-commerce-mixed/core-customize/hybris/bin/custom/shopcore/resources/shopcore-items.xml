@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<items xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <enumtypes>
+    <enumtype code="LoyaltyTier" autocreate="true" generate="true">
+      <value code="SILVER"/>
+      <value code="GOLD"/>
+    </enumtype>
+  </enumtypes>
+  <relations>
+    <relation code="Customer2LoyaltyAccount" localized="false">
+      <sourceElement type="Customer" qualifier="customer" cardinality="one"/>
+      <targetElement type="LoyaltyAccount" qualifier="loyaltyAccounts" cardinality="many"/>
+    </relation>
+  </relations>
+  <itemtypes>
+    <itemtype code="LoyaltyAccount" autocreate="true" generate="true">
+      <deployment table="LoyaltyAccounts" typecode="25001"/>
+      <attributes>
+        <attribute qualifier="points" type="java.lang.Integer">
+          <persistence type="property"/>
+        </attribute>
+        <attribute qualifier="tier" type="LoyaltyTier">
+          <persistence type="property"/>
+        </attribute>
+      </attributes>
+    </itemtype>
+    <itemtype code="LoyaltyRecalculationCronJob" extends="CronJob" autocreate="true" generate="true">
+      <attributes>
+        <attribute qualifier="batchSize" type="java.lang.Integer">
+          <persistence type="property"/>
+        </attribute>
+      </attributes>
+    </itemtype>
+    <itemtype code="PremiumLoyaltyAccount" extends="LoyaltyAccount" autocreate="true" generate="true"/>
+  </itemtypes>
+</items>

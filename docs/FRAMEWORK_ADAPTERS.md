@@ -28,3 +28,32 @@ SAP build checks require the correct licensed distribution/dependencies; Salesfo
 
 For each first supported version family: at least one mapping fixture, positive/negative examples for every enabled rule, missing-dependency and unsupported-version cases, malformed-config protection, evidence anchoring and no modification of input. Domain SME review is required before strong production-support claims; it is not a blocker for building clearly experimental capability.
 
+
+## Implemented in P04 (experimental, not SME-reviewed)
+
+Packs live in `packages/analysis/src/crp_analysis/frameworks/` (ADR 0013). Each graph build stores
+one `PackReport` per detected platform (`GraphSummary.frameworks`): version, version status
+(`supported` / `unsupported_version` / `unknown_version`) with path:line evidence, capability
+states with reasons, relation and component counts, rule IDs and notes. Supported versions,
+mappings and rule IDs: docs/validation/P04_REPORT.md.
+
+- SAP Commerce `crp-pack-sap-commerce-v1`: extensions, `localextensions.xml`, Spring XML and
+  `@Resource`/`@Qualifier` injection, items.xml types/relations/enums, interceptor mappings,
+  ImpEx headers and `ServicelayerJob` `springId`; 8 Opengrep rules and the extension-cycle check.
+- Salesforce `crp-pack-salesforce-v1`: package directories, Apex classes/triggers, static SOQL
+  objects, LWC to Apex/schema, objects/fields/lookups/sharing model, Flows, permission sets,
+  custom metadata; 11 PMD Apex rules (`crp-pmd-apex-v1`) and the retired-API-version check.
+- Metadata is read with `frameworks/xmlsafe.py` (DOCTYPE/entities refused, line numbers kept).
+
+## Validation profiles (conditional; not run)
+
+These need a customer-authorized environment and are shown as unavailable until one is
+configured. No SDK or org credentials are stored or redistributed by the platform.
+
+| Profile | Prerequisites | Would run | Would record |
+|---|---|---|---|
+| SAP build | Customer-licensed SAP Commerce distribution matching the declared version, the customer's `config/` and build JDK, in an isolated worker without production credentials | `ant clean all` and, when requested, `ant unittests -Dtestclasses.packages=<project packages>` on a copy of the snapshot | Tool versions, exit codes, compiler and test reports; failures are findings with evidence, never hidden |
+| Salesforce org | An authorized sandbox or scratch org and a short-lived token supplied for the run; never a production org by default | `sf project deploy validate` (check-only) and `sf apex run test` in that org | CLI version, deploy/test results and coverage; the org alias, never the token |
+
+Until a profile has run, source-level results say "not built" / "not deployed" and the pack
+capability `build_validation` / `org_validation` stays `unavailable`.

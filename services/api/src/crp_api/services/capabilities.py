@@ -88,6 +88,24 @@ CAPABILITIES: tuple[Capability, ...] = (
         "resolved/declared/inferred/unresolved classification; syntax-level only",
     ),
     Capability(
+        id="sap_commerce_pack",
+        label="SAP Commerce support",
+        state=_A,
+        phase="P04",
+        reason="Experimental: extensions, Spring wiring, item types, ImpEx references and "
+        "interceptors mapped from configuration; 9 reviewed rule candidates; versions 2105-2211 "
+        "declared in manifest.json or build.number. No SAP build or runtime validation",
+    ),
+    Capability(
+        id="salesforce_pack",
+        label="Salesforce support",
+        state=_A,
+        phase="P04",
+        reason="Experimental: packages, Apex, triggers, LWC, objects, Flows and permission sets "
+        "mapped from source metadata; 11 PMD Apex rules and a retired-API check. No org "
+        "deployment or Apex test execution",
+    ),
+    Capability(
         id="fix_workbench",
         label="Fix workbench",
         state=_P,

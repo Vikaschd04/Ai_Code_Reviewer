@@ -209,6 +209,7 @@ class GraphNodeKind(StrEnum):
     TYPE = "type"
     FUNCTION = "function"
     EXTERNAL = "external"
+    COMPONENT = "component"  # framework component (Spring bean, item type, SObject, LWC, ...)
 
 
 class EdgeClassification(StrEnum):

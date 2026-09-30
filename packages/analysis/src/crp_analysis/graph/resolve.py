@@ -108,6 +108,7 @@ class EdgeSpec:
     start_line: int | None
     end_line: int | None
     text: str | None
+    extractor: str | None = None  # None: the syntax extractor; framework packs name themselves
 
 
 @dataclass(slots=True)
@@ -172,6 +173,10 @@ class _Builder:
             self.by_dir.setdefault(module.directory, []).append(module)
         self.workspace = {m.name: m for m in modules if m.ecosystem == "npm"}
         self.maven = {f"{m.group_id}:{m.name}": m for m in modules if m.ecosystem == "maven"}
+        # Framework modules (SAP extensions, Salesforce package directories) resolve by name.
+        self.named = {
+            (m.ecosystem, m.name): m for m in modules if m.ecosystem not in {"maven", "npm"}
+        }
         self.java_index: dict[str, str] = {}
         self.java_packages: set[str] = set()
         self.root_module: str | None = None
@@ -295,6 +300,7 @@ class _Builder:
                     attributes={
                         "ecosystem": module.ecosystem,
                         "manifest": module.manifest,
+                        "directory": module.directory,
                         **({"group_id": module.group_id} if module.group_id else {}),
                         **({"notes": module.notes} if module.notes else {}),
                     },
@@ -361,18 +367,19 @@ class _Builder:
 
     def module_dependencies(self, module: Module) -> None:
         for dep in module.dependencies:
-            target_module = (
-                self.maven.get(dep.name)
-                if dep.ecosystem == "maven"
-                else self.workspace.get(dep.name)
-            )
+            if dep.ecosystem == "maven":
+                target_module = self.maven.get(dep.name)
+            elif dep.ecosystem == "npm":
+                target_module = self.workspace.get(dep.name)
+            else:
+                target_module = self.named.get((dep.ecosystem, dep.name))
             if target_module is not None and target_module.key != module.key:
                 target, classification = target_module.key, "resolved"
                 reason = "dependency is a module in this snapshot"
             else:
                 target = self.external(dep.ecosystem, dep.name)
                 classification = "declared"
-                reason = (
+                reason = dep.reason or (
                     f"declared {dep.ecosystem} dependency"
                     + (f" {dep.version}" if dep.version else "")
                     + "; not downloaded or version-resolved"

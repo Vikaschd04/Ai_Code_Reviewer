@@ -16,6 +16,7 @@ from sqlalchemy import case, func, or_, select, text
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
+    FrameworkPack,
     GraphBuildResponse,
     GraphEdgeResponse,
     GraphImpact,
@@ -227,6 +228,7 @@ async def graph_summary(
                     SELECT coalesce(s.module_key, s.key) AS src,
                            coalesce(t.module_key, t.key) AS dst,
                            CASE WHEN e.relation = 'depends_on' THEN 'depends_on'
+                                WHEN e.extractor LIKE 'crp-pack-%' THEN 'config'
                                 ELSE 'code' END AS relation,
                            count(*) AS edges,
                            CASE WHEN bool_and(e.classification = 'resolved') THEN 'resolved'
@@ -235,7 +237,7 @@ async def graph_summary(
                     JOIN graph_nodes s ON s.id = e.source_node_id
                     JOIN graph_nodes t ON t.id = e.target_node_id
                     WHERE e.build_id = :build
-                      AND t.kind IN ('file', 'type', 'module')
+                      AND t.kind IN ('file', 'type', 'module', 'component')
                       AND coalesce(s.module_key, s.key) <> coalesce(t.module_key, t.key)
                     GROUP BY 1, 2, 3
                     ORDER BY edges DESC
@@ -247,6 +249,12 @@ async def graph_summary(
         ).all()
     diagnostics = build.diagnostics or {}
     reasons = diagnostics.get("unresolved_reasons")
+    packs = diagnostics.get("frameworks")
+    frameworks = (
+        [FrameworkPack.model_validate(p) for p in packs if isinstance(p, dict)]
+        if isinstance(packs, list)
+        else []
+    )
     partial = build.state == GraphBuildState.PARTIAL.value
     return GraphSummary(
         build=_build(build),
@@ -280,6 +288,7 @@ async def graph_summary(
         unresolved_reasons={str(k): int(v) for k, v in reasons.items()}
         if isinstance(reasons, dict)
         else {},
+        frameworks=frameworks,
     )
 
 

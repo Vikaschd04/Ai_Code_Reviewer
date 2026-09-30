@@ -1,0 +1,15 @@
+{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "default": true,
+      "package": "ShopApp",
+      "versionNumber": "1.0.0.NEXT",
+      "dependencies": [{ "package": "LoyaltyBase@2.1.0-1" }]
+    }
+  ],
+  "name": "shop-app",
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "62.0"
+}

@@ -14,6 +14,7 @@ import json
 import re
 import secrets
 import shutil
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -33,28 +34,38 @@ from crp_analysis.engines.base import (
 from crp_analysis.engines.process import run_bounded, scrubbed_env
 from crp_core.domain.states import CoverageOutcome, EngineState
 
-RULESET_ID = "crp-pmd-java-v1"
+
+@dataclass(frozen=True, slots=True)
+class PmdRuleset:
+    """One trusted rule set run by the pinned PMD: its engine name, id, file and languages."""
+
+    engine: str
+    ruleset_id: str
+    file: str
+    languages: frozenset[str]
 
 
-def ruleset_path() -> Path:
-    return Path(str(resources.files("crp_analysis.rules").joinpath("pmd-java-ruleset.xml")))
+JAVA = PmdRuleset("pmd", "crp-pmd-java-v1", "pmd-java-ruleset.xml", frozenset({"java"}))
+APEX = PmdRuleset("pmd-apex", "crp-pmd-apex-v1", "pmd-apex-ruleset.xml", frozenset({"apex"}))
+RULESET_ID = JAVA.ruleset_id
 
 
-def ruleset_sha256() -> str:
-    return hashlib.sha256(ruleset_path().read_bytes()).hexdigest()
+def ruleset_path(ruleset: PmdRuleset = JAVA) -> Path:
+    return Path(str(resources.files("crp_analysis.rules").joinpath(ruleset.file)))
 
 
-_RULE_REF = re.compile(r'ref="category/java/[a-z]+\.xml/([A-Za-z]+)"')
+def ruleset_sha256(ruleset: PmdRuleset = JAVA) -> str:
+    return hashlib.sha256(ruleset_path(ruleset).read_bytes()).hexdigest()
 
 
-def rule_ids() -> tuple[str, ...]:
-    return tuple(_RULE_REF.findall(ruleset_path().read_text(encoding="utf-8")))
+_RULE_REF = re.compile(r'ref="category/(?:java|apex)/[a-z]+\.xml/([A-Za-z]+)"')
+
+
+def rule_ids(ruleset: PmdRuleset = JAVA) -> tuple[str, ...]:
+    return tuple(_RULE_REF.findall(ruleset_path(ruleset).read_text(encoding="utf-8")))
 
 
 class PmdAdapter:
-    name = "pmd"
-    ruleset_id = RULESET_ID
-
     def __init__(
         self,
         pmd_home: Path | None,
@@ -63,7 +74,11 @@ class PmdAdapter:
         timeout_seconds: float,
         max_output_bytes: int,
         java_executable: Path | None = None,
+        ruleset: PmdRuleset = JAVA,
     ) -> None:
+        self.ruleset = ruleset
+        self.name = ruleset.engine
+        self.ruleset_id = ruleset.ruleset_id
         self._home = pmd_home
         self._heap = java_heap
         self._timeout = timeout_seconds
@@ -72,15 +87,16 @@ class PmdAdapter:
         self._java = found
 
     def is_eligible(self, path: str, language: str | None) -> bool:
-        return language == "java"
+        return language in self.ruleset.languages
 
     def enabled_rules(self) -> tuple[str, ...]:
-        return rule_ids()
+        return rule_ids(self.ruleset)
 
     def cache_identity(self) -> CacheIdentity:
         # PMD rules here are single-file (no auxclasspath is supplied, so no cross-file typing).
         return CacheIdentity(
-            ruleset_sha256(), fingerprint_config("pmd-cli-v1", "--show-suppressed", "UTF-8")
+            ruleset_sha256(self.ruleset),
+            fingerprint_config("pmd-cli-v1", "--show-suppressed", "UTF-8"),
         )
 
     def availability(self) -> Availability:
@@ -108,8 +124,8 @@ class PmdAdapter:
         outcome = EngineOutcome(
             state=EngineState.FAILED,
             engine_version=availability.version,
-            ruleset_id=RULESET_ID,
-            ruleset_sha256=ruleset_sha256(),
+            ruleset_id=self.ruleset_id,
+            ruleset_sha256=ruleset_sha256(self.ruleset),
         )
         if not availability.available or self._home is None or self._java is None:
             outcome.state = EngineState.UNAVAILABLE
@@ -132,7 +148,7 @@ class PmdAdapter:
             "--show-suppressed",
             f"--suppress-marker={marker}",
             "-R",
-            str(ruleset_path()),
+            str(ruleset_path(self.ruleset)),
             "--file-list",
             str(file_list),
             "-z",
@@ -223,15 +239,14 @@ class PmdAdapter:
             "pmd_report_version": str(data.get("pmdVersion", "")),
         }
 
-    @staticmethod
-    def _finding(path: str, violation: Any, suppressed: bool) -> RawFinding:
+    def _finding(self, path: str, violation: Any, suppressed: bool) -> RawFinding:
         message = str(violation["description"])
         if suppressed:
             message += " (suppressed in source; platform policy reports it anyway)"
         return RawFinding(
             path=path,
             rule_id=str(violation["rule"]),
-            ruleset=RULESET_ID,
+            ruleset=self.ruleset_id,
             engine_severity=str(violation.get("priority")) if violation.get("priority") else None,
             message=message,
             start_line=int(violation["beginline"]),

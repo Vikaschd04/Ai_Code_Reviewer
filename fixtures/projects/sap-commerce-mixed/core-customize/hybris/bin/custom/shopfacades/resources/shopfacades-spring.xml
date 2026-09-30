@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:util="http://www.springframework.org/schema/util">
+
+  <bean id="loyaltyAccountPopulator" class="com.shop.facades.populators.LoyaltyAccountPopulator"/>
+
+  <bean id="loyaltyAccountConverter" parent="abstractPopulatingConverter">
+    <property name="targetClass" value="com.shop.facades.data.LoyaltyAccountData"/>
+    <property name="populators">
+      <util:list>
+        <ref bean="loyaltyAccountPopulator"/>
+      </util:list>
+    </property>
+  </bean>
+
+  <alias name="defaultLoyaltyFacade" alias="loyaltyFacade"/>
+  <bean id="defaultLoyaltyFacade" class="com.shop.facades.impl.DefaultLoyaltyFacade">
+    <constructor-arg ref="loyaltyAccountConverter"/>
+  </bean>
+</beans>

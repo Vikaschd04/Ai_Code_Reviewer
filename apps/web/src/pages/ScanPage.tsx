@@ -11,6 +11,7 @@ import {
   cancelScan,
   compareScans,
   exportUrl,
+  fetchGraphSummary,
   fetchProject,
   fetchScan,
   fetchSnapshot,
@@ -22,6 +23,7 @@ import {
 import { CategoryBars, CoverageMeter } from "../components/Charts";
 import { Alert, Disclosure, Empty, Loading, PageHeader, Tabs } from "../components/Common";
 import { FileLocation } from "../components/FileLocation";
+import { FrameworkPanel } from "../components/Frameworks";
 import { Icon } from "../components/Icon";
 import {
   SEVERITIES,
@@ -37,6 +39,7 @@ import {
   CHECK_ORDER,
   CHECKS,
   FINDING_CHECKS,
+  visibleChecks,
   categoryLabel,
   checkName,
   plural,
@@ -91,7 +94,7 @@ function Progress({ scan }: { scan: Scan }) {
   const terminal = isTerminalScan(scan.state);
   const stages = [
     { id: "snapshot", name: "Code received", state: "SUCCEEDED", meta: "Ready" },
-    ...CHECK_ORDER.map((engine) => {
+    ...visibleChecks(CHECK_ORDER, scan.engines).map((engine) => {
       const run = runs.get(engine);
       return {
         id: engine,
@@ -197,9 +200,10 @@ function CheckTechnicalDetails({ run }: { run: EngineRun }) {
 }
 
 function ChecksPanel({ scan, limitations }: { scan: Scan; limitations: string[] }) {
-  const runs = [...scan.engines].sort(
-    (a, b) => CHECK_ORDER.indexOf(a.engine) - CHECK_ORDER.indexOf(b.engine),
-  );
+  const shown = new Set(visibleChecks(CHECK_ORDER, scan.engines));
+  const runs = scan.engines
+    .filter((run) => shown.has(run.engine))
+    .sort((a, b) => CHECK_ORDER.indexOf(a.engine) - CHECK_ORDER.indexOf(b.engine));
   const problems = runs.filter((run) => ["FAILED", "UNAVAILABLE", "PARTIAL"].includes(run.state));
   return (
     <Disclosure
@@ -272,7 +276,15 @@ function mergeCorrelated(rows: Finding[]): { rows: Finding[]; merged: number } {
   return { rows: kept, merged: rows.length - kept.length };
 }
 
-function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }) {
+function FindingsTab({
+  scanId,
+  terminal,
+  engines,
+}: {
+  scanId: string;
+  terminal: boolean;
+  engines: EngineRun[];
+}) {
   const [severity, setSeverity] = useState<string[]>([]);
   const [engine, setEngine] = useState("");
   const [category, setCategory] = useState("");
@@ -349,7 +361,7 @@ function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }
             }}
           >
             <option value="">All checks</option>
-            {FINDING_CHECKS.map((name) => (
+            {visibleChecks(FINDING_CHECKS, engines).map((name) => (
               <option key={name} value={name}>
                 {checkName(name)}
               </option>
@@ -488,7 +500,15 @@ const OUTCOMES: Record<string, { state: string; label: string }> = {
   NOT_ATTEMPTED: { state: "CANCELED", label: "Not checked" },
 };
 
-function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }) {
+function CoverageTab({
+  scanId,
+  terminal,
+  engines,
+}: {
+  scanId: string;
+  terminal: boolean;
+  engines: EngineRun[];
+}) {
   const [engine, setEngine] = useState("");
   const [outcome, setOutcome] = useState("");
   const page = useAsync(
@@ -517,7 +537,7 @@ function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }
           }}
         >
           <option value="">All checks</option>
-          {CHECK_ORDER.map((name) => (
+          {visibleChecks(CHECK_ORDER, engines).map((name) => (
             <option key={name} value={name}>
               {checkName(name)}
             </option>
@@ -742,26 +762,34 @@ function CompareTab({ scan }: { scan: Scan }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.engines.map((engine) => (
-                    <tr key={engine.engine}>
-                      <th scope="row">{checkName(engine.engine)}</th>
-                      <td className="small">
-                        {engine.base_state ? titleCase(engine.base_state) : "—"}{" "}
-                        <span className="mono muted">{engine.base_version ?? ""}</span>
-                      </td>
-                      <td className="small">
-                        {engine.target_state ? titleCase(engine.target_state) : "—"}{" "}
-                        <span className="mono muted">{engine.target_version ?? ""}</span>
-                      </td>
-                      <td className="small">
-                        <StatusBadge
-                          state={engine.compatible ? "SUCCEEDED" : "PARTIAL"}
-                          label={engine.compatible ? "Yes" : "Limited"}
-                        />{" "}
-                        <span className="secondary">{engine.note}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {data.engines
+                    .filter(
+                      (engine) =>
+                        !(
+                          engine.base_state === "NOT_APPLICABLE" &&
+                          engine.target_state === "NOT_APPLICABLE"
+                        ),
+                    )
+                    .map((engine) => (
+                      <tr key={engine.engine}>
+                        <th scope="row">{checkName(engine.engine)}</th>
+                        <td className="small">
+                          {engine.base_state ? titleCase(engine.base_state) : "—"}{" "}
+                          <span className="mono muted">{engine.base_version ?? ""}</span>
+                        </td>
+                        <td className="small">
+                          {engine.target_state ? titleCase(engine.target_state) : "—"}{" "}
+                          <span className="mono muted">{engine.target_version ?? ""}</span>
+                        </td>
+                        <td className="small">
+                          <StatusBadge
+                            state={engine.compatible ? "SUCCEEDED" : "PARTIAL"}
+                            label={engine.compatible ? "Yes" : "Limited"}
+                          />{" "}
+                          <span className="secondary">{engine.note}</span>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -775,6 +803,12 @@ function CompareTab({ scan }: { scan: Scan }) {
       ) : null}
     </section>
   );
+}
+
+/** Platform support for SAP Commerce / Salesforce uploads (nothing for other code). */
+function ScanFrameworks({ snapshotId }: { snapshotId: string }) {
+  const summary = useAsync((signal) => fetchGraphSummary(snapshotId, signal), [snapshotId]);
+  return <FrameworkPanel packs={summary.data?.frameworks ?? []} />;
 }
 
 function tookLabel(scan: Scan): string | null {
@@ -956,6 +990,7 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
         </div>
       ) : null}
       <ChecksPanel scan={data} limitations={limitations} />
+      {terminal ? <ScanFrameworks snapshotId={data.snapshot_id} /> : null}
       <Tabs
         current={tab}
         items={[
@@ -964,7 +999,9 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
           { id: "compare", label: "Changes", href: `${base}?tab=compare` },
         ]}
       />
-      {tab === "coverage" ? <CoverageTab scanId={scanId} terminal={terminal} /> : null}
+      {tab === "coverage" ? (
+        <CoverageTab scanId={scanId} terminal={terminal} engines={data.engines} />
+      ) : null}
       {tab === "compare" ? (
         terminal ? (
           <CompareTab scan={data} />
@@ -975,7 +1012,7 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
         )
       ) : null}
       {tab !== "coverage" && tab !== "compare" ? (
-        <FindingsTab scanId={scanId} terminal={terminal} />
+        <FindingsTab scanId={scanId} terminal={terminal} engines={data.engines} />
       ) : null}
     </>
   );

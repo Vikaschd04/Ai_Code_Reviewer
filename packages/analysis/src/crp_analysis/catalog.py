@@ -62,7 +62,7 @@ def lookup(engine: str, rule_id: str, engine_severity: str | None, url: str | No
     """Catalog entry, or an explicit uncatalogued fallback (never silently dropped)."""
     if found := _load().get(f"{engine}:{rule_id}"):
         return found
-    table = _PMD_PRIORITY if engine == "pmd" else _ESLINT_SEVERITY
+    table = _PMD_PRIORITY if engine.startswith("pmd") else _ESLINT_SEVERITY
     return RuleInfo(
         engine=engine,
         rule_id=rule_id,

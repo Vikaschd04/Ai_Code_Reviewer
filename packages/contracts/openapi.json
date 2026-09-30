@@ -2219,6 +2219,151 @@
         "title": "FindingResponse",
         "type": "object"
       },
+      "FrameworkCapability": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "partial",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "state",
+          "detail"
+        ],
+        "title": "FrameworkCapability",
+        "type": "object"
+      },
+      "FrameworkPack": {
+        "additionalProperties": false,
+        "description": "What a framework pack (SAP Commerce, Salesforce) detected and covers for this upload.",
+        "properties": {
+          "adapter": {
+            "title": "Adapter",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/FrameworkCapability"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "components": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Components",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "relations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Relations",
+            "type": "object"
+          },
+          "rules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "status": {
+            "description": "experimental or sme_reviewed",
+            "title": "Status",
+            "type": "string"
+          },
+          "supported_versions": {
+            "title": "Supported Versions",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "version_evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "path:line the version was read from",
+            "title": "Version Evidence"
+          },
+          "version_status": {
+            "enum": [
+              "supported",
+              "unsupported_version",
+              "unknown_version"
+            ],
+            "title": "Version Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "adapter",
+          "status",
+          "version",
+          "version_status",
+          "version_evidence",
+          "supported_versions",
+          "capabilities",
+          "relations",
+          "components",
+          "rules",
+          "notes"
+        ],
+        "title": "FrameworkPack",
+        "type": "object"
+      },
       "GraphBuildResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2694,6 +2839,13 @@
             },
             "title": "Edges By Relation",
             "type": "object"
+          },
+          "frameworks": {
+            "items": {
+              "$ref": "#/components/schemas/FrameworkPack"
+            },
+            "title": "Frameworks",
+            "type": "array"
           },
           "message": {
             "title": "Message",

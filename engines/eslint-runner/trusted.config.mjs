@@ -50,6 +50,19 @@ export default [
     rules: { ...coreRules, "no-unused-vars": "error" },
   },
   {
+    // Lightning Web Components (Salesforce) use decorators (@api, @track, @wire), which the
+    // default JavaScript parser rejects; the TypeScript parser reads them. Same rules as above.
+    files: ["**/lwc/**/*.js"],
+    languageOptions: {
+      parser: tseslint.parser,
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: sharedGlobals,
+    },
+    linterOptions: { reportUnusedDisableDirectives: "off" },
+    rules: { ...coreRules, "no-unused-vars": "error" },
+  },
+  {
     files: ["**/*.{ts,mts,cts,tsx}"],
     languageOptions: {
       parser: tseslint.parser,

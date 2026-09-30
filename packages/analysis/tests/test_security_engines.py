@@ -9,6 +9,7 @@ import pytest
 from crp_analysis.engines.base import CancelToken
 from crp_analysis.engines.opengrep import OpengrepAdapter, rule_ids
 from crp_analysis.engines.trivy import TrivyAdapter
+from crp_analysis.frameworks import sap_commerce
 from crp_analysis.normalize import normalize
 from crp_core.domain.states import EngineState
 from crp_devtools.testing.fixture_projects import prepare_fixture
@@ -17,6 +18,7 @@ pytestmark = pytest.mark.integration
 
 REPO = Path(__file__).resolve().parents[3]
 ENGINES = REPO / ".local" / "engines"
+SAP_PACK_RULES = set(sap_commerce.RULES) - {"crp.sap.extension.dependency-cycle"}
 
 
 def _noop(_: str) -> None:
@@ -68,7 +70,8 @@ def test_every_owned_rule_fires_on_positive_and_not_on_negative_examples(tmp_pat
     assert outcome.engine_version == "1.30.0"
     assert outcome.state is EngineState.SUCCEEDED, outcome.error_message
     fired = {f.rule_id for f in outcome.findings}
-    assert fired == set(rule_ids()), f"rules without a positive example: {set(rule_ids()) - fired}"
+    expected = set(rule_ids()) - SAP_PACK_RULES  # SAP pack rules: see the SAP fixture test
+    assert fired == expected, f"rules without a positive example: {expected - fired}"
     assert not [f for f in outcome.findings if f.path.endswith("SafeService.java")], (
         "negative Java examples fired"
     )
@@ -79,6 +82,28 @@ def test_every_owned_rule_fires_on_positive_and_not_on_negative_examples(tmp_pat
     assert ("view.ts", "crp.js.xss.inner-html") in lines and lines[
         ("view.ts", "crp.js.xss.inner-html")
     ] == 2
+
+
+def test_sap_pack_rules_fire_only_on_positive_examples(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, "sap-commerce-mixed")
+    outcome = opengrep().run(root, _files(root, (".java",)), cancel=CancelToken(), heartbeat=_noop)
+    assert outcome.state is EngineState.SUCCEEDED, outcome.error_message
+    found = sorted((f.rule_id, f.path.rsplit("/", 1)[-1], f.start_line) for f in outcome.findings)
+    assert found == [
+        ("crp.java.config.hardcoded-environment-url", "EndpointConfig.java", 11),
+        ("crp.java.logging.sensitive-data", "PaymentLogger.java", 11),
+        ("crp.sap.cronjob.missing-abort-check", "LoyaltyRecalculationJob.java", 18),
+        ("crp.sap.flexiblesearch.string-concat", "DefaultShopProductDao.java", 16),
+        ("crp.sap.flexiblesearch.unbounded-result", "DefaultShopProductDao.java", 17),
+        ("crp.sap.flexiblesearch.unbounded-result", "DefaultShopProductDao.java", 34),
+        ("crp.sap.interceptor.persisting-side-effect", "LoyaltyPrepareInterceptor.java", 20),
+        ("crp.sap.jalo.deprecated-api", "LegacyPriceHelper.java", 3),
+        ("crp.sap.jalo.deprecated-api", "LegacyPriceHelper.java", 4),
+        ("crp.sap.jalo.deprecated-api", "LegacyPriceHelper.java", 10),
+        ("crp.sap.model.save-in-loop", "DefaultLoyaltyService.java", 17),
+    ]  # negatives: bound/paged query, saveAll, validate-only interceptor, abortable job,
+    # configured endpoint, masked log line and generated Jalo sources (gensrc) stay silent
+    assert {r for r, _, _ in found} == SAP_PACK_RULES
 
 
 def test_nosem_comments_cannot_suppress_platform_rules(tmp_path: Path) -> None:

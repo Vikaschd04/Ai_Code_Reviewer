@@ -2416,6 +2416,32 @@ button.tile[aria-pressed="true"] {
   font-size: var(--text-sm);
 }
 
+/* ---- framework packs ------------------------------------------------------------------------ */
+
+/* One pack fills the width; several share it. Capabilities flow into columns when wide. */
+.framework-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+}
+
+.capability-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.capability-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.capability-list .status-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
 /* ---- AI review ------------------------------------------------------------------------------ */
 
 /* Model output is plain text: keep its paragraphs and line breaks, never render it as HTML. */

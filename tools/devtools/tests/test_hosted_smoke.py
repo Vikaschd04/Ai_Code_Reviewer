@@ -28,6 +28,12 @@ pytestmark = pytest.mark.integration
 
 REPO = Path(__file__).resolve().parents[3]
 TERMINAL = {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}
+# Core checks succeed; the platform packs have no SAP/Salesforce files here and say so.
+EXPECTED_ENGINES = {
+    **dict.fromkeys(("structure", "graph", "pmd", "eslint", "opengrep", "trivy"), "SUCCEEDED"),
+    "pmd-apex": "NOT_APPLICABLE",
+    "frameworks": "NOT_APPLICABLE",
+}
 
 
 @dataclass
@@ -184,7 +190,7 @@ def test_hosted_container_entrypoint_end_to_end(
     done = _wait(client, f"/v1/scans/{scan['id']}", TERMINAL)
     engines = {e["engine"]: e["state"] for e in done["engines"]}
     assert done["state"] == "SUCCEEDED", engines
-    assert all(state == "SUCCEEDED" for state in engines.values()), engines
+    assert engines == EXPECTED_ENGINES, engines
     assert done["summary"]["findings"] > 0
     active_db = (data / "trivy-cache").resolve()  # the copy baked into the image, used directly
     assert active_db == (REPO / ".local" / "engines" / "trivy-cache").resolve()
@@ -244,7 +250,7 @@ def test_lite_profile_resumes_a_scan_after_the_process_is_killed(
         done = _wait(client, f"/v1/scans/{scan['id']}", TERMINAL)
         engines = {e["engine"]: e["state"] for e in done["engines"]}
         assert done["state"] == "SUCCEEDED", engines
-        assert all(state == "SUCCEEDED" for state in engines.values()), engines
+        assert engines == EXPECTED_ENGINES, engines
         assert done["summary"]["findings"] > 0
         assert "resumed unfinished work" in hosted.log_path.read_text()
     finally:

@@ -17,6 +17,12 @@ pytestmark = pytest.mark.integration
 
 StackFactory = Callable[..., contextlib.AbstractAsyncContextManager[Any]]
 TERMINAL = {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}
+# Core checks succeed; the platform packs have no SAP/Salesforce files here and say so.
+EXPECTED_ENGINES = {
+    **dict.fromkeys(("structure", "graph", "pmd", "eslint", "opengrep", "trivy"), "SUCCEEDED"),
+    "pmd-apex": "NOT_APPLICABLE",
+    "frameworks": "NOT_APPLICABLE",
+}
 
 
 async def _poll(client: httpx.AsyncClient, path: str, done: set[str], limit: int = 600) -> Any:
@@ -56,7 +62,7 @@ async def test_demo_user_reviews_the_sample_project(
             done = await _poll(guest, f"/v1/scans/{scan.json()['id']}", TERMINAL)
             engines = {e["engine"]: e["state"] for e in done["engines"]}
             assert done["state"] == "SUCCEEDED", engines
-            assert all(state == "SUCCEEDED" for state in engines.values()), engines
+            assert engines == EXPECTED_ENGINES, engines
             page = (await guest.get(f"/v1/scans/{done['id']}/findings?limit=200")).json()
             findings = page["items"]
             rules = {f["rule_id"] for f in findings}

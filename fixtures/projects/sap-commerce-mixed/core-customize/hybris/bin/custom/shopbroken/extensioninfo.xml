@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensioninfo>
+  <extension name="shopbroken">
+    <requires-extension name="shopcore">
+  </extension>
+</extensioninfo>

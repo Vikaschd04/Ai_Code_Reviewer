@@ -9,9 +9,10 @@ import pytest
 from crp_analysis import policy
 from crp_analysis.catalog import all_rules, lookup
 from crp_analysis.engines.eslint import EslintAdapter
+from crp_analysis.engines.frameworks import RULES as FRAMEWORK_RULES
 from crp_analysis.engines.opengrep import rule_ids as opengrep_rule_ids
+from crp_analysis.engines.pmd import APEX, ruleset_path
 from crp_analysis.engines.pmd import rule_ids as pmd_rule_ids
-from crp_analysis.engines.pmd import ruleset_path
 from crp_analysis.inventory import build_inventory
 from crp_analysis.manifest import ManifestEntry
 from crp_analysis.paths import CollisionTracker, safe_display
@@ -194,8 +195,14 @@ def test_every_enabled_rule_has_a_catalog_entry() -> None:
     )
     assert set(pmd_rule_ids()) == set(pmd_rules)
     opengrep = set(opengrep_rule_ids())
-    assert len(opengrep) == 10 and {f"opengrep:{r}" for r in opengrep} == {
+    assert len(opengrep) == 18 and {f"opengrep:{r}" for r in opengrep} == {
         k for k in catalog if k.startswith("opengrep:")
+    }
+    assert {f"pmd-apex:{r}" for r in pmd_rule_ids(APEX)} == {
+        k for k in catalog if k.startswith("pmd-apex:")
+    }
+    assert {f"frameworks:{r}" for r in FRAMEWORK_RULES} == {
+        k for k in catalog if k.startswith("frameworks:")
     }
     for info in catalog.values():
         assert info.explanation and info.recommendation and info.severity_rationale and info.url

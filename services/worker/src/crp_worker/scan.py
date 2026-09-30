@@ -34,8 +34,9 @@ with workflow.unsafe.imports_passed_through():
         completed_state,
     )
     from crp_analysis.engines.eslint import EslintAdapter
+    from crp_analysis.engines.frameworks import FrameworkRulesAdapter
     from crp_analysis.engines.opengrep import OpengrepAdapter
-    from crp_analysis.engines.pmd import PmdAdapter
+    from crp_analysis.engines.pmd import APEX, PmdAdapter
     from crp_analysis.engines.trivy import TrivyAdapter
     from crp_analysis.graph.extract import FileFacts, graph_extractor_version
     from crp_analysis.normalize import NormalizedFinding, normalize
@@ -177,6 +178,15 @@ class ScanActivities:
                 timeout_seconds=settings.engine_timeout_seconds,
                 max_output_bytes=settings.engine_max_output_bytes,
             ),
+            # Framework packs (P04): Apex rules on the same pinned PMD, configuration checks.
+            "pmd-apex": PmdAdapter(
+                settings.pmd_home,
+                java_heap=settings.pmd_java_heap,
+                timeout_seconds=settings.engine_timeout_seconds,
+                max_output_bytes=settings.engine_max_output_bytes,
+                ruleset=APEX,
+            ),
+            "frameworks": FrameworkRulesAdapter(settings.intake_max_text_file_bytes),
         }
         self._adapters: dict[str, EngineAdapter] = {**defaults, **(adapters or {})}
 

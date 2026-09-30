@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hybrisconfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <extensions>
+    <path dir="${HYBRIS_BIN_DIR}" autoload="false"/>
+    <extension name="commerceservices"/>
+    <extension name="shopcore"/>
+    <extension name="shopfacades"/>
+    <extension dir="${HYBRIS_BIN_DIR}/custom/shopocc"/>
+  </extensions>
+</hybrisconfig>

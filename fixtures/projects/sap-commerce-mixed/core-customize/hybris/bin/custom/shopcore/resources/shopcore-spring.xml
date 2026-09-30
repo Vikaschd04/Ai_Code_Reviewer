@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:p="http://www.springframework.org/schema/p">
+
+  <alias name="defaultShopProductDao" alias="shopProductDao"/>
+  <bean id="defaultShopProductDao" class="com.shop.core.dao.impl.DefaultShopProductDao">
+    <property name="flexibleSearchService" ref="flexibleSearchService"/>
+  </bean>
+
+  <alias name="defaultLoyaltyService" alias="loyaltyService"/>
+  <bean id="defaultLoyaltyService" class="com.shop.core.service.impl.DefaultLoyaltyService"
+        p:modelService-ref="modelService">
+    <property name="productDao" ref="shopProductDao"/>
+  </bean>
+
+  <bean id="loyaltyPrepareInterceptor" class="com.shop.core.interceptors.LoyaltyPrepareInterceptor">
+    <property name="modelService" ref="modelService"/>
+  </bean>
+  <bean id="loyaltyPrepareInterceptorMapping"
+        class="de.hybris.platform.servicelayer.interceptor.impl.InterceptorMapping">
+    <property name="interceptor" ref="loyaltyPrepareInterceptor"/>
+    <property name="typeCode" value="LoyaltyAccount"/>
+  </bean>
+
+  <bean id="auditValidateInterceptor" class="com.shop.core.interceptors.AuditValidateInterceptor"/>
+  <bean id="auditValidateInterceptorMapping"
+        class="de.hybris.platform.servicelayer.interceptor.impl.InterceptorMapping">
+    <property name="interceptor" ref="auditValidateInterceptor"/>
+    <property name="typeCode" value="Order"/>
+  </bean>
+
+  <bean id="loyaltyRecalculationJob" class="com.shop.core.jobs.LoyaltyRecalculationJob"
+        parent="abstractJobPerformable">
+    <property name="loyaltyService" ref="loyaltyService"/>
+  </bean>
+  <bean id="safeCleanupJob" class="com.shop.core.jobs.SafeCleanupJob" parent="abstractJobPerformable"/>
+</beans>

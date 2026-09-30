@@ -99,3 +99,133 @@ rules:
     pattern-either:
       - pattern: $JWT.sign($P, "...", ...)
       - pattern: $JWT.verify($T, "...", ...)
+
+  # -- SAP Commerce pack (crp-pack-sap-commerce-v1) and Java hygiene used by it --------------------
+
+  - id: crp.sap.flexiblesearch.string-concat
+    languages: [java]
+    severity: ERROR
+    message: A FlexibleSearch query is built by string concatenation; bind values with ?parameters and addQueryParameter().
+    patterns:
+      - pattern-either:
+          - pattern: new FlexibleSearchQuery($Q, ...)
+          - pattern: $FSS.search($Q, ...)
+          - pattern: $FSS.searchUnique($Q, ...)
+      - metavariable-pattern:
+          metavariable: $Q
+          pattern-either:
+            - pattern: '"..." + $X'
+            - pattern: '$X + "..."'
+
+  - id: crp.sap.flexiblesearch.unbounded-result
+    languages: [java]
+    severity: WARNING
+    message: A FlexibleSearch result is materialized without setCount()/setStart() paging; confirm the result size is bounded.
+    patterns:
+      - pattern-inside: |
+          $QT $Q = new FlexibleSearchQuery(...);
+          ...
+      - pattern-not-inside: |
+          $QT $Q = new FlexibleSearchQuery(...);
+          ...
+          $Q.setCount(...);
+          ...
+      - pattern: $FSS.search($Q)
+
+  - id: crp.sap.model.save-in-loop
+    languages: [java]
+    severity: WARNING
+    message: ModelService.save() is called inside a loop (one transaction and flush per item); collect changes and call saveAll() once where possible.
+    patterns:
+      - pattern-either:
+          - pattern-inside: for (...) { ... }
+          - pattern-inside: while (...) { ... }
+          - pattern-inside: $COLL.forEach(...)
+      - pattern-either:
+          - pattern: $MS.save($M)
+          - pattern: $MS.remove($M)
+      - metavariable-regex:
+          metavariable: $MS
+          regex: (?i)^(modelService|getModelService\(\))$
+
+  - id: crp.sap.interceptor.persisting-side-effect
+    languages: [java]
+    severity: WARNING
+    message: A prepare/validate/remove interceptor saves or removes models; this re-enters the model save cycle and can recurse or persist partial state.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              class $C implements $I<$T> { ... }
+          - pattern-inside: |
+              class $C implements $I { ... }
+      - metavariable-regex:
+          metavariable: $I
+          regex: ^(PrepareInterceptor|ValidateInterceptor|RemoveInterceptor|InitDefaultsInterceptor)$
+      - pattern-either:
+          - pattern: $MS.save(...)
+          - pattern: $MS.saveAll(...)
+          - pattern: $MS.remove(...)
+          - pattern: $MS.removeAll(...)
+      - metavariable-regex:
+          metavariable: $MS
+          regex: (?i)^(modelService|getModelService\(\))$
+
+  - id: crp.sap.cronjob.missing-abort-check
+    languages: [java]
+    severity: WARNING
+    message: A job's perform() loops over work without checking clearAbortRequestedIfNeeded(); the cron job cannot be stopped safely and may redo work on restart.
+    patterns:
+      - pattern-inside: |
+          class $C extends AbstractJobPerformable<$T> { ... }
+      - pattern: |
+          $RET perform($T $CJ) { ... }
+      - pattern-either:
+          - pattern: |
+              $RET perform($T $CJ) { ... for (...) { ... } ... }
+          - pattern: |
+              $RET perform($T $CJ) { ... while (...) { ... } ... }
+      - pattern-not: |
+          $RET perform($T $CJ) { ... clearAbortRequestedIfNeeded(...); ... }
+      - pattern-not: |
+          $RET perform($T $CJ) { ... for (...) { ... if (clearAbortRequestedIfNeeded(...)) { ... } ... } ... }
+      - pattern-not: |
+          $RET perform($T $CJ) { ... while (...) { ... if (clearAbortRequestedIfNeeded(...)) { ... } ... } ... }
+
+  - id: crp.sap.jalo.deprecated-api
+    languages: [java]
+    severity: WARNING
+    message: Custom code uses the Jalo layer; use the ServiceLayer (models, ModelService, FlexibleSearchService, UserService) instead.
+    paths:
+      exclude:
+        - "**/gensrc/**"
+        - "**/Generated*.java"
+    pattern-either:
+      - pattern: import de.hybris.platform.jalo.$X;
+      - pattern: import de.hybris.platform.jalo.$X.$Y;
+      - pattern: JaloSession.getCurrentSession()
+
+  - id: crp.java.config.hardcoded-environment-url
+    languages: [java]
+    severity: WARNING
+    message: An environment-specific URL (local, test, stage or internal host) is compiled into the code; read it from configuration.
+    patterns:
+      - pattern: '"$URL"'
+      - metavariable-regex:
+          metavariable: $URL
+          regex: (?i)^https?://(localhost|127\.0\.0\.1|[a-z0-9.-]*\b(dev|test|qa|uat|stage|staging|internal|local)\b[a-z0-9.-]*)([:/].*)?$
+
+  - id: crp.java.logging.sensitive-data
+    languages: [java]
+    severity: WARNING
+    message: A value that looks like a password, secret, token or card number is written to a log.
+    patterns:
+      - pattern: $LOG.$LEVEL(..., <... $X ...>, ...)
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (?i)^(log|logger)$
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(trace|debug|info|warn|error|fatal)$
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i)^[a-z_]*(password|passwd|secret|token|apikey|api_key|cardnumber|card_number|cvv|iban)[a-z_]*$
