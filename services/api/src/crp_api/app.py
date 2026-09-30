@@ -19,6 +19,7 @@ from crp_api.middleware import (
     RequestContextMiddleware,
 )
 from crp_api.routes import (
+    ai,
     auth,
     diagnostics,
     graph,
@@ -107,6 +108,7 @@ def create_app(
         issues.router,
         reports.router,
         graph.router,
+        ai.router,
         diagnostics.router,
     ):
         app.include_router(router, prefix=API_PREFIX)

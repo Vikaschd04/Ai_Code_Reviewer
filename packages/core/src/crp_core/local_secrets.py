@@ -34,7 +34,7 @@ def write_secret_file(path: Path, value: str, *, overwrite: bool = False) -> boo
     return True
 
 
-def read_secret_file(path: Path) -> str:
+def read_secret_file(path: Path, *, min_length: int = MIN_TOKEN_LENGTH) -> str:
     """Read a secret file, refusing symlinks, non-regular files and group/world-readable modes."""
     try:
         info = path.lstat()
@@ -49,6 +49,6 @@ def read_secret_file(path: Path) -> str:
             f"secret file {path.name} is accessible by other users; run: chmod 600 <file>"
         )
     value = path.read_text(encoding="utf-8").strip()
-    if len(value) < MIN_TOKEN_LENGTH:
+    if len(value) < min_length:
         raise SecretFileError(f"secret file {path.name} is too short to be a generated secret")
     return value

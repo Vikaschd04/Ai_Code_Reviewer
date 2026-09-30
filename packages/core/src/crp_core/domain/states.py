@@ -256,3 +256,39 @@ class GraphBuildState(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     PARTIAL = "PARTIAL"
     FAILED = "FAILED"
+
+
+class AiRunKind(StrEnum):
+    """What an AI run investigates (P03; ADR 0012)."""
+
+    QUESTION = "question"  # a repository question answered with citations
+    FINDING_REVIEW = "finding_review"  # explain and check one deterministic finding
+    FILE_REVIEW = "file_review"  # review selected files for additional problems
+
+
+class AiRunState(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"  # useful results, but a limit or failure left scope unreviewed
+    BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
+    FAILED = "FAILED"
+    CANCELED = "CANCELED"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self not in {AiRunState.QUEUED, AiRunState.RUNNING}
+
+
+class AiEvidenceClass(StrEnum):
+    """How far an AI claim was checked against the snapshot (never the model's own word)."""
+
+    VERIFIED_ANCHOR = "verified_anchor"  # every cited location exists and matches the quote
+    HYPOTHESIS = "hypothesis"  # plausible but not anchored in verifiable code
+    REJECTED = "rejected"  # cited code does not exist or does not match; not shown as a finding
+
+
+class AiConfidence(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"

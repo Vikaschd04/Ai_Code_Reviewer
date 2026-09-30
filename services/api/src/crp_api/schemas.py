@@ -674,3 +674,51 @@ class GraphImpact(ApiModel):
     unresolved_edges_in_build: int
     files_with_parse_problems: int
     caveats: list[str]
+
+
+# -- AI review (P03) -----------------------------------------------------------------------------
+
+
+class AiLimits(ApiModel):
+    max_model_calls: int
+    max_tool_calls: int
+    max_tokens: int
+    timeout_seconds: int
+    max_cost_usd: float | None
+
+
+class AiMonthUsage(ApiModel):
+    month_start: datetime
+    calls: int
+    tokens: int
+    token_limit: int = Field(description="0 means no monthly token limit")
+    cost_usd: float | None = Field(description="Null when costs are unknown (no prices set)")
+    cost_limit_usd: float | None
+
+
+class AiStatus(ApiModel):
+    available: bool
+    provider: str
+    model: str | None
+    reason: str | None = Field(description="Why AI review is unavailable, for every user")
+    admin_hint: str | None = Field(description="What to configure; only shown to administrators")
+    prices_configured: bool
+    limits: AiLimits
+    month: AiMonthUsage
+
+
+class ProjectAiPolicyResponse(ApiModel):
+    project_id: UUID
+    enabled: bool
+    max_excerpt_lines: int
+    updated_at: datetime | None
+    version: int
+    can_edit: bool = Field(description="Only workspace admins and owners may change the policy")
+
+
+class ProjectAiPolicyUpdate(ApiModel):
+    enabled: bool
+    max_excerpt_lines: Annotated[int, Field(ge=10, le=400)] = 120
+    version: int | None = Field(
+        default=None, description="Current version for optimistic concurrency (omit on first save)"
+    )

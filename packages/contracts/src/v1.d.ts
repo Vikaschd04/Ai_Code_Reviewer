@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ai Status
+         * @description Whether AI review can run on this server, its limits and this month's usage.
+         */
+        get: operations["ai_status_v1_ai_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/demo-session": {
         parameters: {
             query?: never;
@@ -442,6 +462,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/ai-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Policy */
+        get: operations["get_ai_policy_v1_projects__project_id__ai_policy_get"];
+        /**
+         * Update Ai Policy
+         * @description Allow or stop sending masked code excerpts of this project to the AI provider (admins).
+         */
+        put: operations["update_ai_policy_v1_projects__project_id__ai_policy_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/intakes": {
         parameters: {
             query?: never;
@@ -783,6 +824,66 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiLimits */
+        AiLimits: {
+            /** Max Cost Usd */
+            max_cost_usd: number | null;
+            /** Max Model Calls */
+            max_model_calls: number;
+            /** Max Tokens */
+            max_tokens: number;
+            /** Max Tool Calls */
+            max_tool_calls: number;
+            /** Timeout Seconds */
+            timeout_seconds: number;
+        };
+        /** AiMonthUsage */
+        AiMonthUsage: {
+            /** Calls */
+            calls: number;
+            /** Cost Limit Usd */
+            cost_limit_usd: number | null;
+            /**
+             * Cost Usd
+             * @description Null when costs are unknown (no prices set)
+             */
+            cost_usd: number | null;
+            /**
+             * Month Start
+             * Format: date-time
+             */
+            month_start: string;
+            /**
+             * Token Limit
+             * @description 0 means no monthly token limit
+             */
+            token_limit: number;
+            /** Tokens */
+            tokens: number;
+        };
+        /** AiStatus */
+        AiStatus: {
+            /**
+             * Admin Hint
+             * @description What to configure; only shown to administrators
+             */
+            admin_hint: string | null;
+            /** Available */
+            available: boolean;
+            limits: components["schemas"]["AiLimits"];
+            /** Model */
+            model: string | null;
+            month: components["schemas"]["AiMonthUsage"];
+            /** Prices Configured */
+            prices_configured: boolean;
+            /** Provider */
+            provider: string;
+            /**
+             * Reason
+             * @description Why AI review is unavailable, for every user
+             */
+            reason: string | null;
+        };
         /** ArtifactProbeResult */
         ArtifactProbeResult: {
             /** Deleted */
@@ -1725,6 +1826,42 @@ export interface components {
             /** Workspaces */
             workspaces: components["schemas"]["WorkspaceGrantResponse"][];
         };
+        /** ProjectAiPolicyResponse */
+        ProjectAiPolicyResponse: {
+            /**
+             * Can Edit
+             * @description Only workspace admins and owners may change the policy
+             */
+            can_edit: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Max Excerpt Lines */
+            max_excerpt_lines: number;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Updated At */
+            updated_at: string | null;
+            /** Version */
+            version: number;
+        };
+        /** ProjectAiPolicyUpdate */
+        ProjectAiPolicyUpdate: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Max Excerpt Lines
+             * @default 120
+             */
+            max_excerpt_lines: number;
+            /**
+             * Version
+             * @description Current version for optimistic concurrency (omit on first save)
+             */
+            version?: number | null;
+        };
         /** ProjectCreate */
         ProjectCreate: {
             /**
@@ -2105,6 +2242,62 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ai_status_v1_ai_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     create_demo_session_v1_auth_demo_session_post: {
         parameters: {
             query?: never;
@@ -3505,6 +3698,144 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_policy_v1_projects__project_id__ai_policy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAiPolicyResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_ai_policy_v1_projects__project_id__ai_policy_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectAiPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAiPolicyResponse"];
+                };
             };
             /** @description Unauthorized */
             401: {

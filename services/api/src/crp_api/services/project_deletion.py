@@ -22,7 +22,7 @@ from crp_api.auth.principal import Principal
 from crp_api.errors import ApiError
 from crp_api.services.scope import get_scoped
 from crp_core.artifacts import ArtifactKey, ArtifactStore
-from crp_core.db.models import FileEntry, Intake, Project, Scan, Snapshot
+from crp_core.db.models import AiRun, FileEntry, Intake, Project, Scan, Snapshot
 from crp_core.db.session import transaction
 from crp_core.domain.states import IntakeState, MembershipRole, ScanState
 
@@ -114,12 +114,16 @@ async def delete_project(
             await session.scalars(select(Snapshot.id).where(Snapshot.project_id == project.id))
         ).all()
         scans = (await session.scalars(select(Scan.id).where(Scan.project_id == project.id))).all()
+        ai_runs = (
+            await session.scalars(select(AiRun.id).where(AiRun.project_id == project.id))
+        ).all()
         name = project.name
         await session.execute(delete(Project).where(Project.id == project.id))
     prefixes = [
         *(f"intakes/{i.hex}" for i in intakes),
         *(f"snapshots/{s.hex}" for s in snapshots),
         *(f"scans/{s.hex}" for s in scans),
+        *(f"ai-runs/{r.hex}" for r in ai_runs),  # transcripts: as sensitive as the source
     ]
     artifacts = await asyncio.to_thread(_delete_prefixes, store, prefixes)
     blobs, deferred = await sweep_orphan_blobs(session_factory, store)

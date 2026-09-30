@@ -18,6 +18,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -34,6 +35,10 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from crp_core.domain.states import (
+    AiConfidence,
+    AiEvidenceClass,
+    AiRunKind,
+    AiRunState,
     AnchorKind,
     CacheMode,
     CaptureStatus,
@@ -792,6 +797,188 @@ class ArtifactObject(Base):
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ProjectAiPolicy(Base):
+    """Per-project source-disclosure policy for AI review (default: off). ADR 0012.
+
+    Only when ``enabled`` may bounded, secret-masked excerpts of this project's snapshots be sent
+    to the configured model provider. Changes are audited in ``ai_policy_events``.
+    """
+
+    __tablename__ = "project_ai_policies"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("max_excerpt_lines BETWEEN 10 AND 400", name="max_excerpt_lines_range"),
+    )
+
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    max_excerpt_lines: Mapped[int] = mapped_column(Integer, nullable=False, server_default="120")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - SQLAlchemy declarative API
+
+
+class AiPolicyEvent(Base):
+    """Append-only audit trail of AI policy changes (who allowed or stopped source disclosure)."""
+
+    __tablename__ = "ai_policy_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="SET NULL"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    changes: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AiRun(TimestampMixin, Base):
+    """One bounded AI investigation of a snapshot: a question, a finding review or a file review.
+
+    ``steps`` is a concise action log (tool, arguments summary, outcome), never private
+    reasoning. ``usage`` holds provider-reported tokens and, only when the owner configured
+    prices, an estimated cost.
+    """
+
+    __tablename__ = "ai_runs"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id", "snapshot_id"],
+            ["snapshots.workspace_id", "snapshots.project_id", "snapshots.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["scan_id"], ["scans.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["finding_id"], ["findings.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["requested_by"], ["users.id"], ondelete="SET NULL"),
+        CheckConstraint(enum_check("kind", AiRunKind), name="kind_valid"),
+        CheckConstraint(enum_check("state", AiRunState), name="state_valid"),
+        CheckConstraint(
+            "kind <> 'question' OR length(btrim(coalesce(question, ''))) > 0",
+            name="question_requires_text",
+        ),
+        CheckConstraint(
+            "kind <> 'finding_review' OR finding_id IS NOT NULL OR state <> 'QUEUED'",
+            name="finding_review_requires_finding",
+        ),
+        Index("ix_ai_runs_project_id_created_at", "project_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    finding_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+    question: Mapped[str | None] = mapped_column(Text)
+    target_paths: Mapped[list[str] | None] = mapped_column(JsonDocument)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    workflow_id: Mapped[str | None] = mapped_column(String(128))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    limits: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    usage: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    answer: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    steps: Mapped[list[dict[str, object]] | None] = mapped_column(JsonDocument)
+    limitations: Mapped[list[str] | None] = mapped_column(JsonDocument)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - SQLAlchemy declarative API
+
+
+class AiCall(Base):
+    """Usage accounting per provider call (also the source of the monthly spend cap)."""
+
+    __tablename__ = "ai_calls"
+    __table_args__ = (
+        ForeignKeyConstraint(["run_id"], ["ai_runs.id"], ondelete="CASCADE"),
+        CheckConstraint("status IN ('ok', 'error')", name="status_valid"),
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND cache_read_tokens >= 0 "
+            "AND cache_write_tokens >= 0",
+            name="tokens_non_negative",
+        ),
+        Index("ix_ai_calls_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    cache_read_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    cache_write_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    usage_reported: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    request_id: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AiFinding(Base):
+    """A structured AI claim with its evidence class; severity, evidence and confidence differ."""
+
+    __tablename__ = "ai_findings"
+    __table_args__ = (
+        ForeignKeyConstraint(["run_id"], ["ai_runs.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["related_finding_id"], ["findings.id"], ondelete="SET NULL"),
+        CheckConstraint(enum_check("severity", Severity), name="severity_valid"),
+        CheckConstraint(enum_check("category", FindingCategory), name="category_valid"),
+        CheckConstraint(enum_check("confidence", AiConfidence), name="confidence_valid"),
+        CheckConstraint(enum_check("evidence_class", AiEvidenceClass), name="evidence_class_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    severity_rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(8), nullable=False)
+    evidence_class: Mapped[str] = mapped_column(String(24), nullable=False)
+    anchors: Mapped[list[dict[str, object]]] = mapped_column(JsonDocument, nullable=False)
+    triggering_conditions: Mapped[str] = mapped_column(Text, nullable=False)
+    impact: Mapped[str] = mapped_column(Text, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    validation_needed: Mapped[str | None] = mapped_column(Text)
+    uncertainty: Mapped[str | None] = mapped_column(Text)
+    related_finding_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    verification: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -204,6 +204,7 @@ version = "0.1.0"
 source = { editable = "packages/analysis" }
 dependencies = [
     { name = "crp-core" },
+    { name = "httpx" },
     { name = "tree-sitter" },
     { name = "tree-sitter-java" },
     { name = "tree-sitter-javascript" },
@@ -213,6 +214,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "crp-core", editable = "packages/core" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "tree-sitter", specifier = "==0.26.0" },
     { name = "tree-sitter-java", specifier = "==0.23.5" },
     { name = "tree-sitter-javascript", specifier = "==0.25.0" },

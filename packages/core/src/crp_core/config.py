@@ -49,6 +49,19 @@ class ArtifactBackend(StrEnum):
     POSTGRES = "postgres"  # lite deployments without a persistent disk (bounded object sizes)
 
 
+class AiProvider(StrEnum):
+    """Model provider for AI review (P03). ``none`` keeps every deterministic feature working."""
+
+    NONE = "none"
+    ANTHROPIC = "anthropic"
+    OPENAI_COMPATIBLE = "openai_compatible"  # OpenAI, Azure OpenAI v1, vLLM, Ollama, ...
+
+
+class OpenAiAuthHeader(StrEnum):
+    BEARER = "bearer"  # Authorization: Bearer <key>
+    API_KEY = "api-key"  # api-key: <key> (Azure OpenAI)
+
+
 def is_loopback_host(host: str) -> bool:
     """Return True when ``host`` names only the local machine (IPv4/IPv6 loopback or localhost)."""
     candidate = host.strip().strip("[]").lower()
@@ -139,6 +152,32 @@ class Settings(BaseSettings):
     eslint_heap_mb: Annotated[int, Field(ge=128, le=16384)] = 1024
     opengrep_jobs: Annotated[int, Field(ge=1, le=16)] = 2
     structure_max_symbols_per_file: Annotated[int, Field(ge=10, le=100_000)] = 2000
+
+    # AI review (P03; ADR 0012). Keys live only in the server environment or an owner-only
+    # file; source is sent only for projects whose AI policy is switched on. Prices are the
+    # owner's own figures (USD per million tokens); without them costs show as unknown.
+    ai_provider: AiProvider = AiProvider.NONE
+    ai_model: str | None = None
+    ai_base_url: str | None = None
+    ai_api_key: SecretStr | None = None
+    ai_api_key_file: Path | None = None
+    ai_openai_auth_header: OpenAiAuthHeader = OpenAiAuthHeader.BEARER
+    ai_openai_max_tokens_field: Annotated[
+        str, Field(pattern=r"^(max_completion_tokens|max_tokens)$")
+    ] = "max_completion_tokens"
+    ai_request_timeout_seconds: Annotated[float, Field(gt=1, le=600)] = 120.0
+    ai_max_retries: Annotated[int, Field(ge=0, le=6)] = 2
+    ai_max_output_tokens: Annotated[int, Field(ge=256, le=64_000)] = 4096
+    ai_run_max_model_calls: Annotated[int, Field(ge=1, le=60)] = 12
+    ai_run_max_tool_calls: Annotated[int, Field(ge=1, le=300)] = 40
+    ai_run_max_tokens: Annotated[int, Field(ge=1000, le=10_000_000)] = 250_000
+    ai_run_timeout_seconds: Annotated[int, Field(ge=30, le=3600)] = 600
+    ai_monthly_token_limit: Annotated[int, Field(ge=0, le=10_000_000_000)] = 5_000_000
+    ai_price_input_per_mtok_usd: Annotated[float, Field(ge=0, le=10_000)] | None = None
+    ai_price_output_per_mtok_usd: Annotated[float, Field(ge=0, le=10_000)] | None = None
+    ai_run_max_cost_usd: Annotated[float, Field(gt=0, le=10_000)] | None = None
+    ai_monthly_cost_limit_usd: Annotated[float, Field(gt=0, le=1_000_000)] | None = None
+    ai_keep_transcripts: bool = True
 
     log_level: str = "INFO"
     log_format: str = "json"
