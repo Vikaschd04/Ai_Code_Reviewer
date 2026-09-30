@@ -1,0 +1,19 @@
+{
+  "id": "java-string-identity",
+  "split": "dev",
+  "language": "java",
+  "task": "file_review",
+  "review_paths": [
+    "src/shop/OrderStatus.java"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "src/shop/OrderStatus.java",
+      "start_line": 6,
+      "end_line": 6,
+      "category": "correctness",
+      "defect": "Strings compared with == (identity) instead of equals(); a PAID status read from a database or request is a different object, so the check returns false."
+    }
+  ]
+}

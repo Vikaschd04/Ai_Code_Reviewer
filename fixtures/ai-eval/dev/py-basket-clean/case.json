@@ -1,0 +1,11 @@
+{
+  "id": "py-basket-clean",
+  "split": "dev",
+  "language": "python",
+  "task": "file_review",
+  "review_paths": [
+    "shop/basket.py"
+  ],
+  "defective": false,
+  "labels": []
+}

@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import io
 import json
+import threading
 import zipfile
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -369,3 +370,30 @@ async def test_ai_run_on_the_lite_profile(settings: Settings) -> None:
         assert done["usage"]["calls"] == 2
         search = next(m for m in fake.requests[1]["messages"] if m["role"] == "tool")
         assert "src/orders.py:4" in search["content"]
+
+
+async def test_ai_run_cancellation_on_the_lite_profile(settings: Settings) -> None:
+    fake = FakeProvider()
+    started, release = threading.Event(), threading.Event()  # the runner uses the server's loop
+
+    async def slow(_: dict[str, Any]) -> dict[str, Any]:
+        started.set()
+        await asyncio.to_thread(release.wait, 60)
+        return _reply("read_file", {"path": "src/orders.py"}, "call_slow")
+
+    async with lite_stack(_ai_settings(settings), httpx.MockTransport(fake.handle)) as stack:
+        project = await stack.project("AI lite cancel")
+        assert (await stack.zip_intake(project, _archive()))["state"] == "READY"
+        await stack.ok("PUT", f"/v1/projects/{project}/ai-policy", json={"enabled": True})
+        fake.script.append(slow)
+        run = await stack.ok(
+            "POST",
+            f"/v1/projects/{project}/ai-runs",
+            json={"kind": "question", "question": "How is the order total computed?"},
+        )
+        assert await asyncio.to_thread(started.wait, 60)
+        await stack.ok("POST", f"/v1/ai-runs/{run['id']}/cancel")
+        release.set()
+        canceled = await _wait(stack, run["id"])
+        assert canceled["state"] == "CANCELED", (canceled["error_code"], canceled["steps"])
+        assert len(fake.requests) == 1

@@ -47,7 +47,7 @@ crp-runner = { workspace = true }
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-extend-exclude = ["apps", "packages/contracts", "docs", "prompts"]
+extend-exclude = ["apps", "packages/contracts", "docs", "prompts", "fixtures/ai-eval"]  # ai-eval: deliberately defective samples
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "S", "ASYNC", "BLE", "RUF", "SIM", "PTH", "TRY"]

@@ -26,3 +26,7 @@ Count usage from provider/tool responses; distinguish unavailable counts and est
 
 Test no-key state, provider outage, budget exhaustion, prompt injection, malicious tool arguments, unauthorized graph retrieval, fake code references and irrelevant context. Fixtures are explicit test doubles; production scans never substitute their responses.
 
+## Implementation status (P03)
+
+Implemented as one typed orchestrator (ADR 0012): deterministic planner, bounded model investigator with five read-only snapshot tools, deterministic anchor verifier, and stored runs/findings; Temporal (standard) or the inline runner (lite) owns the lifecycle and never retries paid calls. Alibaba OCR was evaluated and not adopted (docs/validation/P03_OCR_EVALUATION.md). Labelled evaluation: `fixtures/ai-eval/`, `crp-dev ai-eval`. Live quality measurement awaits a configured provider (docs/validation/P03_REPORT.md).
+

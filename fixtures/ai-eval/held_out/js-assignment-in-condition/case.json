@@ -1,0 +1,19 @@
+{
+  "id": "js-assignment-in-condition",
+  "split": "held_out",
+  "language": "javascript",
+  "task": "file_review",
+  "review_paths": [
+    "src/permissions.js"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "src/permissions.js",
+      "start_line": 2,
+      "end_line": 2,
+      "category": "security",
+      "defect": "Assignment instead of comparison: every user becomes an admin and may delete."
+    }
+  ]
+}

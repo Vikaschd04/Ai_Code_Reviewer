@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — P03 AI review (30 September 2026)
+
+- AI review, off until configured: Anthropic or any OpenAI-compatible provider through `CRP_AI_*` settings (key only on the server, https endpoints), with per-run limits, monthly token/cost caps and owner-set prices (costs "unknown" without them). ADR 0012.
+- Per-project sharing switch, off by default, admin-only with explicit confirmation, audited.
+- Ask questions about a project's code, review up to five files, or get a second opinion on a finding. The AI reads masked excerpts through five read-only tools; every cited line is checked against the upload ("Checked against your code" / "Not verified" / discarded). Runs are durable, cancellable and never retried automatically; usage and cost are recorded per call.
+- API: `GET /v1/ai/status`, project `ai-policy` (GET/PUT), project `ai-runs` (POST/GET), `GET /v1/ai-runs/{id}`, `POST /v1/ai-runs/{id}/cancel`; `project_id` on finding detail; capability state `not_configured`. Migration `0005_ai_review`.
+- UI: project "AI review" tab, AI run page, "AI second opinion" on findings; the sidebar's data note reflects whether AI is set up.
+- Evaluation: labelled set `fixtures/ai-eval/` and `crp-dev ai-eval [--live]`; `crp-dev ocr-eval` isolated evaluation of Alibaba open-code-review 1.12.11 (not adopted: see docs/validation/P03_OCR_EVALUATION.md). `make test-e2e` starts a labelled loopback fake model.
+- Live model evaluation is blocked until the owner configures a provider key (docs/DEPLOYMENT.md "AI review").
+
 ## Unreleased — Delete projects (30 September 2026)
 
 - `DELETE /v1/projects/{id}` (creator or workspace admin): removes every project row (cascade) and its artifacts, then reclaims content blobs no other snapshot uses; refused with 409 while a review or upload check runs.

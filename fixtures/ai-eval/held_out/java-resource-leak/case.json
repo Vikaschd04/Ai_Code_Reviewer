@@ -1,0 +1,19 @@
+{
+  "id": "java-resource-leak",
+  "split": "held_out",
+  "language": "java",
+  "task": "file_review",
+  "review_paths": [
+    "src/shop/PriceFile.java"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "src/shop/PriceFile.java",
+      "start_line": 9,
+      "end_line": 10,
+      "category": "reliability",
+      "defect": "The reader is never closed (no try-with-resources), leaking a file handle on every call."
+    }
+  ]
+}

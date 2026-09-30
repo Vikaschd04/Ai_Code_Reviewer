@@ -1,0 +1,19 @@
+{
+  "id": "py-mutable-default",
+  "split": "dev",
+  "language": "python",
+  "task": "file_review",
+  "review_paths": [
+    "shop/basket.py"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "shop/basket.py",
+      "start_line": 1,
+      "end_line": 2,
+      "category": "correctness",
+      "defect": "Mutable default argument: every call without a basket shares and grows one list."
+    }
+  ]
+}

@@ -68,13 +68,34 @@ The CI job proves the lite profile inside these limits on every push: it runs th
 - **Tuning (optional):** every lite default can be overridden with an environment variable, e.g. `CRP_INTAKE_MAX_UPLOAD_BYTES`, `CRP_PMD_JAVA_HEAP`, `CRP_ESLINT_HEAP_MB`, `CRP_ENGINE_TIMEOUT_SECONDS`, `CRP_TRIVY_DB_AUTO_REFRESH=0`. Raising memory settings on the free instance risks out-of-memory restarts.
 - **Data:** everything lives in your Render account (database; the free service keeps no files between restarts). Deleting the Blueprint's resources deletes it.
 
+## AI review (optional)
+
+refactorX works fully without AI. To let reviewers ask questions about their code and get AI reviews of selected files, give the server a model provider key. The key stays on the server; you add it yourself — never paste it into a chat or commit it.
+
+1. Get an API key from your provider: **Anthropic** (console.anthropic.com → API keys) or any **OpenAI-compatible** service (OpenAI, Azure OpenAI, or a gateway that speaks the chat-completions API).
+2. Render dashboard → service `ai-code-reviewer` → **Environment** → **Add Environment Variable**, then **Save, rebuild and deploy** (or **Save and deploy**):
+
+   | Variable | Anthropic | OpenAI-compatible |
+   |---|---|---|
+   | `CRP_AI_PROVIDER` | `anthropic` | `openai_compatible` |
+   | `CRP_AI_API_KEY` | your key (mark it secret) | your key (mark it secret) |
+   | `CRP_AI_MODEL` | optional, default `claude-opus-5-5` | **required**, the model name your service offers |
+   | `CRP_AI_BASE_URL` | optional | optional (default `https://api.openai.com/v1`); must be `https://` |
+   | `CRP_AI_OPENAI_AUTH_HEADER` | — | `api-key` for Azure-style gateways (default bearer) |
+   | `CRP_AI_OPENAI_MAX_TOKENS_FIELD` | — | `max_tokens` for services that do not accept `max_completion_tokens` |
+
+3. Optional limits and costs: `CRP_AI_MONTHLY_TOKEN_LIMIT` (default 5,000,000; `0` = none), `CRP_AI_PRICE_INPUT_PER_MTOK_USD` and `CRP_AI_PRICE_OUTPUT_PER_MTOK_USD` (your provider's price per million tokens; without them costs show as unknown), `CRP_AI_MONTHLY_COST_LIMIT_USD`, `CRP_AI_RUN_MAX_COST_USD`, `CRP_AI_KEEP_TRANSCRIPTS=false` (do not keep masked transcripts).
+4. After the deploy, sign in as the owner, open a project → **AI review**, tick the confirmation and **Switch on AI review**. Only then can anyone ask questions or start AI reviews in that project; the demo account cannot switch it on.
+
+What is sent: only short excerpts of that project's latest upload that the AI asks for, with values that look like passwords or keys masked first. Nothing is sent for projects where AI review is off. Every call's token usage is recorded, runs stop at their limits and are never retried automatically, and each answer shows which cited lines were checked against the code. Design: ADR 0012; evaluation status: docs/validation/P03_REPORT.md.
+
 ## Security posture (read before sharing the URL)
 
 This is a **single-user** hosted mode (`CRP_ENVIRONMENT=hosted`), not the multi-tenant/SSO deployment planned for P07:
 
 - One shared access token (≥ 32 characters) signs in; failed sign-ins are throttled. Sessions are HttpOnly, Secure, SameSite=Strict cookies. Share the URL if you like, never the token.
 - The service answers only its own host name(s) (liveness excepted), requires its own origin for cookie-authenticated changes, sends HSTS and a strict Content-Security-Policy for the UI.
-- Upload only source you are allowed to store with Render. No source is sent to any AI provider.
+- Upload only source you are allowed to store with Render. No source is sent to an AI provider unless you configure one and a workspace admin switches AI review on for a project (below).
 - Analyzers run as an unprivileged user inside the container with bounded time/output/heap, on copies of the snapshot; they do not execute uploaded code. There is no per-scan OS sandbox (KNOWN_ISSUES K-P01-01), which is why this mode is single-user.
 
 ## Free alternative: GitHub Codespaces

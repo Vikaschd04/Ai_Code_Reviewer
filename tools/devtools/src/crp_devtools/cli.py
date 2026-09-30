@@ -194,6 +194,45 @@ def cmd_test_e2e(args: argparse.Namespace) -> int:
     return stack.run_e2e(_paths(), args.playwright_args)
 
 
+def cmd_ai_eval(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from crp_analysis.ai.config import resolve
+    from crp_devtools import ai_eval
+
+    paths = _paths()
+    splits = ai_eval.SPLITS if args.split == "all" else (args.split,)
+    setup = None
+    if args.live:
+        setup = resolve(settings_from_env(dev_service_env(paths, DevPorts())))
+        if not setup.available:
+            print(f"crp-dev ai-eval: live evaluation blocked: {setup.reason}", file=sys.stderr)
+            if setup.admin_hint:
+                print(f"  {setup.admin_hint}", file=sys.stderr)
+            return 2
+        print(
+            f"crp-dev: sending the synthetic evaluation files to {setup.provider.value} "
+            f"({setup.model}); no customer code is used"
+        )
+    report = asyncio.run(ai_eval.evaluate(paths.repo / "fixtures" / "ai-eval", splits, setup))
+    out = ai_eval.write_report(report, paths.repo / ".local" / "ai-eval")
+    print(f"crp-dev: {report['mode']}; report written to {out.relative_to(paths.repo)}")
+    print(json.dumps(report["summary"], indent=2))
+    return 0
+
+
+def cmd_ocr_eval(args: argparse.Namespace) -> int:
+    from crp_devtools import ocr_eval
+
+    paths = _paths()
+    out = ocr_eval.run(paths)
+    report = json.loads(out.read_text())
+    print(f"crp-dev: OCR evaluation written to {out.relative_to(paths.repo)}")
+    for name in ("raw_upload", "prepared_copy", "cancellation"):
+        print(f"{name}: {json.dumps(report[name])}")
+    return 0
+
+
 def cmd_package(args: argparse.Namespace) -> int:
     paths = _paths()
     dist = stack.package(paths)
@@ -264,6 +303,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("package", help="build wheels and the web bundle into dist/").set_defaults(
         func=cmd_package
     )
+    sub.add_parser(
+        "ocr-eval", help="isolated evaluation of the pinned Alibaba open-code-review CLI"
+    ).set_defaults(func=cmd_ocr_eval)
+    aieval = sub.add_parser("ai-eval", help="labelled AI review evaluation (fixtures/ai-eval)")
+    aieval.add_argument("--split", choices=["dev", "held_out", "all"], default="all")
+    aieval.add_argument(
+        "--live", action="store_true", help="use the configured provider (CRP_AI_*)"
+    )
+    aieval.set_defaults(func=cmd_ai_eval)
     return parser
 
 

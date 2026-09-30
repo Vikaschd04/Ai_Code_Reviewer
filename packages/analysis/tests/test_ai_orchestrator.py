@@ -193,6 +193,18 @@ async def test_fake_and_mismatched_anchors_are_rejected() -> None:
     assert numbered[0].status is AnchorStatus.VERIFIED  # copied line numbers are tolerated
 
 
+async def test_stale_context_does_not_verify_against_another_version() -> None:
+    old = InMemorySnapshot("s-old", {"src/Rate.java": "class Rate {\n  int pct = 10;\n}\n"})
+    new = InMemorySnapshot("s-new", {"src/Rate.java": "class Rate {\n  int pct = 100;\n}\n"})
+    quote_from_new = Anchor(path="src/Rate.java", start_line=2, end_line=2, quote="int pct = 100;")
+    [stale] = await check_anchors(old, [quote_from_new])
+    [current] = await check_anchors(new, [quote_from_new])
+    assert stale.status is AnchorStatus.QUOTE_MISMATCH  # checked against the run's own upload
+    assert current.status is AnchorStatus.VERIFIED
+    assert stale.sha256 != current.sha256  # the stored check names the exact file version
+    assert stale.sha256 == (await old.files())["src/Rate.java"].sha256
+
+
 async def test_malicious_tool_arguments_are_refused() -> None:
     reader = snapshot()
     tools = ToolExecutor(reader)

@@ -1,6 +1,6 @@
 # Known issues and gaps
 
-Updated 30 September 2026 (P02 + hosted deployment). None of these block the P00–P02 gates.
+Updated 30 September 2026 (P03 AI review). None of these block the P00–P02 gates; K-P03-01 blocks the P03 gate.
 
 | ID | Symptom / gap | Scope | Severity | Evidence | Workaround / next action |
 |---|---|---|---|---|---|
@@ -30,6 +30,11 @@ Updated 30 September 2026 (P02 + hosted deployment). None of these block the P00
 | K-P10-02 | No automatic cleanup of demo projects (quota 30 projects, 20 scans/hour); they count against the free database's 1 GB | demo | Low | ADR 0011 | Delete projects from the UI (reclaims rows, artifacts and unshared blobs); a retention job is later |
 | K-P10-04 | Project deletion is permanent (no trash/undo) and audited only in logs; orphan blobs from a deferred sweep wait for the next deletion | projects | Low | project_deletion.py | Soft delete, audit table and scheduled sweeps in P07 |
 | K-P10-03 | Internal names still say `crp`/Code Review Platform (packages, CLI, `CRP_*` settings, Render resource names); only user-facing text says refactorX | naming | Info | ADR 0011 | Intentional; rename internals only with a migration plan |
+| K-P03-01 | Live AI provider not configured: no real model has been called; precision/recall, latency and real token/cost figures are unmeasured | P03 gate | High (gate) | P03_REPORT | Owner sets `CRP_AI_*` (DEPLOYMENT.md "AI review"), then `crp-dev ai-eval --split all --live` |
+| K-P03-02 | AI context masking relies on the heuristic redactor; a missed secret would reach the provider for projects with AI switched on | AI review | Medium | ADR 0012, K-P01-02 | Switch AI on only for shareable code; dedicated secret scanning before excerpting later |
+| K-P03-03 | A model call already in flight when a run is cancelled or interrupted may still be billed by the provider; the call is not recorded if the process dies mid-call | AI usage | Low | orchestrator, ai_run.py | Provider dashboards remain the billing source of truth |
+| K-P03-04 | AI findings are not linked to issues, exports or comparisons; retrieval is lexical + P02 graph (no embeddings); one question, finding or ≤ 5 files per run | AI review | Low | P03_REPORT | P03 follow-ups / P05 |
+| K-P03-05 | Alibaba OCR evaluation isolation exists for macOS only (`sandbox-exec`); no Linux profile | evaluation | Low | P03_OCR_EVALUATION | Needed only if OCR is reconsidered |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 
 Known planned limitations: no Git ingestion until P06; no AI provider required in P00/P01; no universal defect detection; SAP/Salesforce runtime checks depend on authorized platform environments; private runner execution is distinct from local snapshot upload.

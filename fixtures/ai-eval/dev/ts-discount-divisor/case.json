@@ -1,0 +1,19 @@
+{
+  "id": "ts-discount-divisor",
+  "split": "dev",
+  "language": "typescript",
+  "task": "file_review",
+  "review_paths": [
+    "src/pricing.ts"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "src/pricing.ts",
+      "start_line": 5,
+      "end_line": 5,
+      "category": "correctness",
+      "defect": "Divides by 10 instead of 100, so every discount is ten times too large (a 20% discount makes the total negative)."
+    }
+  ]
+}

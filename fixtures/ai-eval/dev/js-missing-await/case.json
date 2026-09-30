@@ -1,0 +1,19 @@
+{
+  "id": "js-missing-await",
+  "split": "dev",
+  "language": "javascript",
+  "task": "file_review",
+  "review_paths": [
+    "src/orders.js"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "src/orders.js",
+      "start_line": 2,
+      "end_line": 3,
+      "category": "correctness",
+      "defect": "insertAsync returns a promise that is not awaited, so saved.id is always undefined and every save throws."
+    }
+  ]
+}

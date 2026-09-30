@@ -1,0 +1,19 @@
+{
+  "id": "py-empty-average",
+  "split": "held_out",
+  "language": "python",
+  "task": "file_review",
+  "review_paths": [
+    "stats/ratings.py"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "stats/ratings.py",
+      "start_line": 4,
+      "end_line": 4,
+      "category": "correctness",
+      "defect": "An empty list raises ZeroDivisionError instead of returning 0 as documented."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "java-sql-injection",
+  "split": "dev",
+  "language": "java",
+  "task": "file_review",
+  "review_paths": [
+    "src/shop/CustomerRepository.java"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "src/shop/CustomerRepository.java",
+      "start_line": 16,
+      "end_line": 17,
+      "category": "security",
+      "defect": "SQL built by concatenating the email parameter: SQL injection. Use a PreparedStatement with a bound parameter."
+    }
+  ]
+}

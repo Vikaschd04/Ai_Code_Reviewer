@@ -1,0 +1,11 @@
+{
+  "id": "java-string-identity-clean",
+  "split": "dev",
+  "language": "java",
+  "task": "file_review",
+  "review_paths": [
+    "src/shop/OrderStatus.java"
+  ],
+  "defective": false,
+  "labels": []
+}

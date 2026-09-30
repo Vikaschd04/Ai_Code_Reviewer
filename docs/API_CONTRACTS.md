@@ -8,7 +8,7 @@ Status: design contract. The implemented subset is listed first; the generated O
 |---|---|---|
 | GET /v1/health/live | none | `{status:"alive", service, version}`; no dependency detail |
 | GET /v1/health/ready | credentials only (no DB lookup) | `ReadinessReport` with checks `database` (schema revision vs head), `workflow_service`, `workflow_worker` (fresh pollers), `artifact_store` (write/read/delete probe); each `ok\|failed\|unavailable` with `error_code`, `details`, `latency_ms`. 200 when all OK, otherwise 503 with the same body |
-| GET /v1/capabilities | credentials | Capability registry (`available` / `planned` with phase and reason) that drives UI navigation |
+| GET /v1/capabilities | credentials | Capability registry (`available` / `not_configured` / `planned` with phase and reason) that drives UI navigation; `ai_investigation` reflects the server's AI setup |
 | POST /v1/auth/session | allowed Origin + token in body | Sets HttpOnly SameSite=Strict session cookie; 401 `invalid_credentials`; 429 `too_many_attempts` after 10 failures/60 s |
 | DELETE /v1/auth/session | none | Clears the cookie (204) |
 | GET /v1/auth/me | principal | User, auth method, operator flag, workspace grants |
@@ -68,6 +68,21 @@ Cross-cutting: every response has `X-Request-ID`, `Cache-Control: no-store`, `X-
 
 Nodes are only reachable through their own snapshot's current build (404 otherwise). Not yet implemented from the table below: `POST /sources/{id}/captures` (registered mounts), Q&A, fixes, PRs. Triage is on issues (`PATCH /v1/issues/{id}`) rather than on per-scan findings.
 
+## Implemented in P03 (AI review, ADR 0012)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/ai/status | credentials | `available`, provider, model, plain `reason`, `admin_hint` (operators only), limits, prices configured, month usage (calls, tokens, token limit, cost or null when prices are unknown, cost limit) |
+| GET /v1/projects/{id}/ai-policy | viewer | `enabled` (default false), `max_excerpt_lines`, `version`, `can_edit`, last change |
+| PUT /v1/projects/{id}/ai-policy | admin | `{enabled, max_excerpt_lines, version}`; 409 `version_conflict`; audited in `ai_policy_events` |
+| POST /v1/projects/{id}/ai-runs | member | `{kind: question\|file_review\|finding_review, question?, paths? (1–5 reviewable files), finding_id?, snapshot_id?}` → 202 QUEUED run. 409 `ai_policy_disabled` / `ai_unavailable` / `no_snapshot` / `snapshot_not_ready`; 429 `ai_monthly_limit`; 422 `question_required` / `paths_required` / `finding_required` / `unknown_paths`; 404 foreign project/finding/snapshot; 503 `workflow_unavailable` (the run is stored FAILED) |
+| GET /v1/projects/{id}/ai-runs | viewer | Newest first, `limit` ≤100 |
+| GET /v1/ai-runs/{id} | viewer | Run with state, usage (tokens in/out, cache, `usage_reported`, cost or null, excerpts read), answer (`answer` with citations and `evidence_class`, or `review` with reviewed paths and optional finding `assessment`), steps, limitations and AI findings (severity, confidence and `evidence_class` separate; anchors with verification `status` and file `sha256`) |
+| POST /v1/ai-runs/{id}/cancel | member | Idempotent; records the request and cancels the workflow; no model call starts afterwards |
+| GET /v1/findings/{id} | viewer | now also returns `project_id` |
+
+Run states: QUEUED, RUNNING, SUCCEEDED, PARTIAL, BUDGET_EXHAUSTED, FAILED (`error_code` e.g. `interrupted`, `provider_rate_limited`, `no_result`), CANCELED. Runs are never retried automatically.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 
@@ -90,7 +105,7 @@ Nodes are only reachable through their own snapshot's current build (404 otherwi
 | GET /findings/{finding_id} | Detail, occurrences, evidence and recommendations |
 | PATCH /findings/{finding_id} | Allowed triage changes with version check |
 | GET /snapshots/{snapshot_id}/graph | Bounded node/edge neighborhood with provenance |
-| POST /scans/{scan_id}/questions | Phase 3 evidence-backed Q&A; bounded retrieval |
+| POST /scans/{scan_id}/questions | Phase 3 evidence-backed Q&A; implemented as `POST /v1/projects/{id}/ai-runs` (above) |
 | POST /findings/{finding_id}/fix-proposals | Phase 5 constrained proposal |
 | POST /fix-proposals/{proposal_id}/validate | Approved profile, budget, copied source |
 | GET /fix-proposals/{proposal_id}/patch | Authorized patch download |

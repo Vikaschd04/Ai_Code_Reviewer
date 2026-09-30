@@ -29,9 +29,12 @@ test("shows real service readiness on the operations page", async ({ page }) => 
     await expect(page.getByTestId(`check-${name}`)).toContainText("OK");
   }
   await expect(page.getByTestId("check-database")).toContainText("schema at head");
-  // Future capabilities are announced as "coming soon", never as working links.
-  await expect(page.getByRole("list", { name: "Coming soon" })).toContainText("AI investigation");
-  await expect(page.getByRole("link", { name: "AI investigation" })).toHaveCount(0);
+  // Future capabilities are announced as "coming soon", never as working links; AI review is
+  // implemented (P03) and set up on the E2E stack, so it is no longer listed there.
+  const comingSoon = page.getByRole("list", { name: "Coming soon" });
+  await expect(comingSoon).toContainText("Fix workbench");
+  await expect(page.getByRole("link", { name: "Fix workbench" })).toHaveCount(0);
+  await expect(comingSoon).not.toContainText("AI");
 });
 
 test("runs the durable diagnostic workflow on the real worker", async ({ page }) => {

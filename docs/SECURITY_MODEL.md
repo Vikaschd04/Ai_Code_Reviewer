@@ -79,7 +79,7 @@ Not implemented yet: upload/intake controls, analyzer sandboxing and resource li
 | Direct uploads | 15-minute HMAC ticket bound to one intake, derived from the access token (rotation revokes); CORS only PUT, no credentials, configured origins | test_hosted_mode.py, test_hosted_smoke.py |
 | Container | Unprivileged uid 10001 after disk ownership fix; secrets passed as env, token written 0600, raw token not passed to children; engines keep scrubbed environments | entrypoint.sh, test_hosted_env.py |
 | Build supply chain | Digest-pinned base images, SHA-256 + cosign-verified Linux engines, SHA-256 Temporal CLI, SHA-pinned GitHub Actions, frozen lockfiles | Dockerfile, ci.yml, engines.py |
-| Data location | Uploaded source stored in the owner's Render account: in PostgreSQL only (free lite profile, ADR 0010) or on the disk + database (standard); no AI egress | DEPLOYMENT.md |
+| Data location | Uploaded source stored in the owner's Render account: in PostgreSQL only (free lite profile, ADR 0010) or on the disk + database (standard); AI egress only as described in "AI review" below | DEPLOYMENT.md |
 | Offline vulnerability DB | Baked into the image (digest-pinned build); the daily refresh is the only network use, downloads into a new directory and swaps a symlink atomically, never while a scan in the same process reads it | trivy_db.py, test_trivy_db.py |
 
 ### Project deletion
@@ -102,3 +102,18 @@ Not implemented yet: upload/intake controls, analyzer sandboxing and resource li
 | Sample secrets | The sample's fake access token is generated at runtime, never committed | test_demo_and_sample.py |
 
 Residual risk: demo visitors share one workspace (they see each other's uploads) and their archives are analysed by the same unsandboxed engines as the owner's on a single-tenant instance. Disable the demo before storing real customer code on the same deployment.
+
+### AI review (P03, ADR 0012)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| No egress by default | No provider unless `CRP_AI_PROVIDER` and a key are set; each project's AI policy is off until a workspace admin/owner switches it on (explicit confirmation, audited in `ai_policy_events`); re-checked at run creation and before the first call | test_ai_api.py, test_ai_run.py |
+| Key handling | Key only in the server environment (`CRP_AI_API_KEY`) or an owner-only file (`CRP_AI_API_KEY_FILE`); never stored in the database, logged, returned or included in reprs; endpoints must be https (http only for localhost) | test_ai_providers.py |
+| Minimal, masked disclosure | Only excerpts the model asks for through five read-only, snapshot-scoped tools (at most `max_excerpt_lines` per read); every line masked by the secret redactor before sending and before storing transcripts | test_secret_values_never_reach_the_provider, test_ai_run.py |
+| Untrusted source stays data | Excerpts fenced with path/lines/hash and fence-breaking text neutralised; AGENTS.md/CLAUDE.md/MCP files flagged; the system prompt forbids following repository instructions; no shell, network, MCP or model-chosen endpoints | test_prompt_injection_stays_data_and_cannot_add_tools, test_fences_cannot_be_closed_from_source |
+| Tool argument validation | Strict schemas (no extra fields, no coercion, bounded sizes); unknown tools and paths outside the upload refused | test_malicious_tool_arguments_are_refused |
+| Claims need evidence | Every citation checked against the frozen upload; unverifiable claims are labelled or hidden; model output never changes deterministic findings | test_fake_and_mismatched_anchors_are_rejected |
+| Spend bounds | Per-run call/tool/token/time/cost limits and monthly token/cost caps; usage recorded per call; runs never retried automatically | test_token_and_cost_limits_stop_the_run, test_monthly_token_limit_blocks_new_runs |
+| Scope and retention | Runs, calls, findings and transcripts are project-scoped (other workspaces get 404) and deleted with the project; `CRP_AI_KEEP_TRANSCRIPTS=false` stops storing transcripts | test_runs_of_other_workspaces_are_invisible, test_ai_run.py |
+
+Residual risk: masking is heuristic, so a secret the redactor misses would reach the provider for projects with AI switched on; the provider's own retention terms apply to what it receives. Switch AI on only for code you may share with that provider.

@@ -1,0 +1,19 @@
+{
+  "id": "py-off-by-one",
+  "split": "dev",
+  "language": "python",
+  "task": "file_review",
+  "review_paths": [
+    "stats/window.py"
+  ],
+  "defective": true,
+  "labels": [
+    {
+      "path": "stats/window.py",
+      "start_line": 4,
+      "end_line": 5,
+      "category": "correctness",
+      "defect": "range end is len(values) + 1, so the last iteration indexes past the end and raises IndexError."
+    }
+  ]
+}

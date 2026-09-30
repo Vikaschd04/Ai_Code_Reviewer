@@ -1,0 +1,11 @@
+{
+  "id": "ts-discount-clean",
+  "split": "held_out",
+  "language": "typescript",
+  "task": "file_review",
+  "review_paths": [
+    "src/pricing.ts"
+  ],
+  "defective": false,
+  "labels": []
+}
