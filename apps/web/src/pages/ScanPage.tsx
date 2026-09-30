@@ -218,15 +218,15 @@ function ChecksPanel({ scan, limitations }: { scan: Scan; limitations: string[] 
     >
       <ul className="check-list">
         {runs.map((run) => (
-          <li key={run.engine} className="check-row" data-testid={`check-${run.engine}`}>
-            <div className="check-main">
-              <div className="row row-between">
-                <strong>{checkName(run.engine)}</strong>
-                <StatusBadge state={run.state} />
-              </div>
-              <p className="small muted">{CHECKS[run.engine]?.description}</p>
-              {run.files_eligible > 0 ? <CoverageMeter run={run} /> : null}
-              {run.error_message ? <p className="check-error">{run.error_message}</p> : null}
+          <li key={run.engine} className="check-card" data-testid={`check-${run.engine}`}>
+            <div className="check-head">
+              <h3 className="check-name">{checkName(run.engine)}</h3>
+              <StatusBadge state={run.state} />
+            </div>
+            <p className="check-desc">{CHECKS[run.engine]?.description}</p>
+            {run.error_message ? <p className="check-error">{run.error_message}</p> : null}
+            <div className="check-foot">
+              <CoverageMeter run={run} />
             </div>
           </li>
         ))}

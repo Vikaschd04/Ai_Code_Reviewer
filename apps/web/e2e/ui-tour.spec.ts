@@ -51,6 +51,22 @@ test("demo sign-in, sample dry run and every review screen", async ({ page }) =>
   await expect(page.getByTestId("finding-row").first()).toContainText("Critical");
   // Technical provenance stays collapsed until asked for.
   await expect(page.getByTestId("engine-pmd")).toBeHidden();
+  // "What was checked": every card ends with its file meter, aligned across each row.
+  await page.getByTestId("checks-panel").getByText("What was checked").click();
+  await expect(page.getByTestId("check-trivy")).toContainText("files checked");
+  const misalignment: unknown = await page.evaluate(`(() => {
+    const rows = new Map();
+    for (const card of document.querySelectorAll(".check-card")) {
+      const top = Math.round(card.getBoundingClientRect().top);
+      const meter = card.querySelector(".meter").getBoundingClientRect().top;
+      rows.set(top, [...(rows.get(top) || []), meter]);
+    }
+    let worst = 0;
+    for (const meters of rows.values()) worst = Math.max(worst, Math.max(...meters) - Math.min(...meters));
+    return worst;
+  })()`);
+  expect(Number(misalignment)).toBeLessThanOrEqual(1);
+  await shot(page, "checks");
   await shot(page, "review");
   await setTheme(page, "dark");
   await shot(page, "review-dark");
@@ -65,6 +81,14 @@ test("demo sign-in, sample dry run and every review screen", async ({ page }) =>
   await page.getByRole("link", { name: "Back to review results" }).click();
   await page.getByRole("link", { name: "Files checked" }).click();
   await expect(page.getByTestId("coverage-row").first()).toBeVisible();
+  // The page ends with its content: rows inside the scrolling table must not stretch the page.
+  const extraScroll: unknown = await page.evaluate(`(() => {
+    const main = document.getElementById("main");
+    const bottom = main.getBoundingClientRect().bottom + window.scrollY;
+    return document.documentElement.scrollHeight - Math.max(bottom, window.innerHeight);
+  })()`);
+  expect(Number(extraScroll)).toBeLessThanOrEqual(1);
+  await shot(page, "files-checked");
   await page.getByRole("link", { name: "Changes" }).click();
   await expect(page.getByText("Nothing to compare with yet")).toBeVisible();
 
@@ -119,6 +143,10 @@ test("demo sign-in, sample dry run and every review screen", async ({ page }) =>
   await shot(page, "review-mobile");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("button", { name: "Try the demo" })).toBeVisible();
+  const loginOverflow: unknown = await page.evaluate(
+    "document.documentElement.scrollWidth - document.documentElement.clientWidth",
+  );
+  expect(Number(loginOverflow)).toBeLessThanOrEqual(1);
   await shot(page, "login-mobile");
 });
 

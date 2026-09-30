@@ -36,9 +36,9 @@ export function CoverageMeter({ run }: { run: EngineRun }) {
     { key: "skipped", value: skipped, color: "var(--meter-skipped)", label: "not attempted" },
   ].filter((part) => part.value > 0);
   return (
-    <div>
+    <div className="meter-block">
       {eligible === 0 ? (
-        <div className="stackbar-empty" />
+        <div className="meter meter-empty" role="img" aria-label="No matching files" />
       ) : (
         <div
           className="meter"
@@ -55,8 +55,17 @@ export function CoverageMeter({ run }: { run: EngineRun }) {
         </div>
       )}
       <p className="meter-caption">
-        {analyzed} of {eligible} files checked{failed ? ` · ${failed} could not be read` : ""}
-        {skipped ? ` · ${skipped} not attempted` : ""}
+        {eligible === 0 ? (
+          "No matching files in this upload"
+        ) : (
+          <>
+            <span className="strong">
+              {analyzed} of {eligible}
+            </span>{" "}
+            files checked{failed ? ` · ${failed} could not be read` : ""}
+            {skipped ? ` · ${skipped} not attempted` : ""}
+          </>
+        )}
       </p>
     </div>
   );

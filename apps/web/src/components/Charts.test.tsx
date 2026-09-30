@@ -59,8 +59,14 @@ describe("CoverageMeter", () => {
         name: "1 of 3 eligible files analyzed, 1 failed, 1 not attempted",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/1 of 3 files checked · 1 could not be read · 1 not attempted/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/files checked/).closest("p")).toHaveTextContent(
+      "1 of 3 files checked · 1 could not be read · 1 not attempted",
+    );
+  });
+
+  it("keeps an empty track and says so when no file matches", () => {
+    render(<CoverageMeter run={{ ...run, files_eligible: 0 }} />);
+    expect(screen.getByRole("img", { name: "No matching files" })).toBeInTheDocument();
+    expect(screen.getByText("No matching files in this upload")).toBeInTheDocument();
   });
 });

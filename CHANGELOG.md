@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Futuristic backdrop and review fixes (30 September 2026)
+
+- Futuristic backdrop on every page: drifting aurora glows, a fading grid, frosted chrome and cards, a light beam under the top bar, glowing primary buttons; sign-in adds an orbit glow and a gradient-edged card (motion off with reduced-motion preferences).
+- Fix: the "Files checked" tab could scroll thousands of pixels past its content (screen-reader text from rows inside the scrolling table escaped its frame); tables and file locations now contain it. Regression check in the UI tour.
+- "What was checked": every check card has the same structure (name and status, description, optional error, then the file meter pinned to the bottom with "x of y files checked"); checks without matching files keep an empty meter and say so. Alignment is asserted in the UI tour.
+
 ## Unreleased — Minimal design system (30 September 2026)
 
 - UI redesign on a strict token system: Inter/JetBrains Mono (self-hosted, OFL-1.1), one type scale, 4 px spacing grid, fixed control heights and radii, neutral palette with one accent in light and dark themes; glass, glows and gradient buttons removed.
