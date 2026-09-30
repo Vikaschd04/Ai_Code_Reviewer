@@ -21,7 +21,6 @@ import platform
 import shutil
 import signal
 import subprocess
-import sys
 import tempfile
 import threading
 import time
@@ -132,7 +131,8 @@ class ProbeModel:
 
 
 def _platform() -> tuple[str, str]:
-    if sys.platform != "darwin":
+    # Checked at run time (not via sys.platform) so type checks agree on every host.
+    if platform.system() != "Darwin":
         raise InfraError(
             "ocr-eval runs the third-party binary only inside the macOS sandbox; "
             "no isolation profile is defined for this platform yet"
