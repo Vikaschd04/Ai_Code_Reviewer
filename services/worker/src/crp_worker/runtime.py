@@ -18,8 +18,9 @@ from crp_core.config import Settings
 from crp_core.db.session import create_session_factory
 from crp_worker.ai_run import AiRunActivities, AiRunWorkflow
 from crp_worker.diagnostics import DiagnosticActivities, DiagnosticWorkflow
+from crp_worker.fix_validation import FixActivities, FixValidationWorkflow
 from crp_worker.intake import IntakeActivities, IntakeWorkflow
-from crp_worker.scan import ScanActivities, ScanWorkflow
+from crp_worker.scan import ScanActivities, ScanWorkflow, default_adapters
 
 
 def worker_identity() -> str:
@@ -43,11 +44,20 @@ def build_worker(
         *IntakeActivities(settings, store, sessions).all(),
         *ScanActivities(settings, store, sessions, adapters).all(),
         *AiRunActivities(settings, store, sessions, transport=ai_transport).all(),
+        *FixActivities(
+            settings, store, sessions, {**default_adapters(settings), **(adapters or {})}
+        ).all(),
     ]
     return Worker(
         client,
         task_queue=settings.temporal_task_queue,
-        workflows=[DiagnosticWorkflow, IntakeWorkflow, ScanWorkflow, AiRunWorkflow],
+        workflows=[
+            DiagnosticWorkflow,
+            IntakeWorkflow,
+            ScanWorkflow,
+            AiRunWorkflow,
+            FixValidationWorkflow,
+        ],
         activities=activities,
         identity=name,
         max_concurrent_activities=8,

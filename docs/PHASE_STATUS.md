@@ -1,6 +1,6 @@
 # Phase status
 
-Last updated: 30 September 2026 (P00–P02 and P04 COMPLETE; P03 BLOCKED only on the live-provider gate).
+Last updated: 1 October 2026 (P00–P02 and P04 COMPLETE; P03 BLOCKED only on the live-provider gate; P05 IN_PROGRESS — deterministic fixes delivered, isolated test/build runner and AI patches remaining).
 
 | Phase | Status | Evidence | Next task |
 |---|---|---|---|
@@ -8,8 +8,8 @@ Last updated: 30 September 2026 (P00–P02 and P04 COMPLETE; P03 BLOCKED only on
 | P01 Source/baseline | COMPLETE | [P01_REPORT](validation/P01_REPORT.md): `make check` exit 0; 203 pytest + 12 vitest; `make test-e2e` 8/8; ZIP ≡ folder manifests/findings; real PMD 7.27.0 / ESLint 10.11.0 | — |
 | P02 Graph/analyzers | COMPLETE | [P02_REPORT](validation/P02_REPORT.md): `make check` exit 0; 265 pytest + 14 vitest; `make test-e2e` 10/10; real Opengrep 1.30.0 / Trivy 0.69.3 (offline DB); schema 0003; benchmark recorded | — |
 | P03 Agentic analysis | BLOCKED | [P03_REPORT](validation/P03_REPORT.md): adapter (Anthropic + OpenAI-compatible), per-project opt-in, bounded planner/investigator/verifier, runs API, Temporal + lite workflows, AI UI, labelled eval set + harness, [OCR evaluation](validation/P03_OCR_EVALUATION.md) (not adopted); `make check` exit 0, `make test`, `make test-e2e` 14/14. All offline mandatory checks pass. **Blocked:** live-provider evaluation (precision/recall, tokens, cost) needs the owner's API key (K-P03-01) | Owner configures `CRP_AI_*`; then `crp-dev ai-eval --split all --live` and record results |
-| P04 Frameworks | COMPLETE (experimental packs) | [P04_REPORT](validation/P04_REPORT.md): SAP Commerce (2105–2211) and Salesforce (API 31.0+) packs with version/capability coverage, evidence-backed mappings, 8 SAP/Java Opengrep rules, 11 PMD Apex rules, 2 configuration checks, secure XML; all mandatory offline domain checks pass; `make check` exit 0, `make test` and `make test-e2e` pass. Conditional SAP build / Salesforce org validation not run (no authorized environment); no SME review yet | SME review; evaluate Code Analyzer Flow Scanner and LWC ESLint plugin; P05 after P03's live gate |
-| P05 Validated fixes | NOT_STARTED | None | After P03/P04 |
+| P04 Frameworks | COMPLETE (experimental packs) | [P04_REPORT](validation/P04_REPORT.md): SAP Commerce (2105–2211) and Salesforce (API 31.0+) packs with version/capability coverage, evidence-backed mappings, 8 SAP/Java Opengrep rules, 11 PMD Apex rules, 2 configuration checks, secure XML; all mandatory offline domain checks pass; `make check` exit 0, `make test` and `make test-e2e` pass. Conditional SAP build / Salesforce org validation not run (no authorized environment); no SME review yet | SME review; evaluate Code Analyzer Flow Scanner and LWC ESLint plugin |
+| P05 Validated fixes | IN_PROGRESS | [P05_REPORT](validation/P05_REPORT.md): deterministic recipes (ESLint safe fixes, Java string-literal `equals`, Salesforce retired API version) bound to upload/base/patch/result hashes; change policy; source-level ladder (integrity, syntax, original detector, regression) on copies with no project code executed; cancel/retry/budget; patch + `crp-fix-export/v1`; fix UI. Every mandatory test that applies passes; `make check` exit 0, `make test`, `make test-e2e` 17/17. **Remaining:** tests/build/platform rungs report "not run" (no isolated runner, K-P05-01); AI patches wait for P03's key (K-P05-02) | Isolated runner for tests/build (P05-F1); AI patches after K-P03-01 |
 | P06 Git/incremental | NOT_STARTED | None | After applicable earlier gates |
 | P07 Production | NOT_STARTED | None | After launch scope gates |
 

@@ -10,6 +10,11 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   COMPLETED: { tone: "ok", icon: "check", label: "Completed" },
   PARTIAL: { tone: "warn", icon: "alert", label: "Partly complete" },
   BUDGET_EXHAUSTED: { tone: "warn", icon: "alert", label: "Stopped at limit" },
+  // Fix proposals and their validation runs (P05).
+  PROPOSED: { tone: "neutral", icon: "wrench", label: "Not checked yet" },
+  VALIDATED: { tone: "ok", icon: "check", label: "Checks passed" },
+  VALIDATION_FAILED: { tone: "bad", icon: "x", label: "Checks failed" },
+  PASSED: { tone: "ok", icon: "check", label: "Passed" },
   not_ready: { tone: "warn", icon: "alert", label: "Not ready" },
   unavailable: { tone: "warn", icon: "alert", label: "Unavailable" },
   UNAVAILABLE: { tone: "bad", icon: "x", label: "Unavailable" },

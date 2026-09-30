@@ -16,6 +16,7 @@ import { activeTheme, applyTheme, type Theme } from "./lib/theme";
 import { AiRunPage } from "./pages/AiRunPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FindingPage } from "./pages/FindingPage";
+import { FixPage } from "./pages/FixPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OperationsPage } from "./pages/OperationsPage";
 import { ProjectPage } from "./pages/ProjectPage";
@@ -52,6 +53,7 @@ const ROUTE_LABELS: Record<Route["name"], string> = {
   scan: "Review",
   finding: "Finding",
   "ai-run": "AI answer",
+  fix: "Fix",
   operations: "System status",
   "not-found": "Not found",
 };
@@ -232,6 +234,8 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
       return <FindingPage key={route.id} findingId={route.id} />;
     case "ai-run":
       return <AiRunPage key={route.id} runId={route.id} />;
+    case "fix":
+      return <FixPage key={route.id} fixId={route.id} />;
     case "operations":
       return principal.is_operator ? (
         <>

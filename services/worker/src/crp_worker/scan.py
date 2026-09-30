@@ -140,6 +140,47 @@ def _merge_cached(
 CacheContext = tuple["engine_cache.CacheScope | None", dict[str, str], set[str], bool]
 
 
+def default_adapters(settings: Settings) -> dict[str, EngineAdapter]:
+    """The trusted engines, configured from settings (shared by scans and fix validation)."""
+    return {
+        "pmd": PmdAdapter(
+            settings.pmd_home,
+            java_heap=settings.pmd_java_heap,
+            timeout_seconds=settings.engine_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+        ),
+        "eslint": EslintAdapter(
+            settings.eslint_runner_dir,
+            node_executable=settings.node_executable,
+            timeout_seconds=settings.engine_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+            heap_mb=settings.eslint_heap_mb,
+        ),
+        "opengrep": OpengrepAdapter(
+            settings.opengrep_home,
+            timeout_seconds=settings.engine_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+            max_target_bytes=settings.intake_max_text_file_bytes,
+            jobs=settings.opengrep_jobs,
+        ),
+        "trivy": TrivyAdapter(
+            settings.trivy_home,
+            settings.trivy_cache_dir,
+            timeout_seconds=settings.engine_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+        ),
+        # Framework packs (P04): Apex rules on the same pinned PMD, configuration checks.
+        "pmd-apex": PmdAdapter(
+            settings.pmd_home,
+            java_heap=settings.pmd_java_heap,
+            timeout_seconds=settings.engine_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+            ruleset=APEX,
+        ),
+        "frameworks": FrameworkRulesAdapter(settings.intake_max_text_file_bytes),
+    }
+
+
 class ScanActivities:
     def __init__(
         self,
@@ -151,43 +192,7 @@ class ScanActivities:
         self._settings = settings
         self._store = store
         self._sessions = session_factory
-        defaults: dict[str, EngineAdapter] = {
-            "pmd": PmdAdapter(
-                settings.pmd_home,
-                java_heap=settings.pmd_java_heap,
-                timeout_seconds=settings.engine_timeout_seconds,
-                max_output_bytes=settings.engine_max_output_bytes,
-            ),
-            "eslint": EslintAdapter(
-                settings.eslint_runner_dir,
-                node_executable=settings.node_executable,
-                timeout_seconds=settings.engine_timeout_seconds,
-                max_output_bytes=settings.engine_max_output_bytes,
-                heap_mb=settings.eslint_heap_mb,
-            ),
-            "opengrep": OpengrepAdapter(
-                settings.opengrep_home,
-                timeout_seconds=settings.engine_timeout_seconds,
-                max_output_bytes=settings.engine_max_output_bytes,
-                max_target_bytes=settings.intake_max_text_file_bytes,
-                jobs=settings.opengrep_jobs,
-            ),
-            "trivy": TrivyAdapter(
-                settings.trivy_home,
-                settings.trivy_cache_dir,
-                timeout_seconds=settings.engine_timeout_seconds,
-                max_output_bytes=settings.engine_max_output_bytes,
-            ),
-            # Framework packs (P04): Apex rules on the same pinned PMD, configuration checks.
-            "pmd-apex": PmdAdapter(
-                settings.pmd_home,
-                java_heap=settings.pmd_java_heap,
-                timeout_seconds=settings.engine_timeout_seconds,
-                max_output_bytes=settings.engine_max_output_bytes,
-                ruleset=APEX,
-            ),
-            "frameworks": FrameworkRulesAdapter(settings.intake_max_text_file_bytes),
-        }
+        defaults = default_adapters(settings)
         self._adapters: dict[str, EngineAdapter] = {**defaults, **(adapters or {})}
 
     # -- helpers -------------------------------------------------------------------------------

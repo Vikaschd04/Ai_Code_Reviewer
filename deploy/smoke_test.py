@@ -2,11 +2,12 @@
 
 Usage: python deploy/smoke_test.py http://127.0.0.1:8080 <access-token> [origin]
 Checks liveness, readiness, the web UI at /, the Host allowlist, a ticket-authorized upload with
-CORS, snapshot freezing, a real scan and, when the demo account is enabled, a demo sign-in with a
-review of the built-in sample project. Trivy may be UNAVAILABLE while the offline DB is not
-downloaded yet, unless SMOKE_REQUIRE_TRIVY=1 (the image bakes the DB in). SMOKE_TIMEOUT_SECONDS
-(default 300) bounds each wait; slow hosts such as a 0.1-CPU free instance need more. The slowest
-API response observed while waiting is reported as ``max_api_seconds``.
+CORS, snapshot freezing, a real scan, a checked fix with its patch download and, when the demo
+account is enabled, a demo sign-in with a review of the built-in sample project. Trivy may be
+UNAVAILABLE while the offline DB is not downloaded yet, unless SMOKE_REQUIRE_TRIVY=1 (the image
+bakes the DB in). SMOKE_TIMEOUT_SECONDS (default 300) bounds each wait; slow hosts such as a
+0.1-CPU free instance need more. The slowest API response observed while waiting is reported as
+``max_api_seconds``.
 """
 
 from __future__ import annotations
@@ -79,6 +80,41 @@ def wait(base: str, path: str, token: str | None, done: set[str], **headers: str
             return dict(body)
         time.sleep(1)
     raise SystemExit(f"timed out waiting for {path}")
+
+
+def fix_check(base: str, token: str, findings: list[dict[str, Any]]) -> dict[str, Any]:
+    """Prepare the deterministic fix for the Java finding, check it on a copy, download it."""
+    target = next(f for f in findings if f["rule_id"] == "UseEqualsToCompareStrings")
+    status, _, fix = call(
+        base,
+        "POST",
+        f"/v1/findings/{target['id']}/fix-proposals",
+        token,
+        {"recipe_id": "java:string-literal-equals"},
+    )
+    check(status == 201, fix)
+    status, _, started = call(base, "POST", f"/v1/fix-proposals/{fix['id']}/validations", token)
+    check(status == 202, started)
+    done = wait(
+        base,
+        f"/v1/fix-proposals/{fix['id']}",
+        token,
+        {"VALIDATED", "VALIDATION_FAILED", "PROPOSED"},
+    )
+    steps = {s["id"]: s["state"] for s in done["latest_validation"]["steps"]}
+    # Source-level checks pass; project tests and builds are never run (they execute code).
+    expected = {"integrity": "passed", "syntax": "passed", "checks": "passed"}
+    check(
+        done["state"] == "VALIDATED"
+        and steps == {**expected, "tests": "not_run", "build": "not_run"},
+        done["latest_validation"],
+    )
+    request = urllib.request.Request(f"{base}/v1/fix-proposals/{fix['id']}/patch")  # noqa: S310
+    request.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
+        patch = response.read().decode()
+    check('+        return "PAID".equals(status);' in patch, patch)
+    return {"fix": done["state"], "steps": steps}
 
 
 def demo_sample_review(base: str, origin: str) -> dict[str, Any] | None:
@@ -228,6 +264,7 @@ def main() -> int:
     _, _, page = call(base, "GET", f"/v1/scans/{scan['id']}/findings?limit=50", token)
     rules = {f["rule_id"] for f in page["items"]}
     check({"UseEqualsToCompareStrings", "no-eval", "crp.js.code-injection.eval"} <= rules, rules)
+    print(json.dumps({"fix_check": fix_check(base, token, page["items"])}))
     sample = demo_sample_review(base, origin)
     print(json.dumps({"demo_sample_review": sample if sample else "demo disabled"}))
     print("smoke test passed")

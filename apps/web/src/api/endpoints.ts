@@ -7,6 +7,9 @@ import {
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
+  type FixOptions,
+  type FixProposal,
+  type FixValidation,
   type Capability,
   type CoveragePage,
   type DiagnosticRun,
@@ -587,4 +590,90 @@ export async function cancelAiRun(runId: string): Promise<AiRun> {
 
 export function aiExportUrl(runId: string, format: "json" | "sarif"): string {
   return `/v1/ai-runs/${encodeURIComponent(runId)}/export?format=${format}`;
+}
+
+// -- Phase 5: validated fixes ----------------------------------------------------------------
+
+export async function fetchFixOptions(findingId: string, signal?: Sig): Promise<FixOptions> {
+  const { data, error, response } = await api.GET("/v1/findings/{finding_id}/fix-options", {
+    params: { path: { finding_id: findingId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function createFix(findingId: string, recipeId: string): Promise<FixProposal> {
+  const { data, error, response } = await api.POST("/v1/findings/{finding_id}/fix-proposals", {
+    params: { path: { finding_id: findingId } },
+    body: { recipe_id: recipeId },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function listFixes(
+  projectId: string,
+  signal?: Sig,
+  findingId?: string,
+): Promise<FixProposal[]> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/fix-proposals", {
+    params: {
+      path: { project_id: projectId },
+      query: { limit: 50, ...(findingId ? { finding_id: findingId } : {}) },
+    },
+    signal: signal ?? null,
+  });
+  if (data) return data.items;
+  throw toApiError(response, error);
+}
+
+export async function fetchFix(proposalId: string, signal?: Sig): Promise<FixProposal> {
+  const { data, error, response } = await api.GET("/v1/fix-proposals/{proposal_id}", {
+    params: { path: { proposal_id: proposalId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function editFix(
+  fix: FixProposal,
+  edits: { start_line: number; replacement: string[] }[],
+): Promise<FixProposal> {
+  const { data, error, response } = await api.PUT("/v1/fix-proposals/{proposal_id}/edits", {
+    params: { path: { proposal_id: fix.id } },
+    body: { version: fix.version, edits },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function rejectFix(proposalId: string, reason: string): Promise<FixProposal> {
+  const { data, error, response } = await api.POST("/v1/fix-proposals/{proposal_id}/reject", {
+    params: { path: { proposal_id: proposalId } },
+    body: { reason },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function validateFix(proposalId: string): Promise<FixValidation> {
+  const { data, error, response } = await api.POST("/v1/fix-proposals/{proposal_id}/validations", {
+    params: { path: { proposal_id: proposalId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function cancelFixValidation(validationId: string): Promise<FixValidation> {
+  const { data, error, response } = await api.POST("/v1/fix-validations/{validation_id}/cancel", {
+    params: { path: { validation_id: validationId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export function fixDownloadUrl(proposalId: string, kind: "patch" | "summary"): string {
+  return `/v1/fix-proposals/${encodeURIComponent(proposalId)}/${kind}`;
 }

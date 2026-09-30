@@ -34,6 +34,20 @@ _EXTENSIONS = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx")
 _ENABLED_RULE = re.compile(r'"((?:@typescript-eslint/)?[a-z-]+)": (?:"error"|\["error")')
 
 
+def _autofix(fix: object) -> dict[str, object] | None:
+    """ESLint's own fix for the message (UTF-16 offsets plus the text they replace), if any."""
+    if not isinstance(fix, dict):
+        return None
+    try:
+        start, end = int(fix["start"]), int(fix["end"])
+        text, original = str(fix["text"]), str(fix["original"])
+    except KeyError, TypeError, ValueError:
+        return None
+    if start < 0 or end < start or len(text) > 10_000 or len(original) > 10_000:
+        return None
+    return {"autofix": {"start": start, "end": end, "text": text, "original": original}}
+
+
 class EslintAdapter:
     name = "eslint"
     ruleset_id = RULESET_ID
@@ -215,6 +229,7 @@ class EslintAdapter:
                         end_line=int(message.get("endLine") or line),
                         end_column=int(message["endColumn"]) if message.get("endColumn") else None,
                         rule_url=None,
+                        details=_autofix(message.get("fix")),
                     )
                 )
         for missing in sorted(files - seen):

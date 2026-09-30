@@ -9,12 +9,11 @@ quality.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import io
 import json
 import threading
 import zipfile
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,14 +23,9 @@ from jsonschema import Draft4Validator, Draft202012Validator
 from pydantic import SecretStr
 
 from crp_analysis.ai.export import ai_export_schema
-from crp_core.artifacts import FilesystemArtifactStore
 from crp_core.config import AiProvider, Settings
-from crp_core.db.identity import ensure_local_identity
-from crp_core.db.session import create_engine_from_settings, create_session_factory, transaction
-from crp_core.local_secrets import read_secret_file
-from crp_worker.inline import InlineWorkflowGateway
 
-from .conftest import LiveServer, Stack, running_stack
+from .conftest import Stack, lite_stack, running_stack
 
 pytestmark = pytest.mark.integration
 
@@ -326,34 +320,6 @@ async def test_ai_run_cancellation_and_budget_stop(settings: Settings) -> None:
         assert stopped["state"] == "BUDGET_EXHAUSTED", (stopped["error_code"], stopped["steps"])
         assert stopped["usage"]["calls"] <= 2
         assert stopped["answer"] is None
-
-
-@contextlib.asynccontextmanager
-async def lite_stack(
-    settings: Settings, transport: httpx.AsyncBaseTransport
-) -> AsyncIterator[Stack]:
-    """The lite profile's wiring (crp_devtools.lite_server): API with the in-process runner."""
-    engine = create_engine_from_settings(settings)
-    async with transaction(create_session_factory(engine)) as session:
-        identity = await ensure_local_identity(session)
-    await engine.dispose()
-    store = FilesystemArtifactStore(
-        settings.artifact_root, max_object_bytes=settings.artifact_max_object_bytes
-    )
-    gateway = InlineWorkflowGateway(
-        settings, store, create_engine_from_settings(settings), ai_transport=transport
-    )
-    server = LiveServer(settings, workflow_gateway=gateway, artifact_store=store)
-    await asyncio.to_thread(server.start)
-    assert settings.local_token_file is not None
-    token = read_secret_file(settings.local_token_file)
-    try:
-        async with httpx.AsyncClient(
-            base_url=server.url, headers={"Authorization": f"Bearer {token}"}, timeout=30
-        ) as http:
-            yield Stack(settings, server, http, token, str(identity.workspace_id))
-    finally:
-        await asyncio.to_thread(server.stop)
 
 
 async def test_ai_run_on_the_lite_profile(settings: Settings) -> None:

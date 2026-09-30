@@ -64,6 +64,12 @@ class UnavailableWorkflowGateway:
     async def cancel_ai_run(self, run_id: UUID) -> None:
         raise WorkflowUnavailableError("Temporal service at 127.0.0.1:1 is unreachable")
 
+    async def start_fix_validation(self, validation_id: UUID) -> str:
+        raise WorkflowUnavailableError("Temporal service at 127.0.0.1:1 is unreachable")
+
+    async def cancel_fix_validation(self, validation_id: UUID) -> None:
+        raise WorkflowUnavailableError("Temporal service at 127.0.0.1:1 is unreachable")
+
     async def close(self) -> None:
         return None
 

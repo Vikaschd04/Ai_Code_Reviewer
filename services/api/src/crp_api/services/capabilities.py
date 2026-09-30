@@ -108,9 +108,10 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         id="fix_workbench",
         label="Fix workbench",
-        state=_P,
+        state=_A,
         phase="P05",
-        reason="Validated patch proposals arrive in Phase 5",
+        reason="Deterministic fixes for selected findings as editable patches, checked on a copy "
+        "(applies, parses, finding gone, no new findings). Project tests and builds are not run",
     ),
     Capability(
         id="git_integration",

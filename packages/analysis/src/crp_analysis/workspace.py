@@ -70,3 +70,32 @@ def materialized(
         yield root
     finally:
         remove_tree(work_dir)
+
+
+@contextlib.contextmanager
+def written(work_dir: Path, files: dict[str, bytes]) -> Iterator[Path]:
+    """Yield ``work_dir/src`` holding the given contents (read-only; e.g. a patched copy)."""
+    remove_tree(work_dir)
+    root = work_dir / "src"
+    root.mkdir(parents=True, mode=0o700)
+    (work_dir / "home").mkdir(mode=0o700)
+    resolved_root = root.resolve()
+    try:
+        for path, data in files.items():
+            relative = PurePosixPath(path)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise WorkspaceError("path escapes the workspace")
+            target = root.joinpath(*relative.parts)
+            target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if resolved_root not in target.parent.resolve().parents and (
+                target.parent.resolve() != resolved_root
+            ):
+                raise WorkspaceError("path escapes the workspace")
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o400)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+        for directory, _dirnames, _filenames in os.walk(root, topdown=False):
+            os.chmod(directory, 0o500)  # noqa: PTH101
+        yield root
+    finally:
+        remove_tree(work_dir)

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — P05 validated fixes (1 October 2026)
+
+- Fixes for findings (ADR 0014): deterministic, approved recipes — ESLint's own safe fixes for `prefer-const`, `no-var` and `eqeqeq` (captured at scan time), `"literal".equals(value)` for Java string comparison with `==`, and moving retired Salesforce metadata API versions to the project's `sourceApiVersion`. Each fix explains what could behave differently.
+- Fixes are bound to one upload, the file's base hash and the patch hash; the upload is never changed. Reviewers can edit a fix (suppressions, weakened tests, configuration changes and oversized changes are refused), reject it, and move it to a newer upload when the lines still match exactly.
+- Checks on a copy: the patch applies to this upload, the file still parses, the check that found the problem no longer reports it and nothing new appears. Project tests and builds are shown as "not run" (they would execute uploaded code; SAP builds and Salesforce deployments need licensed or authorized environments). 5 checks per fix, one at a time, cancellable; Temporal workflow or in-process on the lite profile.
+- Downloads: a Git-compatible patch with a header naming the upload and hashes, and a JSON change summary (`crp-fix-export/v1` with its own schema).
+- API: `fix-options`, `fix-proposals` (create, list, get, edits, reject, validations, patch, summary, rebase) and `fix-validations/{id}/cancel`. Migration `0007`. The `fix_workbench` capability is available.
+- UI: "Fix" card on findings, fix page (diff, what to watch, editor, checks, labels, downloads, technical details) and a project "Fixes" tab; "Fix workbench" left the "Coming soon" list.
+
 ## Unreleased — P04 SAP Commerce and Salesforce packs (30 September 2026)
 
 - Framework packs (experimental, ADR 0013): SAP Commerce (2105–2211) and Salesforce (API 31.0+) detection with version evidence, capability coverage and configuration-driven architecture links (extensions, Spring beans and injection, item types, interceptors, ImpEx; Salesforce packages, Apex, triggers, LWC, objects, Flows, permission sets, custom metadata). Metadata is read with a secure XML reader that refuses DTDs and entities.

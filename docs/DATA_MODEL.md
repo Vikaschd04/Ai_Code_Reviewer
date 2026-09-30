@@ -33,6 +33,14 @@ Retention (P01): deleting a project cascades to sources, intakes, snapshots, fil
 
 Retention (P02): project deletion cascades to issues, events, graph data and cache; snapshot deletion cascades to its graph builds; scan deletion nulls issue scan references.
 
+## Added in P05 (migration `0007`, ADR 0014)
+
+- `fix_proposals`: scoped to its upload by the composite FK `(workspace_id, project_id, snapshot_id) → snapshots` and to its finding (both `ON DELETE CASCADE`), plus `scan_id`. Columns: `kind` (`recipe`/`ai`; only `recipe` is produced), `recipe_id`, title, explanation, `behaviour_note`, `state` (PROPOSED/VALIDATING/VALIDATED/VALIDATION_FAILED/REJECTED), `path`, `target_line`, `rebased_from`, `allowed_paths` (JSON; v1 = the finding's file), `base_sha256`, `result_sha256`, `patch_sha256` (64-hex CHECKs), `patch` (unified diff), `edits` (JSON line edits with the exact original lines), `changed_lines`, `edited`, validation budget `validations_used` ≤ `max_validations` (default 5, CHECK), `rejected_reason`, `created_by` (`SET NULL`), optimistic `version`.
+- `fix_validations`: per ladder run (`proposal_id` cascade), `state` (QUEUED/RUNNING/PASSED/FAILED/CANCELED), the `patch_sha256` and `result_sha256` it applies to, `steps` (JSON), `summary`, `workflow_id`, error code/message, `cancel_requested_at`, timestamps, `requested_by`.
+- `findings.details.autofix` (ESLint safe fixes captured at scan time: UTF-16 `start`/`end`, replacement `text`, the `original` slice) — no schema change.
+
+Issue status is not changed by P05; `FIX_PROPOSED` stays reserved for Phase 6 pull requests (ADR 0014). Retention: deleting a project, upload or finding deletes its proposals and validations; patches contain only lines of the stored upload.
+
 ## Target model
 
 All domain records are workspace/project scoped. UUIDs are opaque identifiers, not authorization. Source identity works without Git.

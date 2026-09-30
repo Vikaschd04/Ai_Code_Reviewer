@@ -293,3 +293,34 @@ class AiConfidence(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class FixKind(StrEnum):
+    """Where a fix proposal came from (P05)."""
+
+    RECIPE = "recipe"  # a deterministic, approved transformation
+    AI = "ai"  # a bounded AI patch (needs an AI provider and the project's AI policy)
+
+
+class FixProposalState(StrEnum):
+    PROPOSED = "PROPOSED"  # created or edited; not validated for its current patch
+    VALIDATING = "VALIDATING"
+    VALIDATED = "VALIDATED"  # every check that could run passed for the current patch
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    REJECTED = "REJECTED"
+
+
+class FixValidationState(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    CANCELED = "CANCELED"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self in {
+            FixValidationState.PASSED,
+            FixValidationState.FAILED,
+            FixValidationState.CANCELED,
+        }

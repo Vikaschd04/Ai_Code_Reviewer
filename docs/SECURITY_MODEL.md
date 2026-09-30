@@ -127,3 +127,16 @@ Residual risk: masking is heuristic, so a secret the redactor misses would reach
 | No platform credentials | No SAP distribution, Salesforce org or token is used; validation profiles are conditional and documented only | FRAMEWORK_ADAPTERS.md |
 | Untrusted repository config stays inert | Project PMD/ESLint configs, `.opencodereview`-style rule files and Salesforce Code Analyzer configs are never loaded; only platform-owned rule sets run | ENGINE_ADOPTION.md |
 
+### Validated fixes (P05, ADR 0014)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Upload is never modified | Patches are applied in memory and checked on a read-only copy of the single changed file in a private temporary folder, removed afterwards; stored upload bytes and the captured folder stay unchanged | test_fix_is_validated_by_the_temporal_worker (folder digest), test_ladder_copies_only_the_changed_file |
+| No project code is executed | The ladder writes only the changed file and runs the platform's own trusted engines on it; project build scripts, package lifecycle hooks, test files and analyzer configs are never copied or run; tests and builds are reported "not run" | test_p05_fixes.py (hostile `package.json` scripts, `eslint.config.mjs`, Makefile, gradlew, build.gradle, JS and Java tests leave no mark) |
+| Scope and path safety | Relative paths inside the upload only (absolute paths and `..` refused); edits limited to the finding's file; workspace writes use `O_EXCL`/`O_NOFOLLOW` | test_policy_refuses_changes_that_hide_problems, test_edits_apply_exactly_or_conflict |
+| Fixes cannot hide problems | Added suppression markers, inline ESLint rule settings, fewer test annotations/assertions, analyzer/build configuration changes and changes over 60 lines are refused for recipes and for reviewer edits | test_policy_refuses_changes_that_hide_problems, test_prepare_edit_reject_and_export |
+| Results bound to exact content | Stale base, conflicting edits, and result/patch hash mismatches fail integrity; each validation records the patch and result hashes it checked, and counts only while they match the proposal; downloaded patches name the upload and hashes and apply only to that upload | test_ladder_detects_stale_base_and_tampered_patches, test_prepare_edit_reject_and_export (`git apply --check` passes on the exact copy, fails on a changed one) |
+| Bounded execution | 5 validations per proposal, one at a time; engine wall-time and output caps; 30-minute activity limit; cancellable while running | test_validation_requests_budget_and_service_outage, test_ladder_cancellation, test_running_validation_stops_and_can_run_again |
+| Authorization | Reads need project viewer access, changes need member access; proposals of other workspaces are 404 | test_fixes_of_other_workspaces_are_invisible |
+
+Residual risk: the ladder is source-level. A fix that passes it may still fail to compile against the rest of the project or change behaviour where the "What to watch" note warns; reviewers build and test the patch in their own environment.

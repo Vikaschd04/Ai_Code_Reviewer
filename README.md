@@ -1,10 +1,19 @@
 # refactorX
 
-Evidence-based code review for Java, JavaScript/TypeScript, SAP Commerce and Salesforce: upload your code, get security flaws, bugs and vulnerable dependencies with the exact location and how to fix them — and, in later phases, validated fixes.
+Evidence-based code review for Java, JavaScript/TypeScript, SAP Commerce and Salesforce: upload your code, get security flaws, bugs and vulnerable dependencies with the exact location and how to fix them, and download checked fixes for selected findings.
 
 (Internal package and setting names still use `crp` from the project's working name, "Code Review Platform"; see ADR 0011.)
 
-**Current state: Phases 0–2 are implemented and their mandatory gates passed on macOS — see the [P00](docs/validation/P00_REPORT.md), [P01](docs/validation/P01_REPORT.md) and [P02](docs/validation/P02_REPORT.md) reports.** You can upload a ZIP or capture a local folder, review the frozen scope, run real PMD, ESLint, Opengrep and Trivy scans, triage durable issues, compare scans, export JSON/SARIF, and explore an evidence-backed architecture graph. Analysis is source-only (no build/runtime verification) and no AI is involved yet.
+**Current state: Phases 0–2 and 4 passed their mandatory gates on macOS. Phase 3 (AI review) waits only for a live provider key. Phase 5 (fixes) delivers deterministic fixes with source-level checks. See [phase status](docs/PHASE_STATUS.md).** You can:
+
+- upload a ZIP or capture a local folder, and review the frozen scope;
+- run real PMD, ESLint, Opengrep and Trivy scans (plus SAP Commerce and Salesforce checks);
+- triage durable issues, compare scans and export JSON/SARIF;
+- explore an evidence-backed architecture graph;
+- ask an AI about the code when an operator sets up a provider and a project admin switches it on;
+- prepare, check and download fixes for selected findings.
+
+Analysis and fix checks are source-level: nothing is compiled, built, tested or deployed.
 
 ## What works today
 
@@ -19,6 +28,14 @@ Evidence-based code review for Java, JavaScript/TypeScript, SAP Commerce and Sal
 - **Comparison and exports:** new / still present / verified absent / not rechecked / unknown / rule obsolete between any two scans; schema-validated JSON and SARIF 2.1.0 downloads.
 - **Architecture:** snapshot graph of modules, files, types and relations with source evidence and resolved/declared/inferred/unresolved classification; bounded neighborhood and impact views with table equivalents.
 - **Caching:** per-file results reused only for identical content, engine, rules and configuration; full rescans on demand.
+- **AI review (optional):** Anthropic or any OpenAI-compatible provider, configured by the operator. It is off for every project until a workspace admin switches it on. Questions, file reviews and second opinions cite lines that are checked against the upload. Runs are bounded by per-run and monthly limits ([ADR 0012](docs/adr/0012_BOUNDED_AI_REVIEW.md)).
+- **SAP Commerce and Salesforce (experimental):** version detection, platform-support coverage, configuration-driven architecture links, SAP/Java Opengrep rules, PMD Apex rules, and extension-cycle and retired-API-version checks ([ADR 0013](docs/adr/0013_FRAMEWORK_PACKS.md)).
+- **Fixes:** automatic, reviewable fixes for selected findings: ESLint safe fixes, Java string comparison and retired Salesforce API versions ([ADR 0014](docs/adr/0014_VALIDATED_FIXES.md)).
+  - Each fix is bound to its upload and shown as a diff with what to watch.
+  - Reviewers can edit it. Changes that silence checks or weaken tests are refused.
+  - It is checked on a copy: it applies, parses, the finding is gone and nothing new appears.
+  - It downloads as a Git patch plus a JSON summary.
+  - Project tests and builds are shown as "not run"; they are never executed.
 - **Modern UI:** dark-first "deep space" design with a light theme, overview, upload with progress, live review progress, charts and source viewer.
 - Loopback-only, token-authenticated local deployment: FastAPI API, Temporal worker, React UI, PostgreSQL 18, Temporal dev server.
 - Readiness that checks the real dependencies (database + schema revision, Temporal namespace, worker pollers, artifact-store write/read probe), shown in the UI and by `make doctor`.
@@ -71,7 +88,7 @@ Create project → upload ZIP or capture a selected folder → inspect scope →
 
 ## Limitations
 
-Local development plus a single-user hosted mode (Render free or GitHub Codespaces; paid Render later); not a multi-tenant or SSO deployment. Engines run without a per-scan OS sandbox. The Linux container image is built and smoke-tested in CI; Windows is untested. Temporal runs as the single-node dev server. Graph relations are syntax-level (no classpath or type checker). Next: Phase 3 (bounded AI review; requires an approved provider and data-egress policy). See [known issues](docs/memory/KNOWN_ISSUES.md).
+Local development plus a single-user hosted mode (Render free or GitHub Codespaces; paid Render later); not a multi-tenant or SSO deployment. Engines run without a per-scan OS sandbox. The Linux container image is built and smoke-tested in CI; Windows is untested. Temporal runs as the single-node dev server. Graph relations are syntax-level (no classpath or type checker). Fix checks are source-level (no isolated test/build runner yet), and AI review has not yet been measured against a live model. Next: the owner configures an AI provider for the P03 live evaluation; then AI patches and an isolated test/build runner for P05, or Phase 6 (Git). See [known issues](docs/memory/KNOWN_ISSUES.md).
 
 ## Project quality
 

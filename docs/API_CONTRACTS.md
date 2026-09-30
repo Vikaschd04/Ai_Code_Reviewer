@@ -94,6 +94,25 @@ Run states: QUEUED, RUNNING, SUCCEEDED, PARTIAL, BUDGET_EXHAUSTED, FAILED (`erro
 | GET /v1/scans/{id}/compare | viewer | engines not applicable on both sides say so in `note` |
 | GET /v1/capabilities | credentials | adds `sap_commerce_pack` and `salesforce_pack` (available, experimental) |
 
+## Implemented in P05 (validated fixes, ADR 0014)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/findings/{id}/fix-options | viewer | Approved recipes for the finding's rule: `recipe_id`, `title`, `available`, plain `reason` when this occurrence cannot be fixed automatically (e.g. no captured ESLint fix, code no longer matches) |
+| POST /v1/findings/{id}/fix-proposals | member | `{recipe_id}` → 201 proposal bound to the finding's upload, file base hash, result hash and patch hash; idempotent per identical patch (returns the existing open proposal). 422 `unknown_recipe`; 409 `no_fix` / `content_not_stored`; 404 `file_not_found` |
+| GET /v1/projects/{id}/fix-proposals | viewer | Newest first; `finding_id` narrows to one finding |
+| GET /v1/fix-proposals/{id} | viewer | Proposal: `kind` (`recipe`), `recipe_id`, title, explanation, `behaviour_note`, `state`, path, `edits` (start/end line, original and replacement lines), `patch` (unified diff), hashes, `changed_lines`, `edited`, budget (`validations_used`/`max_validations`), `labels` (plain applicability/validation statements), `finding` summary, `latest_validation` (state, steps, summary, `current` = bound to the present patch) |
+| PUT /v1/fix-proposals/{id}/edits | member | `{version, edits: [{start_line, replacement[]}]}`; 409 `version_conflict` / `fix_rejected` / `patch_conflict`; 422 `fix_not_allowed` (`details.violations`: `unsafe_path`, `out_of_scope`, `config_change`, `suppression_added`, `test_weakened`, `too_large`), `unknown_edit`, `no_change`. Success resets the proposal to PROPOSED and marks it `edited` |
+| POST /v1/fix-proposals/{id}/reject | member | `{reason}` (≤500); terminal |
+| POST /v1/fix-proposals/{id}/validations | member | 202 QUEUED validation of the current patch (copies only; no project code executed). 409 `validation_running` / `validation_budget_exhausted` (5 per proposal) / `fix_rejected`; 503 `workflow_unavailable` (validation stored FAILED, budget slot refunded) |
+| POST /v1/fix-validations/{id}/cancel | member | Idempotent; records the request and cancels the workflow |
+| GET /v1/fix-proposals/{id}/patch | viewer | `text/x-diff` attachment: `#` header (fix, finding, upload and manifest hash, file base/result hashes, patch hash, validation state, "not compiled, built or tested") followed by a Git-compatible diff that `git apply -p1` accepts on a copy of exactly that upload |
+| GET /v1/fix-proposals/{id}/summary | viewer | JSON `crp-fix-export/v1` (schema `crp_analysis/schemas/crp-fix-export-v1.schema.json`): applicability, hashes, edits, validation steps including what was not run, known risks |
+| POST /v1/fix-proposals/{id}/rebase | member | `{snapshot_id}` of another ready upload in the project → 201 new proposal (`rebased_from`) when every edit's original lines are found exactly once; 409 `patch_conflict` otherwise; 422 `same_snapshot`; 409 `snapshot_not_ready` |
+| GET /v1/capabilities | credentials | `fix_workbench` is `available` |
+
+Proposal states: PROPOSED, VALIDATING, VALIDATED (every step that could run passed for the current patch), VALIDATION_FAILED, REJECTED. Validation states: QUEUED, RUNNING, PASSED, FAILED, CANCELED; steps `integrity`, `syntax`, `checks`, `tests`, `build` with `passed` / `failed` / `not_run` and a plain `detail`.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 
@@ -117,9 +136,9 @@ Run states: QUEUED, RUNNING, SUCCEEDED, PARTIAL, BUDGET_EXHAUSTED, FAILED (`erro
 | PATCH /findings/{finding_id} | Allowed triage changes with version check |
 | GET /snapshots/{snapshot_id}/graph | Bounded node/edge neighborhood with provenance |
 | POST /scans/{scan_id}/questions | Phase 3 evidence-backed Q&A; implemented as `POST /v1/projects/{id}/ai-runs` (above) |
-| POST /findings/{finding_id}/fix-proposals | Phase 5 constrained proposal |
-| POST /fix-proposals/{proposal_id}/validate | Approved profile, budget, copied source |
-| GET /fix-proposals/{proposal_id}/patch | Authorized patch download |
+| POST /findings/{finding_id}/fix-proposals | Phase 5 constrained proposal; implemented (above) |
+| POST /fix-proposals/{proposal_id}/validate | Approved profile, budget, copied source; implemented as `POST /v1/fix-proposals/{id}/validations` (source-level; tests/build not run) |
+| GET /fix-proposals/{proposal_id}/patch | Authorized patch download; implemented (above) |
 | POST /fix-proposals/{proposal_id}/pull-requests | Phase 6 freshness/auth checks |
 
 The local CLI uses the same authenticated intake protocol and validates the canonical manifest; it does not require a browser-to-localhost server bridge. Design multipart/many-file transfer before adding folder uploads; do not pretend one ZIP endpoint natively supports every mode.

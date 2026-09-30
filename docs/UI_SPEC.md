@@ -49,6 +49,20 @@ Project tab **AI review**: when the server has no provider, one plain card ("AI 
 
 Reviews and the Architecture tab of SAP Commerce or Salesforce uploads show a **Platform support** card per platform: name, version badge (**Version 2211.28**, **Version … · not validated**, or **Version not declared**), **Experimental**, a one-line summary of mapped components and connections, each capability with a covered / partly covered / not covered icon and its reason (build and org validation always say they were not run), notes such as refused or malformed files, and collapsed technical details (supported versions, where the version was read, adapter, rule IDs, relation counts). The checks **Salesforce Apex** and **Platform configuration** appear in progress, "What was checked", the findings filter and the Changes table only when they had files to check. The Architecture map labels SAP extensions and Salesforce packages as modules, offers "Framework component" in the kind filter, names component types (Spring bean, Item type, Apex class, …) and relations in plain words, and counts configuration links separately from code links. Reviewed in light, dark and mobile screenshots (`p04-*.png`).
 
+## Implemented in P05 (fixes)
+
+Finding page: a **Fix** card appears only when an automatic fix exists for that rule. It explains in one sentence that the fix changes a copy and never the upload, offers **Prepare fix: …** (or says in plain words why this occurrence has no automatic fix) and lists earlier fixes with their status (Proposed, Checking, Checks passed, Checks failed, Rejected).
+
+Fix page (`#/fixes/:id`), reached from the card or the project's **Fixes** tab:
+- **Header:** title, the finding it fixes, severity, status, and **Patch** / **Summary** downloads.
+- **Change card:** file name first, lines changed, a one-sentence explanation, and a line-numbered diff. The diff is inert text; added and removed lines have +/− signs and hidden "Added:"/"Removed:" labels, so colour is never the only cue. A **What to watch** note says what could behave differently.
+- **Edit the fix:** a collapsed editor for the replacement lines. It says that silencing a check or weakening tests is refused and that saving resets the checks; a refused edit shows the reason.
+- **Checks card:** the five steps with icon and text. "Patch applies to this upload", "Changed file still parses" and "Checks no longer report the problem" can pass or fail. "Project tests" and "Build or deployment" always show **Not run** with a plain reason. It also shows a summary, **Run checks** / **Check again** with "N of 5 checks left", **Stop** while checking, and a notice when results belong to an earlier version of the fix.
+- **What this fix is:** the labels "Applies to this upload only…", "Not validated yet" or "Source checks passed for this exact patch", and "Not compiled, built or tested…", plus how to apply the patch (`git apply -p1` in a copy of exactly this upload) and **Reject** with a reason.
+- **Technical details** (collapsed): fix type, upload, file-before/after and patch hashes, rule, date.
+
+The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in light, dark and mobile (390 px, no horizontal scroll) by `apps/web/e2e/p05-fixes.spec.ts` screenshots `p05-*.png`.
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

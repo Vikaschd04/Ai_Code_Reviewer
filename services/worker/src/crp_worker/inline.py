@@ -31,9 +31,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from crp_analysis.engines.base import EngineAdapter
 from crp_core.artifacts import ArtifactStore
 from crp_core.config import Settings
-from crp_core.db.models import AiRun, Intake, Scan
+from crp_core.db.models import AiRun, FixValidation, Intake, Scan
 from crp_core.db.session import create_session_factory, transaction
-from crp_core.domain.states import AiRunState, IntakeState, ScanState
+from crp_core.domain.states import AiRunState, FixValidationState, IntakeState, ScanState
 from crp_core.workflows.contracts import (
     DIAGNOSTIC_WORKFLOW_ID_PATTERN,
     AiRunFinalize,
@@ -42,10 +42,13 @@ from crp_core.workflows.contracts import (
     DiagnosticWorkflowResult,
     EngineTask,
     FinalizeInput,
+    FixValidationFinalize,
+    FixValidationInput,
     IntakeWorkflowInput,
     ScanWorkflowInput,
     ai_run_workflow_id,
     diagnostic_workflow_id,
+    fix_validation_workflow_id,
     intake_workflow_id,
     scan_workflow_id,
 )
@@ -58,8 +61,9 @@ from crp_core.workflows.gateway import (
 )
 from crp_worker.ai_run import AiRunActivities, fail_interrupted_runs
 from crp_worker.diagnostics import DiagnosticActivities
+from crp_worker.fix_validation import FixActivities
 from crp_worker.intake import IntakeActivities
-from crp_worker.scan import ScanActivities
+from crp_worker.scan import ScanActivities, default_adapters
 
 logger = logging.getLogger(__name__)
 INLINE_QUEUE = "in-process"
@@ -104,6 +108,9 @@ class InlineWorkflowGateway:
         self._identity = f"crp-inline@{socket.gethostname()}:{os.getpid()}"
         self._intake = IntakeActivities(settings, store, sessions)
         self._scan = ScanActivities(settings, store, sessions, adapters)
+        self._fix = FixActivities(
+            settings, store, sessions, {**default_adapters(settings), **(adapters or {})}
+        )
         self._diagnostics = DiagnosticActivities(store, engine, self._identity)
         self._ai = AiRunActivities(settings, store, sessions, transport=ai_transport)
         self._ai_slots = asyncio.Semaphore(1)
@@ -144,6 +151,23 @@ class InlineWorkflowGateway:
             )
         for run_id in queued_ai:
             await self.start_ai_run(run_id)
+        # Fix validations are idempotent (copies only, no paid calls): resume them.
+        async with transaction(self._sessions) as session:
+            validations = list(
+                (
+                    await session.execute(
+                        select(FixValidation.id)
+                        .where(
+                            FixValidation.state.in_(
+                                [FixValidationState.QUEUED.value, FixValidationState.RUNNING.value]
+                            )
+                        )
+                        .order_by(FixValidation.created_at)
+                    )
+                ).scalars()
+            )
+        for validation_id in validations:
+            await self.start_fix_validation(validation_id)
         if interrupted:
             logger.info("failed interrupted AI runs", extra={"runs": interrupted})
         for intake_id in pending_intakes:
@@ -258,6 +282,44 @@ class InlineWorkflowGateway:
                 )
             else:
                 await _retry(lambda: self._scan.prepare(payload), attempts=5)
+
+    # -- fix validation ---------------------------------------------------------------------
+
+    async def start_fix_validation(self, validation_id: UUID) -> str:
+        workflow_id = fix_validation_workflow_id(validation_id)
+        self._spawn(workflow_id, lambda: self._run_fix(validation_id))
+        return workflow_id
+
+    async def cancel_fix_validation(self, validation_id: UUID) -> None:
+        task = self._tasks.get(fix_validation_workflow_id(validation_id))
+        if task is not None and not task.done():
+            task.cancel()
+        else:
+            await self.start_fix_validation(validation_id)  # validate() sees the request
+
+    async def _run_fix(self, validation_id: UUID) -> None:
+        payload = FixValidationInput(validation_id=validation_id)
+        try:
+            async with self._scan_slots:  # engines one at a time, like scans
+                await _retry(lambda: self._fix.validate(payload), attempts=2)
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None:
+                current.uncancel()
+            await _retry(
+                lambda: self._fix.finalize(
+                    FixValidationFinalize(validation_id=validation_id, canceled=True)
+                ),
+                attempts=5,
+            )
+        except Exception:
+            logger.exception("fix validation failed", extra={"validation_id": str(validation_id)})
+            await _retry(
+                lambda: self._fix.finalize(
+                    FixValidationFinalize(validation_id=validation_id, interrupted=True)
+                ),
+                attempts=5,
+            )
 
     # -- AI runs ----------------------------------------------------------------------------
 

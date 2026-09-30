@@ -155,3 +155,27 @@ class AiRunFinalize(_Contract):
 class AiRunResult(_Contract):
     run_id: UUID
     state: str
+
+
+# -- fix validation (P05) ---------------------------------------------------------------------
+
+FIX_VALIDATION_WORKFLOW_NAME = "FixValidationWorkflow"
+
+
+def fix_validation_workflow_id(validation_id: UUID) -> str:
+    return f"crp-fix-{validation_id.hex}"
+
+
+class FixValidationInput(_Contract):
+    validation_id: UUID
+
+
+class FixValidationFinalize(_Contract):
+    validation_id: UUID
+    canceled: bool = False
+    interrupted: bool = False
+
+
+class FixValidationResult(_Contract):
+    validation_id: UUID
+    state: str

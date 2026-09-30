@@ -22,6 +22,7 @@ from crp_api.routes import (
     ai,
     auth,
     diagnostics,
+    fixes,
     graph,
     health,
     intakes,
@@ -109,6 +110,7 @@ def create_app(
         reports.router,
         graph.router,
         ai.router,
+        fixes.router,
         diagnostics.router,
     ):
         app.include_router(router, prefix=API_PREFIX)

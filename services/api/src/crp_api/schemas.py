@@ -866,3 +866,116 @@ class AiRunResponse(ApiModel):
 
 class AiRunPage(ApiModel):
     items: list[AiRunResponse]
+
+
+# -- validated fixes (P05) --------------------------------------------------------------------
+
+
+class FixOption(ApiModel):
+    recipe_id: str
+    title: str
+    available: bool
+    reason: str | None = Field(description="Why no fix can be prepared for this occurrence")
+
+
+class FixOptions(ApiModel):
+    finding_id: UUID
+    options: list[FixOption]
+
+
+class FixCreate(ApiModel):
+    recipe_id: Annotated[str, Field(min_length=1, max_length=64)]
+
+
+class FixEditUpdate(ApiModel):
+    start_line: Annotated[int, Field(ge=1)]
+    replacement: Annotated[list[Annotated[str, Field(max_length=2000)]], Field(max_length=200)]
+
+
+class FixEditsUpdate(ApiModel):
+    version: int
+    edits: Annotated[list[FixEditUpdate], Field(min_length=1, max_length=20)]
+
+
+class FixReject(ApiModel):
+    reason: Annotated[str, Field(min_length=1, max_length=500)]
+
+
+class FixRebase(ApiModel):
+    snapshot_id: UUID
+
+
+class FixEditResponse(ApiModel):
+    path: str
+    start_line: int
+    end_line: int
+    original: list[str]
+    replacement: list[str]
+
+
+class FixStepResponse(ApiModel):
+    id: str
+    label: str
+    state: Literal["passed", "failed", "not_run"]
+    detail: str
+
+
+class FixValidationResponse(ApiModel):
+    id: UUID
+    proposal_id: UUID
+    state: str
+    patch_sha256: str
+    result_sha256: str
+    current: bool = Field(description="Whether it validated the proposal's current patch")
+    steps: list[FixStepResponse]
+    summary: str | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    cancel_requested_at: datetime | None
+
+
+class FixFindingSummary(ApiModel):
+    id: UUID
+    title: str
+    engine: str
+    rule_id: str
+    severity: str
+    start_line: int | None
+
+
+class FixProposalResponse(ApiModel):
+    id: UUID
+    project_id: UUID
+    snapshot_id: UUID
+    scan_id: UUID
+    finding_id: UUID
+    kind: str
+    recipe_id: str
+    title: str
+    explanation: str
+    behaviour_note: str | None
+    state: str
+    path: str
+    base_sha256: str
+    result_sha256: str
+    patch_sha256: str
+    patch: str
+    edits: list[FixEditResponse]
+    changed_lines: int
+    edited: bool
+    validations_used: int
+    max_validations: int
+    rejected_reason: str | None
+    created_at: datetime
+    updated_at: datetime
+    version: int
+    finding: FixFindingSummary | None
+    latest_validation: FixValidationResponse | None
+    labels: list[str] = Field(description="Plain statements of what was and was not verified")
+
+
+class FixProposalPage(ApiModel):
+    items: list[FixProposalResponse]

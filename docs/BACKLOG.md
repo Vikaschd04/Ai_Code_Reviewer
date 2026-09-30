@@ -19,8 +19,8 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P03-02 | OCR evaluation and AI review/Q&A | Anchors and held-out evaluation |
 | P04-01 | SAP Commerce pack | Mapping + domain fixtures |
 | P04-02 | Salesforce pack | Metadata + permission/limit fixtures |
-| P05-01 | Patch author/workbench | Separate copy and constrained diff |
-| P05-02 | Validation/export | Original-defect and regression evidence |
+| P05-01 | Patch author/workbench | Separate copy and constrained diff — **DONE for deterministic recipes** (P05_REPORT, ADR 0014); AI patches wait for the P03 provider |
+| P05-02 | Validation/export | Original-defect and regression evidence — **DONE source-level** (integrity/syntax/detector/regression, patch + `crp-fix-export/v1`); tests/build rungs need P05-F1 |
 | P06-01 | GitHub connector/webhooks | Scoped auth/idempotency |
 | P06-02 | Incremental scopes/PRs | Merge-base/cache/freshness tests |
 | P07-01 | Identity/tenant/execution hardening | Isolation/security assessment |
@@ -54,3 +54,12 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P02-F3 | Deeper resolution: Maven/Gradle classpath from a sandboxed build, `tsconfig` `extends`/project references, `package.json` `exports`, CommonJS exports, call edges | Resolution precision measured on fixtures; no guessed edges |
 | P02-F4 | Engine pins for Linux x86_64/arm64 | Checksums + signatures verified on Linux |
 | P02-F5 | Link pre-0003 findings to issues by fingerprint (backfill) or label them in the UI | Old scans show issue status or an explicit note |
+
+## Follow-ups discovered in P05
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P05-F1 | Isolated runner for the tests/build rungs (container or VM, no network/secrets, CPU/memory/time caps, allow-listed test commands per ecosystem) | Malicious build/test fixtures stay contained; original-defect test fails before and passes after the fix |
+| P05-F2 | Bounded AI patches for contextual findings (after K-P03-01) | Same policy and ladder; labelled AI; budget and spend recorded |
+| P05-F3 | More recipes (rule by rule) and multi-file fixes | Positive/negative fixtures per recipe; scope list per fix |
+| P05-F4 | Whole-project re-check of a validated fix (callers, overloads) | Regression evidence beyond the changed file |

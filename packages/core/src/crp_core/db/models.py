@@ -48,6 +48,9 @@ from crp_core.domain.states import (
     FileDisposition,
     FindingCategory,
     FindingStatus,
+    FixKind,
+    FixProposalState,
+    FixValidationState,
     GraphBuildState,
     GraphNodeKind,
     IntakeState,
@@ -979,6 +982,97 @@ class AiFinding(Base):
     uncertainty: Mapped[str | None] = mapped_column(Text)
     related_finding_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     verification: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class FixProposal(TimestampMixin, Base):
+    """A proposed repair for one finding, bound to its snapshot, file base hash and patch hash.
+
+    The patch is applied only to copies; the upload is never modified. ``allowed_paths`` is the
+    scope the patch may touch (v1: the finding's file). Editing the patch resets validation.
+    """
+
+    __tablename__ = "fix_proposals"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id", "snapshot_id"],
+            ["snapshots.workspace_id", "snapshots.project_id", "snapshots.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["finding_id"], ["findings.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        CheckConstraint(enum_check("kind", FixKind), name="kind_valid"),
+        CheckConstraint(enum_check("state", FixProposalState), name="state_valid"),
+        CheckConstraint("base_sha256 ~ '^[0-9a-f]{64}$'", name="base_sha256_format"),
+        CheckConstraint("result_sha256 ~ '^[0-9a-f]{64}$'", name="result_sha256_format"),
+        CheckConstraint("patch_sha256 ~ '^[0-9a-f]{64}$'", name="patch_sha256_format"),
+        CheckConstraint(
+            "validations_used >= 0 AND validations_used <= max_validations",
+            name="validation_budget",
+        ),
+        Index("ix_fix_proposals_project_id_created_at", "project_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    scan_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    finding_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    recipe_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    behaviour_note: Mapped[str | None] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    target_line: Mapped[int | None] = mapped_column(Integer)  # the finding's line in this file
+    rebased_from: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    allowed_paths: Mapped[list[str]] = mapped_column(JsonDocument, nullable=False)
+    base_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    patch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    patch: Mapped[str] = mapped_column(Text, nullable=False)
+    edits: Mapped[list[dict[str, object]]] = mapped_column(JsonDocument, nullable=False)
+    changed_lines: Mapped[int] = mapped_column(Integer, nullable=False)
+    edited: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    validations_used: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    max_validations: Mapped[int] = mapped_column(Integer, nullable=False, server_default="5")
+    rejected_reason: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+
+class FixValidation(Base):
+    """One validation-ladder run for an exact patch; results bind to the patch and result hashes."""
+
+    __tablename__ = "fix_validations"
+    __table_args__ = (
+        ForeignKeyConstraint(["proposal_id"], ["fix_proposals.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["requested_by"], ["users.id"], ondelete="SET NULL"),
+        CheckConstraint(enum_check("state", FixValidationState), name="state_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    patch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    steps: Mapped[list[dict[str, object]] | None] = mapped_column(JsonDocument)
+    summary: Mapped[str | None] = mapped_column(Text)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    workflow_id: Mapped[str | None] = mapped_column(String(128))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

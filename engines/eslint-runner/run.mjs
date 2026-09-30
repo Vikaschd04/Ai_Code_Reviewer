@@ -27,9 +27,13 @@ async function main() {
   });
   const absolute = files.map((file) => path.join(root, file));
   const results = await eslint.lintFiles(absolute);
-  const report = {
-    eslintVersion: ESLint.version,
-    results: results.map((result) => ({
+  const report = { eslintVersion: ESLint.version, results: [] };
+  for (const result of results) {
+    // ESLint's own fix for a message (only rules with a safe fixer supply one). Offsets are
+    // UTF-16 code units; the replaced original text is included so the consumer can verify them.
+    const fixable = result.messages.some((m) => m.fix);
+    const text = fixable ? await readFile(result.filePath, "utf8") : "";
+    report.results.push({
       path: path.relative(root, result.filePath).split(path.sep).join("/"),
       fatalErrorCount: result.fatalErrorCount,
       messages: result.messages.map((m) => ({
@@ -41,9 +45,17 @@ async function main() {
         column: m.column,
         endLine: m.endLine ?? null,
         endColumn: m.endColumn ?? null,
+        fix: m.fix
+          ? {
+              start: m.fix.range[0],
+              end: m.fix.range[1],
+              text: m.fix.text,
+              original: text.slice(m.fix.range[0], m.fix.range[1]),
+            }
+          : null,
       })),
-    })),
-  };
+    });
+  }
   await writeFile(outFile, JSON.stringify(report));
 }
 

@@ -2416,6 +2416,79 @@ button.tile[aria-pressed="true"] {
   font-size: var(--text-sm);
 }
 
+/* ---- fixes ------------------------------------------------------------------------------------ */
+
+/* Diffs show source as inert text; colour is paired with +/− signs and hidden labels. */
+.diff {
+  max-width: 100%;
+  max-height: 520px;
+  overflow: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 44px 44px 20px max-content;
+  min-width: 100%;
+  width: max-content;
+  white-space: pre;
+}
+
+.diff-no {
+  padding-right: var(--space-2);
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.diff-sign {
+  text-align: center;
+  user-select: none;
+}
+
+.diff-text {
+  padding-right: var(--space-4);
+}
+
+.diff-add {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.diff-add .diff-sign {
+  color: var(--ok);
+}
+
+.diff-del {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+.diff-del .diff-sign {
+  color: var(--bad);
+}
+
+.diff-hunk,
+.diff-note {
+  color: var(--text-muted);
+  background: var(--surface-3);
+}
+
+.diff-hunk .diff-text,
+.diff-note .diff-text {
+  grid-column: 1 / -1;
+  padding: 0 var(--space-3);
+}
+
+.fix-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
 /* ---- framework packs ------------------------------------------------------------------------ */
 
 /* One pack fills the width; several share it. Capabilities flow into columns when wide. */

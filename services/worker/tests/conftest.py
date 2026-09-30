@@ -26,6 +26,7 @@ from crp_core.local_secrets import read_secret_file
 from crp_core.workflows.temporal import connect_temporal
 from crp_devtools.engines import pmd_home
 from crp_devtools.infra import TemporalDevServer, free_port
+from crp_worker.inline import InlineWorkflowGateway
 from crp_worker.runtime import build_worker
 
 REPO = Path(__file__).resolve().parents[3]
@@ -214,3 +215,31 @@ async def running_stack(
 @pytest.fixture
 def stack_factory() -> Callable[..., contextlib.AbstractAsyncContextManager[Stack]]:
     return running_stack
+
+
+@contextlib.asynccontextmanager
+async def lite_stack(
+    settings: Settings, transport: httpx.AsyncBaseTransport | None = None
+) -> AsyncIterator[Stack]:
+    """The lite profile's wiring (crp_devtools.lite_server): API with the in-process runner."""
+    engine = create_engine_from_settings(settings)
+    async with transaction(create_session_factory(engine)) as session:
+        identity = await ensure_local_identity(session)
+    await engine.dispose()
+    store = FilesystemArtifactStore(
+        settings.artifact_root, max_object_bytes=settings.artifact_max_object_bytes
+    )
+    gateway = InlineWorkflowGateway(
+        settings, store, create_engine_from_settings(settings), ai_transport=transport
+    )
+    server = LiveServer(settings, workflow_gateway=gateway, artifact_store=store)
+    await asyncio.to_thread(server.start)
+    assert settings.local_token_file is not None
+    token = read_secret_file(settings.local_token_file)
+    try:
+        async with httpx.AsyncClient(
+            base_url=server.url, headers={"Authorization": f"Bearer {token}"}, timeout=30
+        ) as http:
+            yield Stack(settings, server, http, token, str(identity.workspace_id))
+    finally:
+        await asyncio.to_thread(server.stop)

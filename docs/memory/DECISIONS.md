@@ -11,5 +11,10 @@
 | ADR 0007 Opengrep and Trivy adoption | Accepted, implemented (P02) | 2026-09-27 | Owned Opengrep rules; Trivy 0.69.3 (verified-safe after the March 2026 compromise), SHA-256 + Sigstore, fully offline, repo config inert |
 | ADR 0008 snapshot graph, issue lifecycle and cache | Accepted, implemented (P02) | 2026-09-27 | Superseding graph builds (no stale links), strict recheck states, correlation keys, content/rule/config-keyed per-file cache |
 | ADR 0009 single-user hosted deployment | Accepted, implemented; amended to Render-only (UI served by the container) | 2026-09-27 | Hosted tier with Host allowlist, secure cookies, upload tickets; one Render Blueprint (web service + PostgreSQL), CI-gated deploys |
+| ADR 0010 lite profile for free hosting | Accepted, implemented | 2026-09-30 | One process without Temporal (in-process runner with resume), artifacts in PostgreSQL, Trivy DB baked in; fits Render free (512 MB, 0.1 CPU) |
+| ADR 0011 refactorX, demo and reviewer-first UI | Accepted, implemented | 2026-09-30 | User-facing rename; shared demo workspace with quotas; one-click sample; plain language with technical details collapsed |
+| ADR 0012 bounded AI review | Accepted, implemented offline (live gate blocked on key) | 2026-09-30 | Anthropic or OpenAI-compatible, per-project opt-in off by default, read-only snapshot tools, citations checked against the upload, spend caps |
+| ADR 0013 framework packs | Accepted, implemented (experimental) | 2026-09-30 | SAP Commerce and Salesforce packs as adapters with capability records; secure XML; rules on pinned PMD/Opengrep plus a small in-process engine |
+| ADR 0014 validated fixes | Accepted, deterministic slice implemented | 2026-10-01 | Recipes first; proposals bound to upload/base/patch/result hashes; policy refuses suppressions and weakened tests; source-level ladder on copies, tests/build "not run" until an isolated runner exists |
 
 Add implementation decisions only after recording alternatives, consequences and evidence in an ADR. Do not convert speculative preferences into verified implementation facts.
