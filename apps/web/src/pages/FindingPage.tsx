@@ -79,8 +79,7 @@ export function FindingPage({ findingId }: { findingId: string }) {
         eyebrow={
           <>
             <a href={`#/scans/${finding.scan_id}`}>
-              <Icon name="arrow" size={12} style={{ transform: "rotate(180deg)" }} /> Back to review
-              results
+              <Icon name="arrowLeft" size={14} /> Back to review results
             </a>
           </>
         }
@@ -97,7 +96,7 @@ export function FindingPage({ findingId }: { findingId: string }) {
       <div className="split">
         <div className="stack">
           <section className="card stack" aria-labelledby="source-title">
-            <div className="card-head" style={{ marginBottom: 0 }}>
+            <div className="card-head">
               <h2 id="source-title" className="card-title mono" data-testid="finding-location">
                 {findingLocation(finding)}
               </h2>
@@ -117,17 +116,19 @@ export function FindingPage({ findingId }: { findingId: string }) {
             )}
           </section>
           <section className="card stack" aria-labelledby="guidance-title">
-            <h2 id="guidance-title" className="card-title">
-              <Icon name="sparkles" size={16} /> Why it matters
-            </h2>
-            <p style={{ margin: 0 }}>{rule.explanation}</p>
-            <h3 className="card-title" style={{ fontSize: "0.92rem" }}>
-              How to fix
-            </h3>
-            <p style={{ margin: 0 }} data-testid="recommendation">
-              {rule.recommendation}
-            </p>
-            <p className="small muted" style={{ margin: 0 }}>
+            <div className="stack stack-sm">
+              <h2 id="guidance-title" className="card-title">
+                <Icon name="sparkles" size={16} /> Why it matters
+              </h2>
+              <p className="secondary">{rule.explanation}</p>
+            </div>
+            <div className="stack stack-sm">
+              <h3 className="subheading">How to fix</h3>
+              <p className="secondary" data-testid="recommendation">
+                {rule.recommendation}
+              </p>
+            </div>
+            <p className="small muted">
               <strong>Why this severity:</strong> {rule.severity_rationale}
             </p>
             {rule.url ? (
@@ -147,13 +148,16 @@ export function FindingPage({ findingId }: { findingId: string }) {
           {dependency ? <DependencyCard details={details} /> : null}
           {related.length > 0 ? (
             <section className="card stack" aria-labelledby="related-title">
-              <h2 id="related-title" className="card-title">
-                <Icon name="check" size={16} /> Also found by
-              </h2>
-              <p className="small secondary" style={{ margin: 0 }}>
-                Another check found the same problem in the same place, which makes it more certain.
-              </p>
-              <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              <div className="stack stack-xs">
+                <h2 id="related-title" className="card-title">
+                  <Icon name="check" size={16} /> Also found by
+                </h2>
+                <p className="card-sub">
+                  Another check found the same problem in the same place, which makes it more
+                  certain.
+                </p>
+              </div>
+              <ul className="stack stack-sm plain-list">
                 {related.map((other) => (
                   <li key={other.id} className="row">
                     <SeverityChip severity={other.severity} />

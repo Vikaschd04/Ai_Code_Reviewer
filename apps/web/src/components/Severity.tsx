@@ -82,7 +82,7 @@ export function SeverityStackBar({
   const [hover, setHover] = useState<SeverityName | null>(null);
   const total = SEVERITIES.reduce((sum, name) => sum + counts[name], 0);
   return (
-    <figure style={{ margin: 0 }} aria-label={label}>
+    <figure className="stack-figure" aria-label={label}>
       {total === 0 ? (
         <div className="stackbar-empty" />
       ) : (

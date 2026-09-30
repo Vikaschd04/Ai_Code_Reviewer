@@ -241,7 +241,7 @@ function ZipUpload({ projectId }: { projectId: string }) {
               </ul>
             ) : null}
             {result.error_code ? (
-              <p className="small muted" style={{ margin: 0 }}>
+              <p className="small muted">
                 Reason code: <code>{result.error_code}</code>
               </p>
             ) : null}
@@ -256,7 +256,7 @@ function LocalRunner({ projectId }: { projectId: string }) {
   const command = `uv run crp-runner capture /path/to/folder --project-id ${projectId} --token-file .local/secrets/local-api-token --scan`;
   return (
     <Disclosure summary="For developers: upload a folder from this machine">
-      <p className="small secondary" style={{ marginTop: 0 }}>
+      <p className="small secondary">
         The local runner reads only the folder you name, skips secrets, version-control data and
         build output before anything is sent, shows what it will upload and asks for confirmation.
         It never changes the folder or runs its scripts. Add <code>--dry-run</code> to preview.
@@ -438,7 +438,7 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
             </div>
             {latest ? (
               <div className="stack">
-                <p className="small secondary" style={{ margin: 0 }}>
+                <p className="small secondary">
                   {findingTotal(latest.summary) ?? 0} findings ·{" "}
                   {formatRelative(latest.finished_at ?? latest.created_at)}
                 </p>
@@ -468,7 +468,7 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
             )}
           </section>
           <section className="card" aria-labelledby="about-title">
-            <h2 id="about-title" className="card-title" style={{ marginBottom: 12 }}>
+            <h2 id="about-title" className="card-title">
               About this project
             </h2>
             <dl className="kv">

@@ -129,7 +129,7 @@ function Sidebar({
           ))}
         </ul>
         {operator || !principal ? (
-          <>
+          <div className="nav-group">
             <div className="nav-group-label">Administration</div>
             <ul className="nav">
               <li>
@@ -141,7 +141,7 @@ function Sidebar({
                 />
               </li>
             </ul>
-          </>
+          </div>
         ) : null}
       </nav>
       {planned.length > 0 ? (
@@ -301,7 +301,7 @@ export function App() {
   if (session.kind === "checking") {
     return (
       <div className="centered">
-        <div className="stack" style={{ justifyItems: "center" }}>
+        <div className="stack" aria-busy="true">
           <BrandMark />
           <p className="muted">Loading refactorX…</p>
         </div>
@@ -311,7 +311,7 @@ export function App() {
   if (session.kind === "unreachable") {
     return (
       <main className="centered">
-        <div className="card stack" style={{ maxWidth: 460 }}>
+        <div className="card unreachable-card">
           <h1>
             <Wordmark />
           </h1>

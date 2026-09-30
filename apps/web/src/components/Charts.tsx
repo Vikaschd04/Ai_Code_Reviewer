@@ -54,7 +54,7 @@ export function CoverageMeter({ run }: { run: EngineRun }) {
           ))}
         </div>
       )}
-      <p className="small muted" style={{ margin: "6px 0 0" }}>
+      <p className="meter-caption">
         {analyzed} of {eligible} files checked{failed ? ` · ${failed} could not be read` : ""}
         {skipped ? ` · ${skipped} not attempted` : ""}
       </p>

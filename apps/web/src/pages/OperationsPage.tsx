@@ -122,7 +122,7 @@ export function OperationsPage({ canOperate }: { canOperate: boolean }) {
   return (
     <>
       <section className="card stack" aria-labelledby="readiness-title">
-        <div className="card-head" style={{ marginBottom: 0 }}>
+        <div className="card-head">
           <div>
             <h2 id="readiness-title" className="card-title">
               {report
@@ -146,11 +146,7 @@ export function OperationsPage({ canOperate }: { canOperate: boolean }) {
           {readiness.error ? <Alert tone="bad">{readiness.error}</Alert> : null}
           {report ? (
             <>
-              <p
-                className="row small secondary"
-                data-testid="overall-readiness"
-                style={{ margin: 0 }}
-              >
+              <p className="row small secondary" data-testid="overall-readiness">
                 <StatusBadge state={report.status} /> Checked{" "}
                 {new Date(report.checked_at).toLocaleTimeString()}
               </p>

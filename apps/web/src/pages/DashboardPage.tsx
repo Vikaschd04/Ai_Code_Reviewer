@@ -1,7 +1,7 @@
 import type { Principal, ProjectOverview } from "../api/client";
 import { fetchProjectOverview, fetchReadiness, listProjects } from "../api/endpoints";
 import { StatTile } from "../components/Charts";
-import { Alert, Loading, PageHeader } from "../components/Common";
+import { Alert, Loading, PageHeader, SectionHeader } from "../components/Common";
 import { Icon } from "../components/Icon";
 import { SampleCard } from "../components/SampleCard";
 import { SeverityStackBar, severityCounts } from "../components/Severity";
@@ -25,7 +25,7 @@ function ProjectCard({ overview }: { overview: ProjectOverview }) {
   const total = findingTotal(scan?.summary);
   return (
     <article className="card stack project-card" aria-labelledby={`p-${project.id}`}>
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>
+      <div className="row row-between row-nowrap">
         <h3 id={`p-${project.id}`} className="card-title truncate">
           <a href={`#/projects/${project.id}`}>{project.name}</a>
         </h3>
@@ -46,7 +46,7 @@ function ProjectCard({ overview }: { overview: ProjectOverview }) {
           <SeverityStackBar counts={counts} label={`Findings in ${project.name}`} />
         </>
       ) : (
-        <p className="muted small" style={{ margin: 0 }}>
+        <p className="muted small">
           {snapshot ? "Code uploaded — ready for its first review." : "No code uploaded yet."}
         </p>
       )}
@@ -114,15 +114,15 @@ export function DashboardPage({ principal }: { principal: Principal }) {
         <div className="grid grid-2">
           {workspace ? <SampleCard workspaceId={workspace} /> : null}
           <section className="card stack" aria-labelledby="own-code-title">
-            <div className="row" style={{ alignItems: "flex-start", flexWrap: "nowrap" }}>
+            <div className="media">
               <span className="feature-icon" aria-hidden="true">
                 <Icon name="upload" size={22} />
               </span>
-              <div className="stack" style={{ gap: 6 }}>
+              <div className="stack stack-sm">
                 <h2 id="own-code-title" className="card-title">
                   Review your own code
                 </h2>
-                <p className="secondary small" style={{ margin: 0 }}>
+                <p className="secondary small">
                   Create a project, upload a ZIP of your source code and start a review. Java,
                   JavaScript and TypeScript are checked in depth; dependencies and secrets in any
                   project.
@@ -147,14 +147,15 @@ export function DashboardPage({ principal }: { principal: Principal }) {
             <StatTile label="Reviews run" value={reviews} note="Across all projects" />
           </section>
           <section aria-labelledby="projects-heading" className="stack">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <h2 id="projects-heading" className="card-title">
-                Recent projects
-              </h2>
-              <a className="btn btn-ghost btn-sm" href="#/projects">
-                All projects ({plural(data.length, "project")}) <Icon name="arrow" size={14} />
-              </a>
-            </div>
+            <SectionHeader
+              id="projects-heading"
+              title="Recent projects"
+              action={
+                <a className="btn btn-sm" href="#/projects">
+                  All projects ({plural(data.length, "project")}) <Icon name="arrow" size={14} />
+                </a>
+              }
+            />
             <div className="grid grid-auto">
               {data.map((overview) => (
                 <ProjectCard key={overview.project.id} overview={overview} />

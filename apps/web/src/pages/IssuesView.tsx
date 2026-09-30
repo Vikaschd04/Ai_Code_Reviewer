@@ -50,7 +50,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
   };
   return (
     <section className="card stack" aria-labelledby="issues-title" data-testid="issues">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <div>
           <h2 id="issues-title" className="card-title">
             <Icon name="shield" size={16} /> Issues
@@ -99,7 +99,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
               type="search"
               aria-label="Search issues by title or path"
               placeholder="Search title or path…"
-              style={{ maxWidth: 240 }}
+              className="search"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -143,7 +143,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
                   <td>
                     <SeverityChip severity={issue.severity} />
                   </td>
-                  <th scope="row" style={{ fontWeight: 600 }}>
+                  <th scope="row">
                     <button
                       type="button"
                       className="link-button"

@@ -20,6 +20,26 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
+/** Heading row for a group of cards outside a card (title left, optional action right). */
+export function SectionHeader({
+  id,
+  title,
+  action,
+}: {
+  id: string;
+  title: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="section-head">
+      <h2 id={id} className="section-title">
+        {title}
+      </h2>
+      {action}
+    </div>
+  );
+}
+
 export function Loading({ lines = 3 }: { lines?: number }) {
   return (
     <div className="stack" aria-busy="true" aria-label="Loading">
@@ -90,14 +110,14 @@ export function PageHeader({
 }) {
   return (
     <header className="page-head">
-      <div style={{ minWidth: 0 }}>
-        {eyebrow ? <div className="row small muted">{eyebrow}</div> : null}
+      <div className="page-head-text">
+        {eyebrow ? <div className="page-eyebrow">{eyebrow}</div> : null}
         <h1 className="page-title" tabIndex={-1}>
           {title}
         </h1>
         {sub ? <p className="page-sub">{sub}</p> : null}
       </div>
-      {actions ? <div className="row">{actions}</div> : null}
+      {actions ? <div className="page-actions">{actions}</div> : null}
     </header>
   );
 }

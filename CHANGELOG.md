@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Minimal design system (30 September 2026)
+
+- UI redesign on a strict token system: Inter/JetBrains Mono (self-hosted, OFL-1.1), one type scale, 4 px spacing grid, fixed control heights and radii, neutral palette with one accent in light and dark themes; glass, glows and gradient buttons removed.
+- Layout containers own spacing; 83 inline style overrides removed (only data-driven values remain); new `SectionHeader`, `StatusIcon` and compact review "Progress" card; underlined tabs; consistent tables, forms, badges, alerts and disclosures.
+- Responsive refinements: centred content width, two-column stat tiles and progress steps on phones, controls stay inline, numbers never wrap, file paths shown name-first with an accessible full path, proper language names.
+
 ## Unreleased — refactorX: demo account, sample project and reviewer-first UI (30 September 2026)
 
 - Product renamed **refactorX** in every user-facing place (UI, brand mark and favicon, page title, OpenAPI title, SARIF tool name, docs); internal `crp` identifiers unchanged (ADR 0011).

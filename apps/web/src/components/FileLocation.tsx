@@ -17,14 +17,21 @@ export function FileLocation({
     line === null || line === undefined
       ? ""
       : `:${String(line)}${endLine && endLine !== line ? `–${String(endLine)}` : ""}`;
+  const full = `${path}${lines}${note ? ` · ${note}` : ""}`;
   return (
-    <span className="file-loc" title={`${path}${lines}`}>
-      <span className="file-name mono">
+    <span className="file-loc" title={full}>
+      {/* Assistive technology reads the full path once; the two visual lines are hidden. */}
+      <span className="visually-hidden">{full}</span>
+      <span className="file-name mono" aria-hidden="true">
         {name}
         {lines}
         {note ? <span className="muted"> · {note}</span> : null}
       </span>
-      {folder ? <span className="file-dir mono">{folder}</span> : null}
+      {folder ? (
+        <span className="file-dir mono" aria-hidden="true">
+          {folder}
+        </span>
+      ) : null}
     </span>
   );
 }

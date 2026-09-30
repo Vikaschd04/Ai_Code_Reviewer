@@ -43,6 +43,21 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   unresolved: { tone: "bad", icon: "x", label: "Not found" },
 };
 
+/** Compact status: a tinted icon with the label for assistive technology (and as a tooltip). */
+export function StatusIcon({ state }: { state: string }) {
+  const known = STATES[state] ?? {
+    tone: "neutral" as Tone,
+    icon: "info" as IconName,
+    label: state,
+  };
+  return (
+    <span className={`status-icon status-${known.tone}`} data-status={state} title={known.label}>
+      <Icon name={known.icon} size={14} />
+      <span className="visually-hidden">{known.label}</span>
+    </span>
+  );
+}
+
 /** Plain-language label of a state (falls back to the raw value). */
 export function statusLabel(state: string): string {
   return STATES[state]?.label ?? state;

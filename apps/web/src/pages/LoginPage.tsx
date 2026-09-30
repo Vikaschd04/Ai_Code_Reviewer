@@ -102,7 +102,7 @@ export function LoginPage({
         {demo ? (
           <div className="stack">
             <h2 className="card-title">Try refactorX</h2>
-            <p className="small secondary" style={{ margin: 0 }}>
+            <p className="small secondary">
               No sign-up needed. The demo opens a shared workspace where you can run the sample
               project or upload your own ZIP.
             </p>

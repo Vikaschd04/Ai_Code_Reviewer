@@ -2,6 +2,17 @@
 
 Product name: **refactorX** (user-facing everywhere; internal identifiers such as `crp_*` packages and `CRP_*` settings are unchanged — ADR 0011).
 
+## Design system (modern, minimal, consistent — owner request 30 September 2026)
+
+All styling lives in `apps/web/src/styles.css` and uses only its tokens:
+
+- **Type:** Inter (self-hosted, variable) for UI, JetBrains Mono for code/paths. Scale 12 / 13 / 14 (body) / 16 / 20 / 24 / 36 px with fixed line heights; weights 400 / 500 / 600 (700 only for the brand and the sign-in headline).
+- **Spacing:** 4 px grid — 4, 8, 12, 16, 20, 24, 32, 40, 48. Page padding 32 px (24 px under 1100 px, 16 px under 768 px); sections 24 px apart; card padding 20 px (16 px on phones); 16 px between blocks inside a card; 8 px between a heading and its own text.
+- **Controls:** heights 32 / 36 / 44 px; radii 6 (small), 8 (controls, inner panels), 12 (cards) and full (badges, pills).
+- **Colour:** neutral surfaces with hairline borders and one accent (indigo); no glass, glows or gradient buttons — the brand gradient appears only in the logo and wordmark. Dark and light themes share every non-colour token and follow the OS preference with a toggle.
+- **Rules:** containers own spacing (flex/grid `gap`); elements carry no margins; no inline styles except data-driven values (bar widths, severity colours, graph coordinates); no one-off sizes. Reuse `PageHeader`, `SectionHeader`, `card` / `card-head` / `card-title` / `card-sub`, `Disclosure`, `StatusBadge` / `StatusIcon`, `FileLocation`, `.stack` / `.row` / `.media` / `.grid-*` instead of new CSS. Tabs are underlined; tables use 12 px sentence-case headers and name-first file locations with the full path for assistive technology.
+- **Responsive:** 1100 px (4-up grids become 2-up, side panels stack), 900 px (sign-in becomes one column), 768 px (sidebar becomes a top navigation row, single-column cards, tables scroll inside their frame, never the page).
+
 ## Reviewer-first presentation (product rule for all current and future screens)
 
 refactorX is built for a global audience of reviewers, team leads and developers, not for the people who operate it. Every screen, including future phases (AI investigation, fixes, Git, policies), follows these rules:

@@ -22,7 +22,7 @@ Read `docs/PHASE_STATUS.md`, `docs/memory/PROJECT_STATE.md`, `docs/memory/SESSIO
 
 ## Implementation
 
-Follow `docs/CODING_STANDARDS.md`. Commands: `make check`, `make test`, `make test-e2e` (see `docs/INSTALLATION.md`). Use typed contracts, cohesive services, validated inputs, migrations and structured/redacted errors. Validate relevant behavior and UI; do not repeat broad tests without a reason. New externally visible behavior needs working documentation and meaningful tests. User-facing screens follow the reviewer-first rules in `docs/UI_SPEC.md` (plain language, technical details collapsed, admin/developer pages hidden from reviewers) and are checked in light, dark and mobile screenshots.
+Follow `docs/CODING_STANDARDS.md`. Commands: `make check`, `make test`, `make test-e2e` (see `docs/INSTALLATION.md`). Use typed contracts, cohesive services, validated inputs, migrations and structured/redacted errors. Validate relevant behavior and UI; do not repeat broad tests without a reason. New externally visible behavior needs working documentation and meaningful tests. User-facing screens follow the reviewer-first rules in `docs/UI_SPEC.md` (plain language, technical details collapsed, admin/developer pages hidden from reviewers) and its design-system tokens (no one-off sizes or inline spacing), and are checked in light, dark and mobile screenshots.
 
 Use actual available skills/tools only when useful. See `docs/SKILLS_AND_PLUGINS.md`; no mandatory plugin or unrestricted-permission setting. Default to one development agent unless parallel work is explicitly authorized.
 

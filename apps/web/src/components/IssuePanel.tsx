@@ -179,7 +179,7 @@ export function IssuePanel({
 
   return (
     <section className="card stack" aria-labelledby="issue-title" data-testid="issue-panel">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <h2 id="issue-title" className="card-title">
           <Icon name="shield" size={16} /> Your decision
         </h2>
@@ -226,26 +226,26 @@ export function IssuePanel({
           </>
         ) : null}
       </dl>
-      <h3 className="card-title" style={{ fontSize: "0.92rem" }}>
-        History
-      </h3>
-      <ol className="timeline" aria-label="Issue history">
-        {detail.events.map((event) => (
-          <li key={event.id}>
-            <div>
-              <div className="small">
-                <strong>{titleCase(event.kind)}</strong>{" "}
-                <span className="muted">
-                  {event.actor_kind === "system" ? "by a review" : "by a reviewer"} ·{" "}
-                  {formatRelative(event.created_at)}
-                </span>
+      <div className="stack stack-sm">
+        <h3 className="subheading">History</h3>
+        <ol className="timeline" aria-label="Issue history">
+          {detail.events.map((event) => (
+            <li key={event.id}>
+              <div>
+                <div className="small">
+                  <strong>{titleCase(event.kind)}</strong>{" "}
+                  <span className="muted">
+                    {event.actor_kind === "system" ? "by a review" : "by a reviewer"} ·{" "}
+                    {formatRelative(event.created_at)}
+                  </span>
+                </div>
+                <div className="small secondary">{describeEvent(event)}</div>
+                {event.reason ? <div className="small muted">{event.reason}</div> : null}
               </div>
-              <div className="small secondary">{describeEvent(event)}</div>
-              {event.reason ? <div className="small muted">{event.reason}</div> : null}
-            </div>
-          </li>
-        ))}
-      </ol>
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   );
 }

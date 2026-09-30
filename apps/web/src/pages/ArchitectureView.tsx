@@ -162,7 +162,6 @@ function ModuleMap({
             onKeyDown={activate(() => {
               onSelect(module.node);
             })}
-            style={{ cursor: "pointer" }}
           >
             <rect x={-78} y={-26} width={156} height={52} rx={12} />
             <text textAnchor="middle" y={-4}>
@@ -253,7 +252,7 @@ function Neighborhood({
   const byId = new Map((data?.nodes ?? []).map((n) => [n.id, n]));
   return (
     <section className="card stack" aria-labelledby="hood-title" data-testid="neighborhood">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <div>
           <h2 id="hood-title" className="card-title">
             <Icon name="graph" size={16} /> {node.label}
@@ -354,7 +353,6 @@ function Neighborhood({
                   tabIndex={0}
                   role="button"
                   aria-label={`${titleCase(item.kind)} ${item.label}${center ? " (selected)" : ""}`}
-                  style={{ cursor: "pointer" }}
                   onClick={() => {
                     onSelect(item);
                   }}
@@ -377,7 +375,7 @@ function Neighborhood({
             <span>M module · F file · T class or type · P package · E external library</span>
             <span>Dashed or dotted lines: connections outside your code or not confirmed</span>
           </div>
-          <div className="table-wrap" style={{ maxHeight: 360 }}>
+          <div className="table-wrap table-scroll">
             <table className="data-table">
               <caption className="visually-hidden">Connections around this item</caption>
               <thead>
@@ -394,7 +392,7 @@ function Neighborhood({
                   <tr key={edge.id} data-testid="graph-edge-row">
                     <td className="small">{byId.get(edge.source_id)?.label ?? edge.source_id}</td>
                     <td className="small">{edge.relation.replaceAll("_", " ")}</td>
-                    <th scope="row" className="mono small" style={{ fontWeight: 500 }}>
+                    <th scope="row" className="mono small">
                       {edge.target_ref}
                     </th>
                     <td className="small">
@@ -418,16 +416,14 @@ function Neighborhood({
       ) : null}
       {impactOn ? (
         <div className="stack" data-testid="impact">
-          <h3 className="card-title" style={{ fontSize: "0.95rem" }}>
-            What depends on this (up to 3 steps away)
-          </h3>
+          <h3 className="subheading">What depends on this (up to 3 steps away)</h3>
           {impact.error ? <Alert tone="bad">{impact.error}</Alert> : null}
           {impact.data ? (
             <>
               {impact.data.dependents.length === 0 ? (
                 <p className="small secondary">Nothing in the code depends on this.</p>
               ) : (
-                <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                <ul className="stack stack-sm plain-list">
                   {impact.data.dependents.map((item) => (
                     <li key={item.node.id} className="row">
                       <span className="badge badge-neutral">hop {item.depth}</span>
@@ -446,7 +442,7 @@ function Neighborhood({
                 </ul>
               )}
               <Alert tone="info">
-                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                <ul className="list small">
                   {impact.data.caveats.map((caveat) => (
                     <li key={caveat}>{caveat}</li>
                   ))}
@@ -493,7 +489,7 @@ function NodeSearch({
         <select
           aria-label="Node kind"
           value={kind}
-          style={{ width: "auto" }}
+
           onChange={(event) => {
             setKind(event.target.value);
           }}
@@ -507,25 +503,19 @@ function NodeSearch({
         </select>
       </div>
       {results.error ? <Alert tone="bad">{results.error}</Alert> : null}
-      <ul
-        className="stack"
-        style={{ listStyle: "none", padding: 0, margin: 0, maxHeight: 360, overflow: "auto" }}
-      >
+      <ul className="result-list">
         {(results.data?.items ?? []).map((item) => (
           <li key={item.id}>
             <button
               type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ width: "100%", justifyContent: "flex-start" }}
+              className="result-item"
               data-testid="graph-node-result"
               onClick={() => {
                 onSelect(item);
               }}
             >
               <span className="badge badge-neutral">{GLYPH[item.kind] ?? "?"}</span>
-              <span className="mono small" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                {item.path ?? item.label}
-              </span>
+              <span className="mono">{item.path ?? item.label}</span>
             </button>
           </li>
         ))}
@@ -561,7 +551,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
   return (
     <div className="stack" data-testid="architecture">
       <section className="card stack" aria-labelledby="graph-title">
-        <div className="card-head" style={{ marginBottom: 0 }}>
+        <div className="card-head">
           <div>
             <h2 id="graph-title" className="card-title">
               <Icon name="graph" size={16} /> Architecture map
@@ -595,7 +585,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
         </h2>
         <ModuleMap summary={data} onSelect={setSelected} />
         <Disclosure summary="Show module connections as a table" testId="module-table">
-          <div className="table-wrap" style={{ maxHeight: 300 }}>
+          <div className="table-wrap table-scroll">
             <table className="data-table">
               <caption className="visually-hidden">Module connections</caption>
               <thead>
@@ -613,7 +603,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
                     key={`${dep.source_key}-${dep.target_key}-${dep.relation}`}
                     data-testid="module-dependency"
                   >
-                    <th scope="row" className="small" style={{ fontWeight: 500 }}>
+                    <th scope="row" className="small">
                       {moduleName(dep.source_key)}
                     </th>
                     <td className="small">{moduleName(dep.target_key)}</td>
@@ -661,7 +651,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
         {gaps.length > 0 ? (
           <>
             <strong className="small">Why some connections could not be traced</strong>
-            <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+            <ul className="list small">
               {gaps.map(([reason, count]) => (
                 <li key={reason}>
                   <strong>{count}</strong> {reason}

@@ -47,6 +47,7 @@ License note: psycopg is LGPL-3.0 and `psycopg-binary` bundles libpq. It is used
 |---|---|---|---|
 | react / react-dom | 19.3.0 | MIT | |
 | openapi-fetch | 0.17.0 | MIT | typed client over generated contract |
+| @fontsource-variable/inter / @fontsource-variable/jetbrains-mono | 5.3.0 / 5.3.0 | OFL-1.1 (fonts; licence files ship in the packages) | self-hosted UI and code fonts (CSP `font-src 'self'`; subsets load by unicode-range) — checked 30 September 2026 |
 | openapi-typescript | 7.13.0 | MIT | generates `packages/contracts/src/v1.d.ts` |
 | typescript | 5.9.3 | Apache-2.0 | TS 7.0 not used: typescript-eslint 8.70.1 supports `<6.1`, openapi-typescript needs `^5` |
 | vite / @vitejs/plugin-react | 8.3.1 / 6.1.1 | MIT | dev server + proxy + build |

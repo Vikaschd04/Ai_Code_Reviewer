@@ -145,7 +145,7 @@ export function ProjectsPage({ principal }: { principal: Principal }) {
                   {newestFirst.map((project) => (
                     <tr key={project.id}>
                       <th scope="row">
-                        <div className="row" style={{ gap: 8 }}>
+                        <div className="row">
                           <a href={`#/projects/${project.id}`}>{project.name}</a>
                           {project.origin === "synthetic_fixture" ? (
                             <span className="badge badge-neutral">Sample</span>

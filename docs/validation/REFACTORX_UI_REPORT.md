@@ -37,3 +37,12 @@ Reviewed: sign-in (desktop, mobile dark), overview (empty, populated, dark, mobi
 
 - The demo workspace is shared by all demo visitors and has no automatic cleanup (K-P10-01, K-P10-02).
 - The live Render deployment has not been created yet (owner action).
+
+## Design-system redesign (30 September 2026, later)
+
+Owner request: a more user-friendly, modern yet minimalist UI with consistent typography, sizing and spacing, fully responsive.
+
+- Audit before: 28 distinct font sizes, 32 padding values, 14 gap values, 12 corner radii and 83 inline style overrides in components.
+- After: one token system (docs/UI_SPEC.md "Design system"); all spacing/typography inline styles removed (remaining inline styles are data-driven bar widths, severity colours, skeleton widths and graph coordinates); fonts self-hosted (`@fontsource-variable/inter` and `jetbrains-mono` 5.3.0, OFL-1.1).
+- Commands: `make check` exit 0; web unit tests 14/14; `vite build` bundles the font subsets; `make test-e2e` 12/12 (fresh isolated stack).
+- Visual review of `tour-*.png` (light, dark, 390 px mobile) over four iterations. Fixed during review: flex gaps splitting the page title around the gradient word; progress tiles wrapping ("Results" alone on a row, three-line names) — replaced by a compact progress card with status icons (two columns on phones); headings as far from their own text as from the previous block; code caption touching the code; header actions dropping below long descriptions; file sizes wrapping; paths breaking mid-word; search box and filter stacking inside rows; lowercase language names; narrow detail labels. An accessibility regression found by the E2E suite (split file names announced as "index.jsnode_modules/leftpad") was fixed by giving file locations their full path as accessible text.

@@ -23,6 +23,7 @@ const PATHS = {
   info: "M12 11v6m0-10h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20",
   copy: "M9 9h10v10H9zM5 15V5h10",
   arrow: "M5 12h14m-6-6 6 6-6 6",
+  arrowLeft: "M19 12H5m6-6-6 6 6 6",
   shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
   file: "M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zm0 0v5h5",
   terminal: "M4 17l6-5-6-5m8 12h8",

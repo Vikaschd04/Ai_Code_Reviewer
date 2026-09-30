@@ -30,7 +30,7 @@ import {
   SeverityMark,
   severityCounts,
 } from "../components/Severity";
-import { StatusBadge, findingTotal, isTerminalScan } from "../components/Status";
+import { StatusBadge, StatusIcon, findingTotal, isTerminalScan } from "../components/Status";
 import { formatDuration, formatRelative, titleCase } from "../lib/format";
 import {
   CATEGORY_LABELS,
@@ -107,24 +107,39 @@ function Progress({ scan }: { scan: Scan }) {
       meta: terminal ? plural(findingTotal(scan.summary) ?? 0, "finding") : "Pending",
     },
   ];
+  const checks = scan.engines.length;
+  const finished = scan.engines.filter((run) => !["QUEUED", "RUNNING"].includes(run.state)).length;
+  const summary = terminal
+    ? `Finished · ${plural(findingTotal(scan.summary) ?? 0, "finding")}`
+    : `Checking your code · ${String(finished)} of ${String(checks || CHECK_ORDER.length)} checks done`;
   return (
-    <ol className="pipeline" aria-label="Review progress">
-      {stages.map((stage) => (
-        <li
-          key={stage.id}
-          className="stage"
-          data-state={stage.state}
-          data-testid={`stage-${stage.id}`}
-        >
-          <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>
-            <span className="stage-name">{stage.name}</span>
-            {stage.state === "RUNNING" ? <span className="pulse-dot" aria-hidden="true" /> : null}
-          </div>
-          <StatusBadge state={stage.state} />
-          <span className="stage-meta">{stage.meta}</span>
-        </li>
-      ))}
-    </ol>
+    <section className="card" aria-labelledby="progress-title">
+      <div className="card-head">
+        <div>
+          <h2 id="progress-title" className="card-title">
+            Progress
+          </h2>
+          <p className="card-sub">{summary}</p>
+        </div>
+        {terminal ? null : <span className="pulse-dot" aria-hidden="true" />}
+      </div>
+      <ol className="steps" aria-label="Review steps">
+        {stages.map((stage) => (
+          <li
+            key={stage.id}
+            className="step"
+            data-state={stage.state}
+            data-testid={`stage-${stage.id}`}
+          >
+            <StatusIcon state={stage.state} />
+            <span className="step-text">
+              <span className="step-name">{stage.name}</span>
+              <span className="step-meta">{stage.meta}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -205,31 +220,21 @@ function ChecksPanel({ scan, limitations }: { scan: Scan; limitations: string[] 
         {runs.map((run) => (
           <li key={run.engine} className="check-row" data-testid={`check-${run.engine}`}>
             <div className="check-main">
-              <div className="row" style={{ justifyContent: "space-between" }}>
+              <div className="row row-between">
                 <strong>{checkName(run.engine)}</strong>
                 <StatusBadge state={run.state} />
               </div>
-              <p className="small muted" style={{ margin: "2px 0 6px" }}>
-                {CHECKS[run.engine]?.description}
-              </p>
+              <p className="small muted">{CHECKS[run.engine]?.description}</p>
               {run.files_eligible > 0 ? <CoverageMeter run={run} /> : null}
-              {run.error_message ? (
-                <p className="small" style={{ margin: "6px 0 0", color: "var(--bad)" }}>
-                  {run.error_message}
-                </p>
-              ) : null}
+              {run.error_message ? <p className="check-error">{run.error_message}</p> : null}
             </div>
           </li>
         ))}
       </ul>
       {limitations.length > 0 ? (
-        <div className="stack" style={{ gap: 4 }}>
+        <div className="stack stack-xs">
           <strong className="small">Keep in mind</strong>
-          <ul
-            className="small secondary"
-            style={{ margin: 0, paddingLeft: 18 }}
-            data-testid="limitations"
-          >
+          <ul className="list small secondary" data-testid="limitations">
             {limitations.map((item) => (
               <li key={item}>{item}</li>
             ))}
@@ -239,7 +244,7 @@ function ChecksPanel({ scan, limitations }: { scan: Scan; limitations: string[] 
       <Disclosure summary="Technical details" testId="checks-technical">
         <div className="grid grid-3">
           {runs.map((run) => (
-            <section key={run.engine} className="stack" style={{ gap: 6 }}>
+            <section key={run.engine} className="stack stack-sm">
               <strong className="small">{checkName(run.engine)}</strong>
               <CheckTechnicalDetails run={run} />
             </section>
@@ -290,7 +295,7 @@ function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }
 
   return (
     <section className="card stack" aria-labelledby="findings-title">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <div>
           <h2 id="findings-title" className="card-title">
             Findings
@@ -414,7 +419,7 @@ function FindingsTab({ scanId, terminal }: { scanId: string; terminal: boolean }
                     <td>
                       <SeverityChip severity={finding.severity} />
                     </td>
-                    <th scope="row" style={{ fontWeight: 600 }}>
+                    <th scope="row">
                       <a href={`#/findings/${finding.id}`}>{finding.title}</a>
                       <div className="muted small">
                         {categoryLabel(finding.category)} · {checkName(finding.engine)}
@@ -492,7 +497,7 @@ function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }
   );
   return (
     <section className="card stack" aria-labelledby="coverage-title">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <div>
           <h2 id="coverage-title" className="card-title">
             Files checked
@@ -537,7 +542,7 @@ function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }
       {page.loading && !page.data ? <Loading /> : null}
       {page.data?.items.length === 0 ? <Empty title="No files match" /> : null}
       {page.data && page.data.items.length > 0 ? (
-        <div className="table-wrap" style={{ maxHeight: 560 }}>
+        <div className="table-wrap table-scroll">
           <table className="data-table">
             <caption className="visually-hidden">Files and checks</caption>
             <thead>
@@ -553,8 +558,8 @@ function CoverageTab({ scanId, terminal }: { scanId: string; terminal: boolean }
                 const info = OUTCOMES[row.outcome] ?? { state: "CANCELED", label: row.outcome };
                 return (
                   <tr key={`${row.file_id}-${row.engine}`} data-testid="coverage-row">
-                    <th scope="row" className="mono small" style={{ fontWeight: 500 }}>
-                      {row.path}
+                    <th scope="row">
+                      <FileLocation path={row.path} />
                     </th>
                     <td>{checkName(row.engine)}</td>
                     <td>
@@ -645,7 +650,7 @@ function CompareTab({ scan }: { scan: Scan }) {
     : [];
   return (
     <section className="card stack" aria-labelledby="compare-title">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <div>
           <h2 id="compare-title" className="card-title">
             Changes since an earlier review
@@ -691,7 +696,7 @@ function CompareTab({ scan }: { scan: Scan }) {
             ))}
           </div>
           {items.length > 0 ? (
-            <div className="table-wrap" style={{ maxHeight: 420 }}>
+            <div className="table-wrap table-scroll">
               <table className="data-table">
                 <caption className="visually-hidden">
                   {GROUPS.find((g) => g.key === group)?.label} findings
@@ -709,7 +714,7 @@ function CompareTab({ scan }: { scan: Scan }) {
                       <td>
                         <SeverityChip severity={item.severity} />
                       </td>
-                      <th scope="row" style={{ fontWeight: 600 }}>
+                      <th scope="row">
                         <a href={`#/findings/${item.finding_id ?? item.base_finding_id ?? ""}`}>
                           {item.title}
                         </a>
@@ -760,7 +765,7 @@ function CompareTab({ scan }: { scan: Scan }) {
                 </tbody>
               </table>
             </div>
-            <ul className="small secondary" style={{ margin: 0, paddingLeft: 18 }}>
+            <ul className="list small secondary">
               {data.notes.map((note) => (
                 <li key={note}>{note}</li>
               ))}
@@ -923,9 +928,9 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
         }
       />
       {actionError ? <Alert tone="bad">{actionError}</Alert> : null}
-      <section aria-label="Review progress" aria-live="polite">
+      <div aria-live="polite">
         <Progress scan={data} />
-      </section>
+      </div>
       {terminal && data.state !== "SUCCEEDED" && limitations.length > 0 ? (
         <Alert tone="warn">
           <p>
@@ -937,13 +942,13 @@ export function ScanPage({ scanId, tab }: { scanId: string; tab: string }) {
       {terminal ? (
         <div className="grid grid-2">
           <section className="card" aria-labelledby="sev-title">
-            <h2 id="sev-title" className="card-title" style={{ marginBottom: 12 }}>
+            <h2 id="sev-title" className="card-title">
               By severity
             </h2>
             <SeverityBars counts={severityCounts(data.summary?.by_severity)} />
           </section>
           <section className="card" aria-labelledby="cat-title">
-            <h2 id="cat-title" className="card-title" style={{ marginBottom: 12 }}>
+            <h2 id="cat-title" className="card-title">
               By type
             </h2>
             <CategoryBars counts={byCategory} />

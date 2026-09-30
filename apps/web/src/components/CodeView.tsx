@@ -11,7 +11,7 @@ export function CodeView({
   to?: number;
 }) {
   return (
-    <div>
+    <div className="stack stack-sm">
       <div className="code" role="region" aria-label={`Source of ${content.path}`} tabIndex={0}>
         {content.lines.map((line, index) => {
           const number = content.start_line + index;
@@ -29,7 +29,7 @@ export function CodeView({
           );
         })}
       </div>
-      <p className="small muted" style={{ margin: "8px 0 0" }}>
+      <p className="hint">
         Lines {content.start_line}–{content.end_line} of {content.total_lines}
         {content.redactions ? ` · ${content.redactions} likely secret value(s) masked` : ""}
         {content.truncated ? " · excerpt truncated" : ""}

@@ -4,9 +4,10 @@ import { describeError, type FileEntry } from "../api/client";
 import { fetchSnapshot, listFiles, startScan } from "../api/endpoints";
 import { CategoryBars } from "../components/Charts";
 import { Alert, Disclosure, Empty, Loading, PageHeader, Tabs } from "../components/Common";
+import { FileLocation } from "../components/FileLocation";
 import { Icon } from "../components/Icon";
 import { formatBytes, formatDate, titleCase } from "../lib/format";
-import { fileReason, plural } from "../lib/labels";
+import { fileReason, languageLabel, plural } from "../lib/labels";
 import { navigate } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 import { ArchitectureView } from "./ArchitectureView";
@@ -74,7 +75,7 @@ function FileExplorer({ snapshotId }: { snapshotId: string }) {
 
   return (
     <section className="card stack" aria-labelledby="files-title">
-      <div className="card-head" style={{ marginBottom: 0 }}>
+      <div className="card-head">
         <div>
           <h2 id="files-title" className="card-title">
             Files
@@ -103,7 +104,7 @@ function FileExplorer({ snapshotId }: { snapshotId: string }) {
           type="search"
           aria-label="Filter files by path"
           placeholder="Filter by path…"
-          style={{ maxWidth: 280, marginLeft: "auto" }}
+          className="search push-right"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -114,7 +115,7 @@ function FileExplorer({ snapshotId }: { snapshotId: string }) {
       {page.loading && !page.data ? <Loading /> : null}
       {page.data && rows.length === 0 ? <Empty title="No matching files" /> : null}
       {rows.length > 0 ? (
-        <div className="table-wrap" style={{ maxHeight: 520 }}>
+        <div className="table-wrap table-scroll">
           <table className="data-table">
             <caption className="visually-hidden">Files in this upload</caption>
             <thead>
@@ -133,8 +134,8 @@ function FileExplorer({ snapshotId }: { snapshotId: string }) {
             <tbody>
               {rows.map((file) => (
                 <tr key={file.id} data-testid="manifest-row">
-                  <th scope="row" className="mono" style={{ fontWeight: 500 }}>
-                    {file.path}
+                  <th scope="row">
+                    <FileLocation path={file.path} />
                   </th>
                   <td>
                     {dispositionBadge(file.disposition)}
@@ -145,7 +146,7 @@ function FileExplorer({ snapshotId }: { snapshotId: string }) {
                       <div className="muted small">Some lines could not be read</div>
                     ) : null}
                   </td>
-                  <td>{file.language ?? "—"}</td>
+                  <td>{languageLabel(file.language)}</td>
                   <td className="num">{formatBytes(file.size_bytes)}</td>
                   <td className="num">{file.line_count ?? "—"}</td>
                 </tr>
@@ -177,7 +178,7 @@ export function SnapshotPage({ snapshotId, tab = "scope" }: { snapshotId: string
   const data = snapshot.data;
   const inventory = (data.inventory ?? {}) as Inventory;
   const languageFiles = Object.fromEntries(
-    (inventory.languages ?? []).map((l) => [l.language, l.files]),
+    (inventory.languages ?? []).map((l) => [languageLabel(l.language), l.files]),
   );
   const agents = inventory.agent_instruction_files ?? [];
   const indicators = inventory.indicators ?? [];
@@ -242,7 +243,7 @@ export function SnapshotPage({ snapshotId, tab = "scope" }: { snapshotId: string
           ) : null}
           <div className="grid grid-3">
             <section className="card" aria-labelledby="scope-title">
-              <h2 id="scope-title" className="card-title" style={{ marginBottom: 12 }}>
+              <h2 id="scope-title" className="card-title">
                 Files
               </h2>
               <dl className="kv">
@@ -264,13 +265,13 @@ export function SnapshotPage({ snapshotId, tab = "scope" }: { snapshotId: string
               ) : null}
             </section>
             <section className="card" aria-labelledby="lang-title">
-              <h2 id="lang-title" className="card-title" style={{ marginBottom: 12 }}>
+              <h2 id="lang-title" className="card-title">
                 Languages
               </h2>
               <CategoryBars counts={languageFiles} />
             </section>
             <section className="card" aria-labelledby="tech-title">
-              <h2 id="tech-title" className="card-title" style={{ marginBottom: 12 }}>
+              <h2 id="tech-title" className="card-title">
                 Technologies
               </h2>
               {indicators.length === 0 ? (

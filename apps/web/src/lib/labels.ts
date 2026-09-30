@@ -85,6 +85,32 @@ export function fileReason(reason: string | null | undefined): string {
   return known[reason] ?? reason.replaceAll("_", " ");
 }
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  java: "Java",
+  javascript: "JavaScript",
+  typescript: "TypeScript",
+  json: "JSON",
+  xml: "XML",
+  yaml: "YAML",
+  markdown: "Markdown",
+  html: "HTML",
+  css: "CSS",
+  scss: "SCSS",
+  sql: "SQL",
+  shell: "Shell",
+  properties: "Properties",
+  groovy: "Groovy",
+  kotlin: "Kotlin",
+  python: "Python",
+  apex: "Apex",
+  text: "Text",
+};
+
+export function languageLabel(language: string | null | undefined): string {
+  if (!language) return "—";
+  return LANGUAGE_LABELS[language] ?? language.charAt(0).toUpperCase() + language.slice(1);
+}
+
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`;
 }

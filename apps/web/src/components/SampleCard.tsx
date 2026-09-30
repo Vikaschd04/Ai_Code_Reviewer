@@ -34,15 +34,15 @@ export function SampleCard({
       aria-labelledby="sample-title"
       data-testid="sample-card"
     >
-      <div className="row" style={{ alignItems: "flex-start", flexWrap: "nowrap" }}>
+      <div className="media">
         <span className="feature-icon" aria-hidden="true">
           <Icon name="box" size={22} />
         </span>
-        <div className="stack" style={{ gap: 6 }}>
+        <div className="stack stack-sm">
           <h2 id="sample-title" className="card-title">
             Try the sample project
           </h2>
-          <p className="secondary small" style={{ margin: 0 }}>
+          <p className="secondary small">
             A small Java and TypeScript online store with deliberate problems — security flaws,
             bugs, vulnerable libraries and a leaked (fake) password. One click uploads it and runs a
             full review so you can see every result screen.
