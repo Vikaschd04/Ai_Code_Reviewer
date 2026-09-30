@@ -2,6 +2,10 @@
 import {
   api,
   toApiError,
+  type AiPolicy,
+  type AiRun,
+  type AiRunCreate,
+  type AiStatus,
   type AuthOptions,
   type Capability,
   type CoveragePage,
@@ -508,6 +512,68 @@ export async function fetchImpact(
       signal: signal ?? null,
     },
   );
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+// -- Phase 3: AI review ----------------------------------------------------------------------
+
+export async function fetchAiStatus(signal?: Sig): Promise<AiStatus> {
+  const { data, error, response } = await api.GET("/v1/ai/status", { signal: signal ?? null });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function fetchAiPolicy(projectId: string, signal?: Sig): Promise<AiPolicy> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/ai-policy", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Switch AI review on or off for one project (workspace admins; audited). */
+export async function updateAiPolicy(current: AiPolicy, enabled: boolean): Promise<AiPolicy> {
+  const { data, error, response } = await api.PUT("/v1/projects/{project_id}/ai-policy", {
+    params: { path: { project_id: current.project_id } },
+    body: { enabled, max_excerpt_lines: current.max_excerpt_lines, version: current.version },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function listAiRuns(projectId: string, signal?: Sig): Promise<AiRun[]> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/ai-runs", {
+    params: { path: { project_id: projectId }, query: { limit: 30 } },
+    signal: signal ?? null,
+  });
+  if (data) return data.items;
+  throw toApiError(response, error);
+}
+
+export async function startAiRun(projectId: string, body: AiRunCreate): Promise<AiRun> {
+  const { data, error, response } = await api.POST("/v1/projects/{project_id}/ai-runs", {
+    params: { path: { project_id: projectId } },
+    body,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function fetchAiRun(runId: string, signal?: Sig): Promise<AiRun> {
+  const { data, error, response } = await api.GET("/v1/ai-runs/{run_id}", {
+    params: { path: { run_id: runId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function cancelAiRun(runId: string): Promise<AiRun> {
+  const { data, error, response } = await api.POST("/v1/ai-runs/{run_id}/cancel", {
+    params: { path: { run_id: runId } },
+  });
   if (data) return data;
   throw toApiError(response, error);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-/** Hash routes: #/, #/projects, #/projects/:id, #/snapshots/:id, #/scans/:id, #/findings/:id, #/operations */
+/** Hash routes: #/, #/projects, #/projects/:id, #/snapshots/:id, #/scans/:id, #/findings/:id,
+ * #/ai-runs/:id, #/operations */
 export type Route =
   | { name: "dashboard" }
   | { name: "projects" }
@@ -8,6 +9,7 @@ export type Route =
   | { name: "snapshot"; id: string; tab: string }
   | { name: "scan"; id: string; tab: string }
   | { name: "finding"; id: string }
+  | { name: "ai-run"; id: string }
   | { name: "operations" }
   | { name: "not-found" };
 
@@ -21,7 +23,7 @@ export function parseRoute(hash: string): Route {
   if (clean === "/") return { name: "dashboard" };
   if (clean === "/projects") return { name: "projects" };
   if (clean === "/operations") return { name: "operations" };
-  const match = new RegExp(`^/(projects|snapshots|scans|findings)/(${UUID})$`).exec(clean);
+  const match = new RegExp(`^/(projects|snapshots|scans|findings|ai-runs)/(${UUID})$`).exec(clean);
   if (match?.[2]) {
     const id = match[2];
     switch (match[1]) {
@@ -31,6 +33,8 @@ export function parseRoute(hash: string): Route {
         return { name: "snapshot", id, tab: tab || "scope" };
       case "scans":
         return { name: "scan", id, tab: tab || "findings" };
+      case "ai-runs":
+        return { name: "ai-run", id };
       default:
         return { name: "finding", id };
     }

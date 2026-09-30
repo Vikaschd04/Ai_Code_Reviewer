@@ -16,6 +16,7 @@ describe("parseRoute", () => {
     });
     expect(parseRoute(`#/scans/${ID}`)).toEqual({ name: "scan", id: ID, tab: "findings" });
     expect(parseRoute(`#/findings/${ID}`)).toEqual({ name: "finding", id: ID });
+    expect(parseRoute(`#/ai-runs/${ID}`)).toEqual({ name: "ai-run", id: ID });
   });
 
   it("rejects unknown paths and malformed identifiers", () => {

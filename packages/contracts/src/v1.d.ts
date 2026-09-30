@@ -1550,6 +1550,11 @@ export interface components {
             /** Manifest Sha256 */
             manifest_sha256: string | null;
             /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
              * Related
              * @description Correlated observations from other engines
              */

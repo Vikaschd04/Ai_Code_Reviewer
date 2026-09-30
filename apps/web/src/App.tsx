@@ -13,6 +13,7 @@ import { BrandMark, Icon, Wordmark, type IconName } from "./components/Icon";
 import { useRoute, type Route } from "./lib/router";
 import { SessionContext } from "./lib/session";
 import { activeTheme, applyTheme, type Theme } from "./lib/theme";
+import { AiRunPage } from "./pages/AiRunPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FindingPage } from "./pages/FindingPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -50,6 +51,7 @@ const ROUTE_LABELS: Record<Route["name"], string> = {
   snapshot: "Upload",
   scan: "Review",
   finding: "Finding",
+  "ai-run": "AI answer",
   operations: "System status",
   "not-found": "Not found",
 };
@@ -100,6 +102,9 @@ function Sidebar({
 }) {
   const current = sectionOf(route);
   const planned = capabilities.filter((c) => c.state === "planned");
+  const aiAvailable = capabilities.some(
+    (c) => c.id === "ai_investigation" && c.state === "available",
+  );
   const operator = principal?.is_operator === true;
   return (
     <aside className="sidebar">
@@ -160,8 +165,10 @@ function Sidebar({
         </div>
       ) : null}
       <div className="sidebar-footer">
-        <Icon name="lock" size={12} /> Your code stays on this server. Nothing is sent to AI
-        services.
+        <Icon name="lock" size={12} />{" "}
+        {aiAvailable
+          ? "Code leaves this server only for AI review, in projects where an admin switched it on."
+          : "Your code stays on this server. Nothing is sent to AI services."}
       </div>
     </aside>
   );
@@ -223,6 +230,8 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
       return <ScanPage key={route.id} scanId={route.id} tab={route.tab} />;
     case "finding":
       return <FindingPage key={route.id} findingId={route.id} />;
+    case "ai-run":
+      return <AiRunPage key={route.id} runId={route.id} />;
     case "operations":
       return principal.is_operator ? (
         <>

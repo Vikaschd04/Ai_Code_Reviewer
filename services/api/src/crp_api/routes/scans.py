@@ -544,6 +544,7 @@ async def get_finding(
         context_start = max(1, finding.start_line - 6)
         source = await file_content(container, entry, context_start, finding.end_line + 6)
     return FindingDetailResponse(
+        project_id=finding.project_id,
         finding=_finding(finding, entry.path, issue, related),
         rule=RuleGuidance(
             title=str(guidance.get("title") or info.title),

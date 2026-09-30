@@ -442,6 +442,7 @@ class RuleGuidance(ApiModel):
 
 
 class FindingDetailResponse(ApiModel):
+    project_id: UUID
     finding: FindingResponse
     rule: RuleGuidance
     source: FileContentResponse | None

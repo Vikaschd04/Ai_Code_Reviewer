@@ -9,6 +9,7 @@ setup hint (for administrators) so deterministic reviews keep working without AI
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -109,6 +110,13 @@ def _key(settings: Settings) -> tuple[str | None, str | None]:
     return None, "no API key is configured (set CRP_AI_API_KEY or CRP_AI_API_KEY_FILE)"
 
 
+def _encrypted_or_local(url: str) -> bool:
+    parsed = urlsplit(url)
+    if parsed.scheme == "https" and parsed.hostname:
+        return True
+    return parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+
+
 def resolve(settings: Settings) -> AiSetup:
     provider = settings.ai_provider
     model = settings.ai_model or DEFAULT_MODELS.get(provider)
@@ -151,6 +159,13 @@ def resolve(settings: Settings) -> AiSetup:
         return setup(
             "AI review is not fully set up on this server.",
             "Set CRP_AI_MODEL to the model name your provider offers.",
+        )
+    base_url = settings.ai_base_url or DEFAULT_BASE_URLS.get(provider) or ""
+    if not _encrypted_or_local(base_url):
+        return setup(
+            "AI review is not fully set up on this server.",
+            "CRP_AI_BASE_URL must use https:// (plain http is allowed only for localhost), "
+            "otherwise the API key and code excerpts would travel unencrypted.",
         )
     key, problem = _key(settings)
     if key is None:

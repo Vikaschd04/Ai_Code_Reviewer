@@ -43,6 +43,12 @@ export type GraphEdge = Schemas["GraphEdgeResponse"];
 export type GraphNodePage = Schemas["GraphNodePage"];
 export type GraphNeighborhood = Schemas["GraphNeighborhood"];
 export type GraphImpact = Schemas["GraphImpact"];
+export type AiStatus = Schemas["AiStatus"];
+export type AiPolicy = Schemas["ProjectAiPolicyResponse"];
+export type AiRun = Schemas["AiRunResponse"];
+export type AiRunCreate = Schemas["AiRunCreate"];
+export type AiAnchor = Schemas["AiAnchorResponse"];
+export type AiFinding = Schemas["AiFindingResponse"];
 
 export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin" });
 

@@ -39,6 +39,8 @@ from crp_devtools.localenv import (
 )
 from crp_devtools.paths import DevPaths
 from crp_devtools.supervisor import ServiceSpec, Supervisor
+from crp_devtools.testing.fake_ai import MODEL as FAKE_AI_MODEL
+from crp_devtools.testing.fake_ai import FakeAiProvider
 from crp_devtools.testing.fixture_projects import prepare_fixture, zip_directory
 
 WEB_PACKAGE = "@crp/web"
@@ -216,8 +218,11 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
     )
     temporal = TemporalDevServer(port=free_port(), log_file=logs / "temporal.log")
     supervisor = Supervisor(echo=False)
+    fake_ai_key = generate_token()
+    fake_ai = FakeAiProvider(fake_ai_key)  # labelled test double: no real model is called
     exit_code = 1
     try:
+        fake_ai.start()
         cluster.init()
         cluster.start()
         cluster.create_database(DATABASE_NAME)
@@ -235,6 +240,14 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
             artifacts=work / "artifacts",
             work_root=work / "scan-work",
             log_format="json",
+        )
+        env.update(
+            {
+                "CRP_AI_PROVIDER": "openai_compatible",
+                "CRP_AI_MODEL": FAKE_AI_MODEL,
+                "CRP_AI_BASE_URL": fake_ai.base_url,
+                "CRP_AI_API_KEY": fake_ai_key,
+            }
         )
         migrate_and_provision(settings_from_env(env))
         subprocess.run([pnpm(), "--filter", WEB_PACKAGE, "build"], cwd=paths.repo, check=True)  # noqa: S603
@@ -277,6 +290,7 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
         exit_code = result.returncode
     finally:
         supervisor.stop_all()
+        fake_ai.stop()
         temporal.stop()
         cluster.stop()
         if exit_code != 0:

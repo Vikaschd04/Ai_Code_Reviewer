@@ -9,6 +9,7 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   SUCCEEDED: { tone: "ok", icon: "check", label: "Complete" },
   COMPLETED: { tone: "ok", icon: "check", label: "Completed" },
   PARTIAL: { tone: "warn", icon: "alert", label: "Partly complete" },
+  BUDGET_EXHAUSTED: { tone: "warn", icon: "alert", label: "Stopped at limit" },
   not_ready: { tone: "warn", icon: "alert", label: "Not ready" },
   unavailable: { tone: "warn", icon: "alert", label: "Unavailable" },
   UNAVAILABLE: { tone: "bad", icon: "x", label: "Unavailable" },

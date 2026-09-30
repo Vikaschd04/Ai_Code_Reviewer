@@ -120,7 +120,7 @@ def _ai_settings(settings: Settings, **extra: Any) -> Settings:
         update={
             "ai_provider": AiProvider.OPENAI_COMPATIBLE,
             "ai_model": "test-model",
-            "ai_base_url": "http://provider.test/v1",
+            "ai_base_url": "https://provider.test/v1",
             "ai_api_key": SecretStr(KEY),
             "ai_price_input_per_mtok_usd": 3.0,
             "ai_price_output_per_mtok_usd": 15.0,

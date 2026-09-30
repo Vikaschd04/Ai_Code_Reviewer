@@ -267,6 +267,24 @@ def test_setup_explains_missing_configuration(
     assert ready.available and ready.reason is None
     assert KEY not in repr(ready)  # the key is never part of the printable setup
 
+    def openai(url: str) -> bool:
+        return resolve(
+            make_settings(
+                ai_provider="openai_compatible", ai_model="m", ai_api_key=KEY, ai_base_url=url
+            )
+        ).available
+
+    assert openai("https://models.example.com/v1") and openai("http://127.0.0.1:8080/v1")
+    plain = resolve(
+        make_settings(
+            ai_provider="openai_compatible",
+            ai_model="m",
+            ai_api_key=KEY,
+            ai_base_url="http://models.example.com/v1",
+        )
+    )
+    assert not plain.available and "https" in (plain.admin_hint or "")  # key would travel in clear
+
     priced = resolve(
         make_settings(ai_price_input_per_mtok_usd=3.0, ai_price_output_per_mtok_usd=15.0)
     )

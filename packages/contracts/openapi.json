@@ -1925,6 +1925,11 @@
             ],
             "title": "Manifest Sha256"
           },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
           "related": {
             "description": "Correlated observations from other engines",
             "items": {
@@ -1948,6 +1953,7 @@
           }
         },
         "required": [
+          "project_id",
           "finding",
           "rule",
           "source",
