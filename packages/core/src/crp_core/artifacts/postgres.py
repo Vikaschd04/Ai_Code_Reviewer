@@ -26,6 +26,7 @@ from crp_core.artifacts.base import (
     ArtifactNotFoundError,
     ArtifactRef,
     ArtifactTooLargeError,
+    validate_key,
 )
 from crp_core.db.models import ArtifactObject
 
@@ -124,6 +125,17 @@ class PostgresArtifactStore:
                 .returning(ArtifactObject.key)
             ).first()
         return removed is not None
+
+    def list_keys(self, prefix: str) -> list[ArtifactKey]:
+        validate_key(prefix)
+        pattern = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"
+        with self._engine.connect() as connection:
+            rows = connection.scalars(
+                select(ArtifactObject.key)
+                .where(ArtifactObject.key.like(pattern, escape="\\"))
+                .order_by(ArtifactObject.key)
+            ).all()
+        return [ArtifactKey(row) for row in rows]
 
     def probe(self) -> str:
         key = ArtifactKey(f"health-probes/{uuid.uuid4().hex}.bin")

@@ -1,8 +1,9 @@
 import { useId, useState, type SubmitEvent } from "react";
 
-import { describeError, type Principal } from "../api/client";
+import { describeError, type Principal, type Project } from "../api/client";
 import { createProject, listProjects } from "../api/endpoints";
 import { Alert, Empty, Loading } from "../components/Common";
+import { DeleteProjectDialog } from "../components/DeleteProjectDialog";
 import { Icon } from "../components/Icon";
 import { SampleCard } from "../components/SampleCard";
 import { formatDate } from "../lib/format";
@@ -109,6 +110,7 @@ function CreateProjectForm({ principal }: { principal: Principal }) {
 
 export function ProjectsPage({ principal }: { principal: Principal }) {
   const projects = useAsync((signal) => listProjects(signal), []);
+  const [toDelete, setToDelete] = useState<Project | null>(null);
   const names = new Map(principal.workspaces.map((w) => [w.workspace_id, w.name]));
   const manyWorkspaces = principal.workspaces.length > 1;
   const workspace = writableWorkspace(principal);
@@ -139,6 +141,9 @@ export function ProjectsPage({ principal }: { principal: Principal }) {
                     <th scope="col">Project</th>
                     {manyWorkspaces ? <th scope="col">Workspace</th> : null}
                     <th scope="col">Created</th>
+                    <th scope="col">
+                      <span className="visually-hidden">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,6 +162,19 @@ export function ProjectsPage({ principal }: { principal: Principal }) {
                       </th>
                       {manyWorkspaces ? <td>{names.get(project.workspace_id) ?? "—"}</td> : null}
                       <td className="nowrap">{formatDate(project.created_at)}</td>
+                      <td className="cell-actions">
+                        <button
+                          type="button"
+                          className="icon-btn icon-btn-danger"
+                          aria-label={`Delete ${project.name}`}
+                          title="Delete project"
+                          onClick={() => {
+                            setToDelete(project);
+                          }}
+                        >
+                          <Icon name="trash" size={16} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -165,6 +183,20 @@ export function ProjectsPage({ principal }: { principal: Principal }) {
           ) : null}
         </div>
       </section>
+      {toDelete ? (
+        <DeleteProjectDialog
+          projectId={toDelete.id}
+          projectName={toDelete.name}
+          open
+          onClose={() => {
+            setToDelete(null);
+          }}
+          onDeleted={() => {
+            setToDelete(null);
+            projects.reload();
+          }}
+        />
+      ) : null}
       <div className="stack">
         <CreateProjectForm principal={principal} />
         {workspace ? <SampleCard workspaceId={workspace} compact /> : null}

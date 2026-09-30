@@ -140,6 +140,14 @@ export async function fetchIntakePolicy(signal?: Sig): Promise<IntakePolicy> {
   throw toApiError(response, error);
 }
 
+/** Permanently delete a project with everything it holds (uploads, reviews, issues). */
+export async function deleteProject(projectId: string): Promise<void> {
+  const { error, response } = await api.DELETE("/v1/projects/{project_id}", {
+    params: { path: { project_id: projectId } },
+  });
+  if (!response.ok) throw toApiError(response, error);
+}
+
 export async function createSampleProject(workspaceId: string): Promise<SampleProject> {
   const { data, error, response } = await api.POST("/v1/projects/sample", {
     body: { workspace_id: workspaceId },

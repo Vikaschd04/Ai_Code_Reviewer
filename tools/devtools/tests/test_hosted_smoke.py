@@ -214,6 +214,7 @@ def test_ci_smoke_script_passes_against_the_hosted_entrypoint(
     )
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
     assert '"demo_sample_review": {"sample": "SUCCEEDED"' in result.stdout, result.stdout
+    assert '"deleted": true' in result.stdout, result.stdout
     assert "smoke test passed" in result.stdout
 
 

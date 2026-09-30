@@ -123,7 +123,11 @@ def demo_sample_review(base: str, origin: str) -> dict[str, Any] | None:
     engines = {e["engine"]: e["state"] for e in done["engines"]}
     check(all(state == "SUCCEEDED" for state in engines.values()), engines)
     check(done["summary"]["findings"] >= 30, done["summary"])
-    return {"sample": done["state"], "findings": done["summary"]["findings"]}
+    project_path = f"/v1/projects/{sample['project']['id']}"
+    status, _, body = call(base, "DELETE", project_path, None, **auth)
+    check(status == 204, f"deleting the sample project answered {status}: {body}")
+    check(call(base, "GET", project_path, None, **auth)[0] == 404, "deleted project still exists")
+    return {"sample": done["state"], "findings": done["summary"]["findings"], "deleted": True}
 
 
 def main() -> int:

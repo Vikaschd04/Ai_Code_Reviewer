@@ -129,6 +129,24 @@ def test_symlinked_root_is_refused(tmp_path: Path) -> None:
         FilesystemArtifactStore(link, max_object_bytes=10)
 
 
+def test_list_keys_returns_whole_segment_prefix_matches(
+    store: FilesystemArtifactStore, tmp_path: Path
+) -> None:
+    for key in ("scans/s1/raw/pmd.json", "scans/s1/raw/eslint.json", "scans/s10/raw/pmd.json"):
+        store.put_bytes(ArtifactKey(key), b"{}")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("x")
+    (store.root / "scans" / "s1" / "link").symlink_to(outside)
+    assert [str(k) for k in store.list_keys("scans/s1")] == [
+        "scans/s1/raw/eslint.json",
+        "scans/s1/raw/pmd.json",
+    ]
+    assert store.list_keys("nothing/here") == []
+    with pytest.raises(InvalidArtifactKeyError):
+        store.list_keys("../etc")
+
+
 def test_missing_objects(store: FilesystemArtifactStore) -> None:
     key = ArtifactKey("missing/obj")
     assert not store.exists(key)
@@ -177,6 +195,14 @@ def test_postgres_store_honours_the_artifact_contract(database_url: str) -> None
             pg.read_bytes(missing)
         with pytest.raises(ArtifactNotFoundError):
             pg.stat(missing)
+        for extra in ("scans/s1/raw/pmd.json", "scans/s1/raw/eslint.json", "scans/s10/x.json"):
+            pg.put_bytes(ArtifactKey(extra), b"{}")
+        pg.put_bytes(ArtifactKey("scans/s_1/raw.json"), b"{}")  # '_' is not a wildcard
+        assert [str(k) for k in pg.list_keys("scans/s1")] == [
+            "scans/s1/raw/eslint.json",
+            "scans/s1/raw/pmd.json",
+        ]
+        assert pg.list_keys("nothing/here") == []
         assert pg.delete(key) and not pg.delete(key) and not pg.exists(key)
         assert pg.probe() == "postgres"
     finally:

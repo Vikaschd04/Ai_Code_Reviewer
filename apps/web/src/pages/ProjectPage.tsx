@@ -21,6 +21,7 @@ import {
   PageHeader,
   Tabs,
 } from "../components/Common";
+import { DeleteProjectDialog } from "../components/DeleteProjectDialog";
 import { Icon } from "../components/Icon";
 import { SeverityBars, severityCounts } from "../components/Severity";
 import { StatusBadge, findingTotal } from "../components/Status";
@@ -356,6 +357,7 @@ function ReviewsTable({ scans }: { scans: Scan[] }) {
 
 export function ProjectPage({ projectId, tab: requested }: { projectId: string; tab: string }) {
   const { options } = useSession();
+  const [deleting, setDeleting] = useState(false);
   const tab = TAB_ALIASES[requested] ?? requested;
   const overview = useAsync((signal) => fetchProjectOverview(projectId, signal), [projectId]);
   const snapshots = useAsync((signal) => listSnapshots(projectId, signal), [projectId, tab]);
@@ -485,6 +487,28 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
               <dt>Reviews</dt>
               <dd>{overview.data.scan_count}</dd>
             </dl>
+            <div className="card-footer">
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={() => {
+                  setDeleting(true);
+                }}
+              >
+                <Icon name="trash" size={14} /> Delete project
+              </button>
+            </div>
+            <DeleteProjectDialog
+              projectId={projectId}
+              projectName={project.name}
+              open={deleting}
+              onClose={() => {
+                setDeleting(false);
+              }}
+              onDeleted={() => {
+                navigate("#/projects");
+              }}
+            />
           </section>
         </div>
       ) : null}

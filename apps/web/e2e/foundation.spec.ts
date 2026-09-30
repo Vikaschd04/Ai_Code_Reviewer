@@ -75,3 +75,38 @@ test("signing out returns to the sign-in form", async ({ page }) => {
   await page.reload();
   await expect(page.getByLabel("Access token")).toBeVisible();
 });
+
+test("deletes a project from its page and from the projects list", async ({ page }) => {
+  await signIn(page);
+  const first = `E2E delete ${Date.now()}`;
+  await createProject(page, first);
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Overview" })
+    .click();
+  await page.getByRole("button", { name: "Delete project" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete this project?" });
+  await expect(dialog).toBeVisible();
+  const confirm = dialog.getByRole("button", { name: "Delete project" });
+  await expect(confirm).toBeDisabled(); // the name must be typed first
+  await dialog.getByLabel("Type the project name to confirm").fill(first);
+  await confirm.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Projects" })).toBeVisible();
+  await expect(page.getByRole("link", { name: first })).toHaveCount(0);
+
+  const second = `E2E delete list ${Date.now()}`;
+  await createProject(page, second);
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("link", { name: "Projects" })
+    .click();
+  await page.getByRole("button", { name: `Delete ${second}` }).click();
+  const listDialog = page.getByRole("dialog", { name: "Delete this project?" });
+  await listDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(listDialog).toBeHidden();
+  await expect(page.getByRole("link", { name: second })).toBeVisible();
+  await page.getByRole("button", { name: `Delete ${second}` }).click();
+  await listDialog.getByLabel("Type the project name to confirm").fill(second);
+  await listDialog.getByRole("button", { name: "Delete project" }).click();
+  await expect(page.getByRole("link", { name: second })).toHaveCount(0);
+});

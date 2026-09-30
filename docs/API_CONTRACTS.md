@@ -15,6 +15,8 @@ Status: design contract. The implemented subset is listed first; the generated O
 | POST /v1/projects | principal, role ≥ member | `{workspace_id, name, slug?, description?}` → 201; 404 `workspace_not_found` for non-members; 403 `insufficient_role`; 409 `project_slug_conflict` |
 | GET /v1/projects | principal | Cursor pagination (`limit` 1–100, `cursor`), optional `workspace_id` (404 if not a member); 400 `invalid_cursor` |
 | GET /v1/projects/{project_id} | principal | 404 `project_not_found` for other workspaces |
+| DELETE /v1/projects/{project_id} | creator (member) or admin/owner | 204; permanently deletes the project's rows (cascade) and artifacts, then sweeps content blobs no snapshot references (deferred while an intake is validating); 404 for other workspaces; 403 `insufficient_role`; 409 `project_busy` while a scan is queued/running or an intake is validating; cookie sessions need an allowed Origin |
+| POST /v1/projects/sample | member | `{workspace_id}` → 202 `{project, intake}` for the built-in sample; demo quotas apply (429 `demo_limit_reached`) |
 | POST /v1/diagnostics/workflow-runs | operator (admin/owner) | 202 `{workflow_id, status:"RUNNING"}`; 503 `workflow_unavailable` |
 | GET /v1/diagnostics/workflow-runs/{workflow_id} | operator | Status and typed result; 404 for unknown or non-diagnostic IDs |
 

@@ -26,6 +26,7 @@ from crp_core.artifacts.base import (
     ArtifactNotFoundError,
     ArtifactRef,
     ArtifactTooLargeError,
+    validate_key,
 )
 
 UNTRUSTED_MARKER = ".crp-untrusted"
@@ -179,6 +180,21 @@ class FilesystemArtifactStore:
         except ArtifactNotFoundError, FileNotFoundError:
             return False
         return True
+
+    def list_keys(self, prefix: str) -> list[ArtifactKey]:
+        validate_key(prefix)
+        start = self._root.joinpath(*prefix.split("/"))
+        if start.is_symlink() or not start.is_dir():
+            return []
+        found: list[ArtifactKey] = []
+        for directory, dirnames, filenames in os.walk(start, followlinks=False):
+            dirnames[:] = sorted(d for d in dirnames if not Path(directory, d).is_symlink())
+            for name in sorted(filenames):
+                path = Path(directory, name)
+                if path.is_symlink() or not path.is_file():
+                    continue
+                found.append(ArtifactKey(path.relative_to(self._root).as_posix()))
+        return sorted(found, key=str)
 
     def probe(self) -> str:
         key = ArtifactKey(f"health-probes/{uuid.uuid4().hex}.bin")

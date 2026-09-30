@@ -82,6 +82,15 @@ Not implemented yet: upload/intake controls, analyzer sandboxing and resource li
 | Data location | Uploaded source stored in the owner's Render account: in PostgreSQL only (free lite profile, ADR 0010) or on the disk + database (standard); no AI egress | DEPLOYMENT.md |
 | Offline vulnerability DB | Baked into the image (digest-pinned build); the daily refresh is the only network use, downloads into a new directory and swaps a symlink atomically, never while a scan in the same process reads it | trivy_db.py, test_trivy_db.py |
 
+### Project deletion
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Who may delete | The project's creator (member role) or a workspace admin/owner; viewers never; other workspaces get 404 | test_project_deletion.py |
+| Safe reclamation | Rows cascade from `projects`; per-project artifacts deleted by prefix; shared content blobs deleted only when unreferenced and while no intake validates (SHARE lock on `intakes`) | test_project_deletion.py, test_sample_project.py |
+| Accident protection | UI confirmation requires typing the project name; running reviews/uploads block deletion (409) | foundation.spec.ts |
+| Audit | Structured log `project deleted` (project id/name, user id, counts); no database audit trail yet | project_deletion.py |
+
 ### Added for the demo account and sample project (ADR 0011)
 
 | Control | Implementation | Evidence |

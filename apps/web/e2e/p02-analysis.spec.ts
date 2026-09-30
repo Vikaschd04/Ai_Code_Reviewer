@@ -59,7 +59,10 @@ test("security findings, correlation, triage, exports and comparison", async ({ 
   expect(sarif.version).toBe("2.1.0");
 
   // Re-run with cache reuse, then compare with the first scan.
+  const firstReview = page.url();
   await page.getByRole("button", { name: "Review again", exact: true }).click();
+  // Wait for the new review's page; the first review's page also says "Complete".
+  await expect(page).not.toHaveURL(firstReview);
   await expect(page.getByTestId("stage-publish")).toContainText(/Complete/, { timeout: 150_000 });
   await expect(page.getByTestId("cache-pmd")).toContainText("reused");
   await page.getByRole("link", { name: "Changes" }).click();

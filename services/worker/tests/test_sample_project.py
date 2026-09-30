@@ -80,3 +80,67 @@ async def test_demo_user_reviews_the_sample_project(
                 "CVE-2021-23337",  # lodash 4.17.15 (web/package-lock.json)
                 "secret:github-pat",  # generated fake token in web/src/config.js
             } <= rules, sorted(rules)
+
+
+async def test_deleting_projects_reclaims_rows_artifacts_and_unshared_blobs(
+    settings: Settings, stack_factory: StackFactory
+) -> None:
+    from sqlalchemy import func, select
+
+    from crp_core.artifacts import FilesystemArtifactStore
+    from crp_core.db.models import FileEntry, Finding, GraphBuild, Issue, Scan, Snapshot
+    from crp_core.db.session import (
+        create_engine_from_settings,
+        create_session_factory,
+        transaction,
+    )
+
+    store = FilesystemArtifactStore(
+        settings.artifact_root, max_object_bytes=settings.artifact_max_object_bytes
+    )
+    async with stack_factory(settings) as stack:
+        workspace = stack.workspace_id
+        projects: list[tuple[str, str]] = []
+        for _ in range(2):  # two projects with identical content share every blob
+            created = await stack.ok(
+                "POST", "/v1/projects/sample", json={"workspace_id": workspace}
+            )
+            intake = await stack.wait_intake(created["intake"]["id"])
+            assert intake["state"] == "READY", intake
+            projects.append((created["project"]["id"], intake["snapshot_id"]))
+        first, first_snapshot = projects[0]
+        done = await stack.scan_and_wait(first, first_snapshot)
+        assert done["state"] == "SUCCEEDED"
+        blobs_before = store.list_keys("blobs")
+        assert blobs_before
+
+        deleted = await stack.client.delete(f"/v1/projects/{first}")
+        assert deleted.status_code == 204, deleted.text
+        assert (await stack.client.get(f"/v1/projects/{first}")).status_code == 404
+        assert store.list_keys(f"snapshots/{first_snapshot.replace('-', '')}") == []
+        assert store.list_keys(f"scans/{done['id'].replace('-', '')}") == []
+        assert store.list_keys("blobs") == blobs_before  # still used by the second project
+
+        engine = create_engine_from_settings(settings)
+        try:
+            async with transaction(create_session_factory(engine)) as session:
+                for model, column, value in (
+                    (Snapshot, Snapshot.project_id, first),
+                    (Scan, Scan.project_id, first),
+                    (Issue, Issue.project_id, first),
+                    (FileEntry, FileEntry.snapshot_id, first_snapshot),
+                    (GraphBuild, GraphBuild.snapshot_id, first_snapshot),
+                    (Finding, Finding.scan_id, done["id"]),
+                ):
+                    remaining = await session.scalar(
+                        select(func.count()).select_from(model).where(column == value)
+                    )
+                    assert remaining == 0, model.__tablename__
+        finally:
+            await engine.dispose()
+
+        second, second_snapshot = projects[1]
+        still = await stack.ok("GET", f"/v1/snapshots/{second_snapshot}/files?limit=5")
+        assert still["items"]
+        assert (await stack.client.delete(f"/v1/projects/{second}")).status_code == 204
+        assert store.list_keys("blobs") == []  # no snapshot uses them any more

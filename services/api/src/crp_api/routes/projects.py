@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from sqlalchemy import func, select
 
 from crp_api.auth.dependencies import Container, CurrentPrincipal
@@ -17,7 +17,7 @@ from crp_api.schemas import (
     SampleProjectCreate,
     SampleProjectResponse,
 )
-from crp_api.services import demo, samples
+from crp_api.services import demo, project_deletion, samples
 from crp_api.services import projects as project_service
 from crp_core.db.models import Scan, Snapshot, Source
 from crp_core.db.session import transaction
@@ -103,6 +103,22 @@ async def create_sample_project(
         project=ProjectResponse.model_validate(created.project, from_attributes=True),
         intake=intake_response(created.intake, container.settings),
     )
+
+
+@router.delete(
+    "/{project_id}",
+    status_code=204,
+    responses={**_NOT_FOUND, 403: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+)
+async def delete_project(
+    project_id: UUID, principal: CurrentPrincipal, container: Container
+) -> Response:
+    """Permanently delete a project with its uploads, reviews, findings, issues and architecture
+    maps, and reclaim their storage. Refused while a review or upload check is running."""
+    await project_deletion.delete_project(
+        container.session_factory, container.artifacts, principal, project_id
+    )
+    return Response(status_code=204)
 
 
 @router.get("", response_model=ProjectPage, responses=_NOT_FOUND)

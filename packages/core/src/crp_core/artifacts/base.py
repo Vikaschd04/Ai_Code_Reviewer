@@ -107,6 +107,10 @@ class ArtifactStore(Protocol):
 
     def delete(self, key: ArtifactKey) -> bool: ...
 
+    def list_keys(self, prefix: str) -> list[ArtifactKey]:
+        """Keys under a key prefix made of whole segments (e.g. ``"scans/<id>"``), sorted."""
+        ...
+
     def probe(self) -> str:
         """Verify the backend is usable; return a short non-sensitive description."""
         ...

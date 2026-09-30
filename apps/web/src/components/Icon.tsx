@@ -28,6 +28,7 @@ const PATHS = {
   file: "M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zm0 0v5h5",
   terminal: "M4 17l6-5-6-5m8 12h8",
   play: "M7 4v16l13-8z",
+  trash: "M4 7h16M10 11v6m4-6v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3",
   download: "M12 4v12m0 0-5-5m5 5 5-5M4 20h16",
   box: "M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
   lock: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",

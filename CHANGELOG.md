@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Delete projects (30 September 2026)
+
+- `DELETE /v1/projects/{id}` (creator or workspace admin): removes every project row (cascade) and its artifacts, then reclaims content blobs no other snapshot uses; refused with 409 while a review or upload check runs.
+- UI: "Delete project" on the project page and a delete action in the projects list, with a confirmation dialog that requires typing the project name.
+- Artifact stores gained `list_keys(prefix)` (filesystem and PostgreSQL). The CI smoke test deletes the demo sample project on the Render-free (lite) configuration.
+
 ## Unreleased — Futuristic backdrop and review fixes (30 September 2026)
 
 - Futuristic backdrop on every page: drifting aurora glows, a fading grid, frosted chrome and cards, a light beam under the top bar, glowing primary buttons; sign-in adds an orbit glow and a gradient-edged card (motion off with reduced-motion preferences).
