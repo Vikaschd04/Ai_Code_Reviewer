@@ -116,3 +116,32 @@ class FinalizeInput(_Contract):
 class ScanWorkflowResult(_Contract):
     scan_id: UUID
     state: str
+
+
+# -- AI runs (P03) -------------------------------------------------------------------------------
+
+AI_RUN_WORKFLOW_NAME = "AiRunWorkflow"
+
+
+def ai_run_workflow_id(run_id: UUID) -> str:
+    return f"crp-ai-{run_id.hex}"
+
+
+class AiRunInput(_Contract):
+    run_id: UUID
+
+
+class AiRunPlan(_Contract):
+    run_id: UUID
+    terminal: bool = False
+
+
+class AiRunFinalize(_Contract):
+    run_id: UUID
+    canceled: bool = False
+    interrupted: bool = False
+
+
+class AiRunResult(_Contract):
+    run_id: UUID
+    state: str

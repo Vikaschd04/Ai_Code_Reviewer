@@ -25,14 +25,17 @@ from temporalio.service import RPCError, RPCStatusCode
 
 from crp_core.config import Settings
 from crp_core.workflows.contracts import (
+    AI_RUN_WORKFLOW_NAME,
     DIAGNOSTIC_WORKFLOW_ID_PATTERN,
     DIAGNOSTIC_WORKFLOW_NAME,
     INTAKE_WORKFLOW_NAME,
     SCAN_WORKFLOW_NAME,
+    AiRunInput,
     DiagnosticWorkflowInput,
     DiagnosticWorkflowResult,
     IntakeWorkflowInput,
     ScanWorkflowInput,
+    ai_run_workflow_id,
     diagnostic_workflow_id,
     intake_workflow_id,
     scan_workflow_id,
@@ -50,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 DIAGNOSTIC_EXECUTION_TIMEOUT = timedelta(minutes=2)
 INTAKE_EXECUTION_TIMEOUT = timedelta(hours=1)
+AI_RUN_EXECUTION_TIMEOUT = timedelta(hours=2)
 SCAN_EXECUTION_TIMEOUT = timedelta(hours=8)
 _RPC_TIMEOUT = timedelta(seconds=5)
 
@@ -263,6 +267,26 @@ class TemporalWorkflowGateway:
                 return
             self._reset_on_unavailable(exc)
             raise WorkflowUnavailableError(f"could not cancel scan: {exc.status.name}") from exc
+
+    async def start_ai_run(self, run_id: UUID) -> str:
+        return await self._start_once(
+            AI_RUN_WORKFLOW_NAME,
+            AiRunInput(run_id=run_id),
+            ai_run_workflow_id(run_id),
+            AI_RUN_EXECUTION_TIMEOUT,
+        )
+
+    async def cancel_ai_run(self, run_id: UUID) -> None:
+        client = await self._get_client()
+        try:
+            await client.get_workflow_handle(ai_run_workflow_id(run_id)).cancel(
+                rpc_timeout=_RPC_TIMEOUT
+            )
+        except RPCError as exc:
+            if exc.status is RPCStatusCode.NOT_FOUND:
+                return
+            self._reset_on_unavailable(exc)
+            raise WorkflowUnavailableError(f"could not cancel AI run: {exc.status.name}") from exc
 
     async def close(self) -> None:
         # temporalio clients hold no explicit close handle; dropping the reference releases it.

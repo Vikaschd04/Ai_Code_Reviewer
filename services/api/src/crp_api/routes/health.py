@@ -6,7 +6,7 @@ from crp_api import __version__
 from crp_api.auth.dependencies import AuthenticatedRequest, Container
 from crp_api.errors import ErrorResponse
 from crp_api.schemas import CapabilityList, LivenessResponse, OverallReadiness, ReadinessReport
-from crp_api.services.capabilities import CAPABILITIES
+from crp_api.services.capabilities import capabilities_for
 from crp_api.services.readiness import build_readiness_report
 
 router = APIRouter(tags=["health"])
@@ -39,5 +39,5 @@ async def readiness(
 @router.get(
     "/capabilities", response_model=CapabilityList, responses={401: {"model": ErrorResponse}}
 )
-async def capabilities(subject: AuthenticatedRequest) -> CapabilityList:
-    return CapabilityList(capabilities=list(CAPABILITIES))
+async def capabilities(subject: AuthenticatedRequest, container: Container) -> CapabilityList:
+    return CapabilityList(capabilities=capabilities_for(container.settings))

@@ -196,5 +196,5 @@ async def test_capabilities_disclose_planned_features(api: ApiHarness) -> None:
     assert states["baseline_analysis"] == "available"
     assert states["architecture_graph"] == "available"
     assert states["issue_lifecycle"] == states["exports"] == "available"
-    assert states["ai_investigation"] == "planned"
-    assert states["ai_investigation"] == "planned"
+    assert states["ai_investigation"] == "not_configured"  # no model provider in tests
+    assert states["fix_workbench"] == states["git_integration"] == "planned"

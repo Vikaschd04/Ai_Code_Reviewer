@@ -24,6 +24,8 @@ class RecordingGateway:
 
     def __init__(self) -> None:
         self.intakes: list[UUID] = []
+        self.ai_runs: list[UUID] = []
+        self.cancelled_ai_runs: list[UUID] = []
 
     async def describe_service(self) -> WorkflowServiceStatus:
         return WorkflowServiceStatus(address="test", namespace="test", server_version=None)
@@ -48,6 +50,13 @@ class RecordingGateway:
 
     async def cancel_scan(self, scan_id: UUID) -> None:
         return None
+
+    async def start_ai_run(self, run_id: UUID) -> str:
+        self.ai_runs.append(run_id)
+        return f"crp-ai-{run_id.hex}"
+
+    async def cancel_ai_run(self, run_id: UUID) -> None:
+        self.cancelled_ai_runs.append(run_id)
 
     async def close(self) -> None:
         return None

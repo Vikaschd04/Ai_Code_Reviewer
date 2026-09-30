@@ -3,26 +3,49 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from crp_analysis.ai.config import resolve
+from crp_analysis.ai.prompts import PROMPT_VERSION
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
+    AiAnchorResponse,
+    AiAnswerResponse,
+    AiFindingResponse,
     AiLimits,
     AiMonthUsage,
+    AiRunCreate,
+    AiRunPage,
+    AiRunResponse,
     AiStatus,
+    AiStepResponse,
+    AiUsageResponse,
     ProjectAiPolicyResponse,
     ProjectAiPolicyUpdate,
 )
 from crp_api.services.scope import get_scoped
 from crp_core.db.ai_usage import month_usage
-from crp_core.db.models import AiPolicyEvent, Project, ProjectAiPolicy
+from crp_core.db.models import (
+    AiFinding,
+    AiPolicyEvent,
+    AiRun,
+    FileEntry,
+    Finding,
+    Project,
+    ProjectAiPolicy,
+    Scan,
+    Snapshot,
+)
 from crp_core.db.session import transaction
-from crp_core.domain.states import MembershipRole
+from crp_core.domain.states import AiRunState, CaptureStatus, FileDisposition, MembershipRole
+from crp_core.workflows.contracts import ai_run_workflow_id
+from crp_core.workflows.gateway import WorkflowUnavailableError
 
 router = APIRouter(tags=["ai"], responses={401: {"model": ErrorResponse}})
 _ERRORS: dict[int | str, dict[str, Any]] = {
@@ -151,3 +174,271 @@ async def update_ai_policy(
         await session.flush()
         await session.refresh(policy)
         return _policy_response(project, policy, can_edit=True)
+
+
+# -- runs --------------------------------------------------------------------------------------
+
+
+def _run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
+    return AiRunResponse(
+        id=run.id,
+        project_id=run.project_id,
+        snapshot_id=run.snapshot_id,
+        scan_id=run.scan_id,
+        finding_id=run.finding_id,
+        kind=run.kind,
+        state=run.state,
+        question=run.question,
+        target_paths=run.target_paths,
+        provider=run.provider,
+        model=run.model,
+        prompt_version=run.prompt_version,
+        created_at=run.created_at,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        cancel_requested_at=run.cancel_requested_at,
+        error_code=run.error_code,
+        error_message=run.error_message,
+        usage=AiUsageResponse.model_validate(run.usage) if run.usage else None,
+        answer=AiAnswerResponse.model_validate(run.answer) if run.answer else None,
+        steps=[AiStepResponse.model_validate(step) for step in run.steps or []],
+        limitations=list(run.limitations or []),
+        findings=[
+            AiFindingResponse(
+                id=f.id,
+                title=f.title,
+                category=f.category,
+                severity=f.severity,
+                severity_rationale=f.severity_rationale,
+                confidence=f.confidence,
+                evidence_class=f.evidence_class,
+                anchors=[AiAnchorResponse.model_validate(a) for a in f.anchors],
+                triggering_conditions=f.triggering_conditions,
+                impact=f.impact,
+                recommendation=f.recommendation,
+                validation_needed=f.validation_needed,
+                uncertainty=f.uncertainty,
+                related_finding_id=f.related_finding_id,
+            )
+            for f in findings
+        ],
+    )
+
+
+async def _target(
+    session: AsyncSession, project: Project, body: AiRunCreate
+) -> tuple[uuid.UUID, uuid.UUID | None]:
+    """Resolve (snapshot, scan) for a new run inside the project, or raise a 4xx ApiError."""
+    if body.kind == "finding_review":
+        if body.finding_id is None:
+            raise ApiError(422, "finding_required", "Choose the finding to review")
+        finding = await session.get(Finding, body.finding_id)
+        if finding is None or finding.project_id != project.id:
+            raise ApiError(404, "finding_not_found", "Finding not found in this project")
+        return finding.snapshot_id, finding.scan_id
+    if body.snapshot_id is not None:
+        snapshot = await session.get(Snapshot, body.snapshot_id)
+        if snapshot is None or snapshot.project_id != project.id:
+            raise ApiError(404, "snapshot_not_found", "Upload not found in this project")
+    else:
+        snapshot = await session.scalar(
+            select(Snapshot)
+            .where(
+                Snapshot.project_id == project.id,
+                Snapshot.capture_status == CaptureStatus.FROZEN.value,
+            )
+            .order_by(Snapshot.frozen_at.desc())
+            .limit(1)
+        )
+        if snapshot is None:
+            raise ApiError(409, "no_snapshot", "Upload code before asking AI about it")
+    if snapshot.capture_status != CaptureStatus.FROZEN.value:
+        raise ApiError(409, "snapshot_not_ready", "This upload is not ready yet")
+    scan = await session.scalar(
+        select(Scan.id)
+        .where(Scan.snapshot_id == snapshot.id)
+        .order_by(Scan.created_at.desc())
+        .limit(1)
+    )
+    return snapshot.id, scan
+
+
+@router.post(
+    "/projects/{project_id}/ai-runs",
+    status_code=202,
+    response_model=AiRunResponse,
+    responses={
+        **_ERRORS,
+        422: {"model": ErrorResponse},
+        429: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
+async def create_ai_run(
+    project_id: uuid.UUID, body: AiRunCreate, principal: CurrentPrincipal, container: Container
+) -> AiRunResponse:
+    """Start a bounded AI run: a question, a review of one finding, or a review of files.
+
+    Refused unless an admin switched AI review on for the project and the server has a
+    configured provider with monthly budget left. Only masked excerpts of the chosen upload are
+    sent, and every call is accounted.
+    """
+    if body.kind == "question" and not body.question:
+        raise ApiError(422, "question_required", "Type a question")
+    if body.kind == "file_review" and not body.paths:
+        raise ApiError(422, "paths_required", "Choose one to five files to review")
+    setup = resolve(container.settings)
+    async with transaction(container.session_factory) as session:
+        project = await get_scoped(
+            session,
+            principal,
+            Project,
+            project_id,
+            not_found="project_not_found",
+            required=MembershipRole.MEMBER,
+        )
+        policy = await session.get(ProjectAiPolicy, project.id)
+        if policy is None or not policy.enabled:
+            raise ApiError(
+                409,
+                "ai_policy_disabled",
+                "AI review is switched off for this project. A workspace admin can switch it on.",
+            )
+        if not setup.available or setup.model is None:
+            raise ApiError(409, "ai_unavailable", setup.reason or "AI review is not set up")
+        usage = await month_usage(session)
+        if setup.monthly_token_limit and usage.total_tokens >= setup.monthly_token_limit:
+            raise ApiError(429, "ai_monthly_limit", "This month's AI token limit is used up")
+        if (
+            setup.monthly_cost_limit_usd is not None
+            and usage.cost_usd is not None
+            and usage.cost_usd >= setup.monthly_cost_limit_usd
+        ):
+            raise ApiError(429, "ai_monthly_limit", "This month's AI cost limit is used up")
+        snapshot_id, scan_id = await _target(session, project, body)
+        paths: list[str] | None = None
+        if body.kind == "file_review" and body.paths:
+            paths = list(dict.fromkeys(body.paths))
+            known = set(
+                (
+                    await session.scalars(
+                        select(FileEntry.path).where(
+                            FileEntry.snapshot_id == snapshot_id,
+                            FileEntry.disposition == FileDisposition.ANALYZABLE.value,
+                            FileEntry.path.in_(paths),
+                        )
+                    )
+                ).all()
+            )
+            missing = [p for p in paths if p not in known]
+            if missing:
+                raise ApiError(
+                    422,
+                    "unknown_paths",
+                    "Some files are not reviewable files of this upload",
+                    {"paths": missing[:5]},
+                )
+        run = AiRun(
+            workspace_id=project.workspace_id,
+            project_id=project.id,
+            snapshot_id=snapshot_id,
+            scan_id=scan_id,
+            finding_id=body.finding_id if body.kind == "finding_review" else None,
+            kind=body.kind,
+            state=AiRunState.QUEUED.value,
+            question=body.question if body.kind == "question" else None,
+            target_paths=paths,
+            provider=setup.provider.value,
+            model=setup.model,
+            prompt_version=PROMPT_VERSION,
+            requested_by=principal.user_id,
+            limits={
+                "max_model_calls": setup.limits.max_model_calls,
+                "max_tool_calls": setup.limits.max_tool_calls,
+                "max_tokens": setup.limits.max_tokens,
+                "timeout_seconds": setup.limits.timeout_seconds,
+                "max_cost_usd": setup.limits.max_cost_usd,
+                "max_excerpt_lines": policy.max_excerpt_lines,
+            },
+        )
+        session.add(run)
+        await session.flush()
+        run.workflow_id = ai_run_workflow_id(run.id)
+        await session.refresh(run)
+        run_id = run.id
+        response = _run_response(run, [])
+    try:
+        await container.workflows.start_ai_run(run_id)
+    except WorkflowUnavailableError as exc:
+        async with transaction(container.session_factory) as session:
+            stored = await session.get(AiRun, run_id, with_for_update=True)
+            if stored is not None and stored.state == AiRunState.QUEUED.value:
+                stored.state = AiRunState.FAILED.value
+                stored.error_code = "workflow_unavailable"
+                stored.error_message = "The review service is not running; nothing was sent."
+        raise ApiError(503, "workflow_unavailable", f"{exc}; try again shortly") from exc
+    return response
+
+
+@router.get("/projects/{project_id}/ai-runs", response_model=AiRunPage, responses=_ERRORS)
+async def list_ai_runs(
+    project_id: uuid.UUID,
+    principal: CurrentPrincipal,
+    container: Container,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+) -> AiRunPage:
+    async with transaction(container.session_factory) as session:
+        project = await get_scoped(
+            session, principal, Project, project_id, not_found="project_not_found"
+        )
+        runs = (
+            await session.scalars(
+                select(AiRun)
+                .where(AiRun.project_id == project.id)
+                .order_by(AiRun.created_at.desc())
+                .limit(limit)
+            )
+        ).all()
+        return AiRunPage(items=[_run_response(run, []) for run in runs])
+
+
+@router.get("/ai-runs/{run_id}", response_model=AiRunResponse, responses=_ERRORS)
+async def get_ai_run(
+    run_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> AiRunResponse:
+    async with transaction(container.session_factory) as session:
+        run = await get_scoped(session, principal, AiRun, run_id, not_found="ai_run_not_found")
+        findings = (
+            await session.scalars(
+                select(AiFinding).where(AiFinding.run_id == run.id).order_by(AiFinding.sequence)
+            )
+        ).all()
+        return _run_response(run, list(findings))
+
+
+@router.post("/ai-runs/{run_id}/cancel", response_model=AiRunResponse, responses=_ERRORS)
+async def cancel_ai_run(
+    run_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> AiRunResponse:
+    async with transaction(container.session_factory) as session:
+        run = await get_scoped(
+            session,
+            principal,
+            AiRun,
+            run_id,
+            not_found="ai_run_not_found",
+            required=MembershipRole.MEMBER,
+            for_update=True,
+        )
+        if not AiRunState(run.state).is_terminal and run.cancel_requested_at is None:
+            run.cancel_requested_at = datetime.now(UTC)
+        await session.flush()
+        await session.refresh(run)
+        response = _run_response(run, [])
+        terminal = AiRunState(run.state).is_terminal
+    if not terminal:
+        try:
+            await container.workflows.cancel_ai_run(run_id)
+        except WorkflowUnavailableError as exc:
+            raise ApiError(503, "workflow_unavailable", str(exc)) from exc
+    return response

@@ -62,6 +62,7 @@ class ReadinessReport(ApiModel):
 
 class CapabilityState(StrEnum):
     AVAILABLE = "available"
+    NOT_CONFIGURED = "not_configured"  # implemented, but this server has not set it up
     PLANNED = "planned"
 
 
@@ -722,3 +723,119 @@ class ProjectAiPolicyUpdate(ApiModel):
     version: int | None = Field(
         default=None, description="Current version for optimistic concurrency (omit on first save)"
     )
+
+
+class AiRunCreate(ApiModel):
+    kind: Literal["question", "finding_review", "file_review"]
+    question: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=2000)]
+        | None
+    ) = None
+    finding_id: UUID | None = None
+    paths: (
+        Annotated[
+            list[Annotated[str, StringConstraints(min_length=1, max_length=512)]],
+            Field(min_length=1, max_length=5),
+        ]
+        | None
+    ) = None
+    snapshot_id: UUID | None = Field(
+        default=None, description="Defaults to the project's latest upload (frozen snapshot)"
+    )
+
+
+class AiAnchorResponse(ApiModel):
+    path: str
+    start_line: int
+    end_line: int
+    quote: str
+    status: str = Field(description="verified, unquoted, quote_mismatch, bad_range, unknown_path")
+    sha256: str | None = Field(
+        default=None, description="Content hash of the cited file (null when the path is unknown)"
+    )
+
+
+class AiAssessmentResponse(ApiModel):
+    verdict: str
+    explanation: str
+    evidence_class: str
+    anchors: list[AiAnchorResponse]
+
+
+class AiAnswerResponse(ApiModel):
+    type: Literal["answer", "review"]
+    text: str
+    abstained: bool = False
+    uncertainty: str = ""
+    inferred_intent: str = ""
+    evidence_class: str | None = None
+    citations: list[AiAnchorResponse] = []
+    reviewed_paths: list[str] = []
+    assessment: AiAssessmentResponse | None = None
+
+
+class AiFindingResponse(ApiModel):
+    id: UUID
+    title: str
+    category: str
+    severity: str
+    severity_rationale: str
+    confidence: str
+    evidence_class: str
+    anchors: list[AiAnchorResponse]
+    triggering_conditions: str
+    impact: str
+    recommendation: str
+    validation_needed: str | None
+    uncertainty: str | None
+    related_finding_id: UUID | None
+
+
+class AiUsageResponse(ApiModel):
+    calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    usage_reported: bool = True
+    budget_tokens: int = 0
+    cost_usd: float | None = None
+    excerpts: int = 0
+
+
+class AiStepResponse(ApiModel):
+    n: int
+    action: str
+    detail: str
+    outcome: str
+    at: str
+
+
+class AiRunResponse(ApiModel):
+    id: UUID
+    project_id: UUID
+    snapshot_id: UUID
+    scan_id: UUID | None
+    finding_id: UUID | None
+    kind: str
+    state: str
+    question: str | None
+    target_paths: list[str] | None
+    provider: str
+    model: str
+    prompt_version: str
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    cancel_requested_at: datetime | None
+    error_code: str | None
+    error_message: str | None
+    usage: AiUsageResponse | None
+    answer: AiAnswerResponse | None
+    steps: list[AiStepResponse]
+    limitations: list[str]
+    findings: list[AiFindingResponse]
+
+
+class AiRunPage(ApiModel):
+    items: list[AiRunResponse]

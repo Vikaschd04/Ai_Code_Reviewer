@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/v1/ai-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Run */
+        get: operations["get_ai_run_v1_ai_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ai-runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Ai Run */
+        post: operations["cancel_ai_run_v1_ai_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ai/status": {
         parameters: {
             query?: never;
@@ -483,6 +517,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/ai-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Ai Runs */
+        get: operations["list_ai_runs_v1_projects__project_id__ai_runs_get"];
+        put?: never;
+        /**
+         * Create Ai Run
+         * @description Start a bounded AI run: a question, a review of one finding, or a review of files.
+         *
+         *     Refused unless an admin switched AI review on for the project and the server has a
+         *     configured provider with monthly budget left. Only masked excerpts of the chosen upload are
+         *     sent, and every call is accounted.
+         */
+        post: operations["create_ai_run_v1_projects__project_id__ai_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/intakes": {
         parameters: {
             query?: never;
@@ -824,6 +883,110 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiAnchorResponse */
+        AiAnchorResponse: {
+            /** End Line */
+            end_line: number;
+            /** Path */
+            path: string;
+            /** Quote */
+            quote: string;
+            /**
+             * Sha256
+             * @description Content hash of the cited file (null when the path is unknown)
+             */
+            sha256?: string | null;
+            /** Start Line */
+            start_line: number;
+            /**
+             * Status
+             * @description verified, unquoted, quote_mismatch, bad_range, unknown_path
+             */
+            status: string;
+        };
+        /** AiAnswerResponse */
+        AiAnswerResponse: {
+            /**
+             * Abstained
+             * @default false
+             */
+            abstained: boolean;
+            assessment?: components["schemas"]["AiAssessmentResponse"] | null;
+            /**
+             * Citations
+             * @default []
+             */
+            citations: components["schemas"]["AiAnchorResponse"][];
+            /** Evidence Class */
+            evidence_class?: string | null;
+            /**
+             * Inferred Intent
+             * @default
+             */
+            inferred_intent: string;
+            /**
+             * Reviewed Paths
+             * @default []
+             */
+            reviewed_paths: string[];
+            /** Text */
+            text: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "answer" | "review";
+            /**
+             * Uncertainty
+             * @default
+             */
+            uncertainty: string;
+        };
+        /** AiAssessmentResponse */
+        AiAssessmentResponse: {
+            /** Anchors */
+            anchors: components["schemas"]["AiAnchorResponse"][];
+            /** Evidence Class */
+            evidence_class: string;
+            /** Explanation */
+            explanation: string;
+            /** Verdict */
+            verdict: string;
+        };
+        /** AiFindingResponse */
+        AiFindingResponse: {
+            /** Anchors */
+            anchors: components["schemas"]["AiAnchorResponse"][];
+            /** Category */
+            category: string;
+            /** Confidence */
+            confidence: string;
+            /** Evidence Class */
+            evidence_class: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Impact */
+            impact: string;
+            /** Recommendation */
+            recommendation: string;
+            /** Related Finding Id */
+            related_finding_id: string | null;
+            /** Severity */
+            severity: string;
+            /** Severity Rationale */
+            severity_rationale: string;
+            /** Title */
+            title: string;
+            /** Triggering Conditions */
+            triggering_conditions: string;
+            /** Uncertainty */
+            uncertainty: string | null;
+            /** Validation Needed */
+            validation_needed: string | null;
+        };
         /** AiLimits */
         AiLimits: {
             /** Max Cost Usd */
@@ -861,6 +1024,89 @@ export interface components {
             /** Tokens */
             tokens: number;
         };
+        /** AiRunCreate */
+        AiRunCreate: {
+            /** Finding Id */
+            finding_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "question" | "finding_review" | "file_review";
+            /** Paths */
+            paths?: string[] | null;
+            /** Question */
+            question?: string | null;
+            /**
+             * Snapshot Id
+             * @description Defaults to the project's latest upload (frozen snapshot)
+             */
+            snapshot_id?: string | null;
+        };
+        /** AiRunPage */
+        AiRunPage: {
+            /** Items */
+            items: components["schemas"]["AiRunResponse"][];
+        };
+        /** AiRunResponse */
+        AiRunResponse: {
+            answer: components["schemas"]["AiAnswerResponse"] | null;
+            /** Cancel Requested At */
+            cancel_requested_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Finding Id */
+            finding_id: string | null;
+            /** Findings */
+            findings: components["schemas"]["AiFindingResponse"][];
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Limitations */
+            limitations: string[];
+            /** Model */
+            model: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Provider */
+            provider: string;
+            /** Question */
+            question: string | null;
+            /** Scan Id */
+            scan_id: string | null;
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+            /** Started At */
+            started_at: string | null;
+            /** State */
+            state: string;
+            /** Steps */
+            steps: components["schemas"]["AiStepResponse"][];
+            /** Target Paths */
+            target_paths: string[] | null;
+            usage: components["schemas"]["AiUsageResponse"] | null;
+        };
         /** AiStatus */
         AiStatus: {
             /**
@@ -883,6 +1129,64 @@ export interface components {
              * @description Why AI review is unavailable, for every user
              */
             reason: string | null;
+        };
+        /** AiStepResponse */
+        AiStepResponse: {
+            /** Action */
+            action: string;
+            /** At */
+            at: string;
+            /** Detail */
+            detail: string;
+            /** N */
+            n: number;
+            /** Outcome */
+            outcome: string;
+        };
+        /** AiUsageResponse */
+        AiUsageResponse: {
+            /**
+             * Budget Tokens
+             * @default 0
+             */
+            budget_tokens: number;
+            /**
+             * Cache Read Tokens
+             * @default 0
+             */
+            cache_read_tokens: number;
+            /**
+             * Cache Write Tokens
+             * @default 0
+             */
+            cache_write_tokens: number;
+            /**
+             * Calls
+             * @default 0
+             */
+            calls: number;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /**
+             * Excerpts
+             * @default 0
+             */
+            excerpts: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Usage Reported
+             * @default true
+             */
+            usage_reported: boolean;
         };
         /** ArtifactProbeResult */
         ArtifactProbeResult: {
@@ -927,7 +1231,7 @@ export interface components {
          * CapabilityState
          * @enum {string}
          */
-        CapabilityState: "available" | "planned";
+        CapabilityState: "available" | "not_configured" | "planned";
         /**
          * CheckStatus
          * @enum {string}
@@ -2242,6 +2546,140 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_ai_run_v1_ai_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_ai_run_v1_ai_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ai_status_v1_ai_status_get: {
         parameters: {
             query?: never;
@@ -3880,6 +4318,164 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ai_runs_v1_projects__project_id__ai_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_ai_run_v1_projects__project_id__ai_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

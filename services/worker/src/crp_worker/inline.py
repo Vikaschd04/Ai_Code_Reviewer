@@ -24,23 +24,27 @@ from functools import partial
 from typing import Any
 from uuid import UUID
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from crp_analysis.engines.base import EngineAdapter
 from crp_core.artifacts import ArtifactStore
 from crp_core.config import Settings
-from crp_core.db.models import Intake, Scan
+from crp_core.db.models import AiRun, Intake, Scan
 from crp_core.db.session import create_session_factory, transaction
-from crp_core.domain.states import IntakeState, ScanState
+from crp_core.domain.states import AiRunState, IntakeState, ScanState
 from crp_core.workflows.contracts import (
     DIAGNOSTIC_WORKFLOW_ID_PATTERN,
+    AiRunFinalize,
+    AiRunInput,
     DiagnosticWorkflowInput,
     DiagnosticWorkflowResult,
     EngineTask,
     FinalizeInput,
     IntakeWorkflowInput,
     ScanWorkflowInput,
+    ai_run_workflow_id,
     diagnostic_workflow_id,
     intake_workflow_id,
     scan_workflow_id,
@@ -52,6 +56,7 @@ from crp_core.workflows.gateway import (
     WorkflowRunStatus,
     WorkflowServiceStatus,
 )
+from crp_worker.ai_run import AiRunActivities, fail_interrupted_runs
 from crp_worker.diagnostics import DiagnosticActivities
 from crp_worker.intake import IntakeActivities
 from crp_worker.scan import ScanActivities
@@ -92,6 +97,7 @@ class InlineWorkflowGateway:
         *,
         adapters: dict[str, EngineAdapter] | None = None,
         max_concurrent_scans: int = 1,
+        ai_transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         sessions = create_session_factory(engine)
         self._sessions = sessions
@@ -99,6 +105,8 @@ class InlineWorkflowGateway:
         self._intake = IntakeActivities(settings, store, sessions)
         self._scan = ScanActivities(settings, store, sessions, adapters)
         self._diagnostics = DiagnosticActivities(store, engine, self._identity)
+        self._ai = AiRunActivities(settings, store, sessions, transport=ai_transport)
+        self._ai_slots = asyncio.Semaphore(1)
         self._scan_slots = asyncio.Semaphore(max_concurrent_scans)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._diagnostic_runs: dict[str, _Diagnostic] = {}
@@ -122,6 +130,22 @@ class InlineWorkflowGateway:
                 )
             ).scalars()
             pending_intakes, pending_scans = list(intakes), list(scans)
+        # AI runs are never re-executed after a restart (that would repeat paid calls).
+        interrupted = await fail_interrupted_runs(self._sessions)
+        async with transaction(self._sessions) as session:
+            queued_ai = list(
+                (
+                    await session.execute(
+                        select(AiRun.id)
+                        .where(AiRun.state == AiRunState.QUEUED.value)
+                        .order_by(AiRun.created_at)
+                    )
+                ).scalars()
+            )
+        for run_id in queued_ai:
+            await self.start_ai_run(run_id)
+        if interrupted:
+            logger.info("failed interrupted AI runs", extra={"runs": interrupted})
         for intake_id in pending_intakes:
             await self.start_intake(intake_id)
         for scan_id in pending_scans:
@@ -234,6 +258,45 @@ class InlineWorkflowGateway:
                 )
             else:
                 await _retry(lambda: self._scan.prepare(payload), attempts=5)
+
+    # -- AI runs ----------------------------------------------------------------------------
+
+    async def start_ai_run(self, run_id: UUID) -> str:
+        workflow_id = ai_run_workflow_id(run_id)
+        self._spawn(workflow_id, lambda: self._run_ai(run_id))
+        return workflow_id
+
+    async def cancel_ai_run(self, run_id: UUID) -> None:
+        task = self._tasks.get(ai_run_workflow_id(run_id))
+        if task is not None and not task.done():
+            task.cancel()
+        else:
+            await self.start_ai_run(run_id)  # prepare() sees the cancel request and ends it
+
+    async def _run_ai(self, run_id: UUID) -> None:
+        payload = AiRunInput(run_id=run_id)
+        try:
+            async with self._ai_slots:
+                plan = await _retry(lambda: self._ai.prepare(payload), attempts=5)
+                if plan.terminal:
+                    return
+                try:
+                    await self._ai.execute(payload)  # never retried: it spends provider credit
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("AI run failed", extra={"run_id": str(run_id)})
+                    await _retry(
+                        lambda: self._ai.finalize(AiRunFinalize(run_id=run_id, interrupted=True)),
+                        attempts=5,
+                    )
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None:
+                current.uncancel()
+            await _retry(
+                lambda: self._ai.finalize(AiRunFinalize(run_id=run_id, canceled=True)), attempts=5
+            )
 
     # -- diagnostic -------------------------------------------------------------------------
 

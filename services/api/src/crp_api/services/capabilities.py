@@ -7,7 +7,9 @@ implementation and validation evidence exist.
 
 from __future__ import annotations
 
+from crp_analysis.ai.config import resolve
 from crp_api.schemas import Capability, CapabilityState
+from crp_core.config import Settings
 
 _A = CapabilityState.AVAILABLE
 _P = CapabilityState.PLANNED
@@ -86,13 +88,6 @@ CAPABILITIES: tuple[Capability, ...] = (
         "resolved/declared/inferred/unresolved classification; syntax-level only",
     ),
     Capability(
-        id="ai_investigation",
-        label="AI investigation",
-        state=_P,
-        phase="P03",
-        reason="Requires Phase 3 and an approved provider and data-egress policy",
-    ),
-    Capability(
         id="fix_workbench",
         label="Fix workbench",
         state=_P,
@@ -107,3 +102,22 @@ CAPABILITIES: tuple[Capability, ...] = (
         reason="Git connector and pull-request analysis arrive in Phase 6",
     ),
 )
+
+
+def capabilities_for(settings: Settings) -> list[Capability]:
+    """Static entries plus those whose availability depends on this server's configuration."""
+    setup = resolve(settings)
+    ai = Capability(
+        id="ai_investigation",
+        label="AI review",
+        state=_A if setup.available else CapabilityState.NOT_CONFIGURED,
+        phase="P03",
+        reason=(
+            "Ask about code and review files with a model; citations are checked against the "
+            "upload. Off for each project until a workspace admin switches it on."
+            if setup.available
+            else "Needs a model provider set up by the server operator"
+        ),
+    )
+    index = next(i for i, c in enumerate(CAPABILITIES) if c.id == "fix_workbench")
+    return [*CAPABILITIES[:index], ai, *CAPABILITIES[index:]]

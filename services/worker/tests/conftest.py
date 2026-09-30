@@ -35,10 +35,10 @@ TERMINAL_SCAN = {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED", "BLOCKED", "BUDGE
 class LiveServer:
     """Run the real ASGI app with uvicorn on a free loopback port in a background thread."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, **app_options: Any) -> None:
         self.port = free_port()
         config = uvicorn.Config(
-            create_app(settings),
+            create_app(settings, **app_options),
             host="127.0.0.1",
             port=self.port,
             log_level="warning",
@@ -174,7 +174,9 @@ def settings(
 
 @contextlib.asynccontextmanager
 async def running_stack(
-    settings: Settings, adapters: dict[str, EngineAdapter] | None = None
+    settings: Settings,
+    adapters: dict[str, EngineAdapter] | None = None,
+    ai_transport: httpx.AsyncBaseTransport | None = None,
 ) -> AsyncIterator[Stack]:
     engine = create_engine_from_settings(settings)
     async with transaction(create_session_factory(engine)) as session:
@@ -190,6 +192,7 @@ async def running_stack(
         engine=engine,
         identity="crp-worker@pytest",
         adapters=adapters,
+        ai_transport=ai_transport,
     )
     server = LiveServer(settings)
     await asyncio.to_thread(server.start)
