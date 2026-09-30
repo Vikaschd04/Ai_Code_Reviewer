@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { expect, test, type Page } from "@playwright/test";
 
 import { createProject, env, signIn } from "./helpers";
@@ -76,6 +78,20 @@ test("AI review: opt-in, question, file review and finding second opinion", asyn
   await expect(page.getByTestId("ai-verdict")).toHaveText("Not sure", { timeout: 60_000 });
   await expect(page.getByTestId("ai-anchors").first()).toContainText("InvoiceService.java");
   await page.screenshot({ path: "test-results/screens/p03-ai-verdict.png", fullPage: true });
+
+  // The finished run downloads as SARIF (AI findings only), and the finding lists its opinions.
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("ai-export-sarif").click();
+  const sarif = JSON.parse(readFileSync(await (await downloadPromise).path(), "utf8")) as {
+    version: string;
+    runs: { tool: { driver: { name: string } } }[];
+  };
+  expect(sarif.version).toBe("2.1.0");
+  expect(sarif.runs[0]?.tool.driver.name).toBe("refactorX AI review");
+  await page.goBack();
+  await expect(page.getByTestId("ai-check-history")).toContainText("Not sure");
+  await page.goForward();
+  await expect(page.getByTestId("ai-verdict")).toBeVisible();
 
   // All three runs are listed on the project.
   await page.getByRole("link", { name: "Back to AI review" }).click();

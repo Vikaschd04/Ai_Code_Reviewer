@@ -38,6 +38,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai-runs/{run_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Ai Run
+         * @description Download a finished run as JSON (``crp-ai-run-export/v1``) or its AI findings as SARIF.
+         *
+         *     Kept separate from scan exports: these are AI results with their evidence class.
+         */
+        get: operations["export_ai_run_v1_ai_runs__run_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ai/status": {
         parameters: {
             query?: never;
@@ -524,7 +546,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Ai Runs */
+        /**
+         * List Ai Runs
+         * @description Newest runs first; ``finding_id`` narrows to second opinions on that finding.
+         */
         get: operations["list_ai_runs_v1_projects__project_id__ai_runs_get"];
         put?: never;
         /**
@@ -2685,6 +2710,75 @@ export interface operations {
             };
         };
     };
+    export_ai_run_v1_ai_runs__run_id__export_get: {
+        parameters: {
+            query?: {
+                format?: "json" | "sarif";
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ai_status_v1_ai_status_get: {
         parameters: {
             query?: never;
@@ -4331,6 +4425,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                finding_id?: string | null;
             };
             header?: never;
             path: {

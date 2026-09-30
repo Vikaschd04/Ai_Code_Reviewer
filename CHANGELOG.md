@@ -2,6 +2,7 @@
 
 ## Unreleased — P03 AI review (30 September 2026)
 
+- AI results can be downloaded per run (JSON with its own schema, SARIF with AI findings only; rejected suggestions never appear as SARIF results), and a finding's page lists its earlier AI second opinions. AI findings deliberately stay out of tracked issues and scan exports: issues need deterministic re-checks.
 - AI review, off until configured: Anthropic or any OpenAI-compatible provider through `CRP_AI_*` settings (key only on the server, https endpoints), with per-run limits, monthly token/cost caps and owner-set prices (costs "unknown" without them). ADR 0012.
 - Per-project sharing switch, off by default, admin-only with explicit confirmation, audited.
 - Ask questions about a project's code, review up to five files, or get a second opinion on a finding. The AI reads masked excerpts through five read-only tools; every cited line is checked against the upload ("Checked against your code" / "Not verified" / discarded). Runs are durable, cancellable and never retried automatically; usage and cost are recorded per call.

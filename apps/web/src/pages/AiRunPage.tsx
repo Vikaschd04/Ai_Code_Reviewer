@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
 
 import { describeError, type AiFinding, type AiRun } from "../api/client";
-import { cancelAiRun, fetchAiRun } from "../api/endpoints";
-import { AnchorList, EvidenceBadge, isTerminalRun, runError, runTitle } from "../components/Ai";
+import { aiExportUrl, cancelAiRun, fetchAiRun } from "../api/endpoints";
+import {
+  AnchorList,
+  EvidenceBadge,
+  isTerminalRun,
+  runError,
+  runTitle,
+  VERDICTS,
+} from "../components/Ai";
 import { Alert, Disclosure, Loading, PageHeader } from "../components/Common";
 import { Icon } from "../components/Icon";
 import { SeverityChip } from "../components/Severity";
 import { StatusBadge } from "../components/Status";
 import { formatDate, formatNumber } from "../lib/format";
 import { categoryLabel, plural } from "../lib/labels";
-
-const VERDICTS: Record<string, { tone: "ok" | "warn" | "neutral"; label: string }> = {
-  confirmed: { tone: "warn", label: "Real problem" },
-  likely_false_positive: { tone: "ok", label: "Likely not a problem" },
-  uncertain: { tone: "neutral", label: "Not sure" },
-};
 
 const STEP_LABELS: Record<string, string> = {
   plan: "Prepared the request",
@@ -303,7 +304,33 @@ export function AiRunPage({ runId }: { runId: string }) {
         }
         title={runTitle(run)}
         sub={KIND_SUB[run.kind]}
-        actions={<StatusBadge state={run.state} />}
+        actions={
+          <>
+            <StatusBadge state={run.state} />
+            {terminal ? (
+              <div className="btn-group" role="group" aria-label="Download">
+                <a
+                  className="btn btn-ghost btn-sm"
+                  href={aiExportUrl(run.id, "json")}
+                  download
+                  data-testid="ai-export-json"
+                  title="Full AI result as JSON"
+                >
+                  <Icon name="download" size={14} /> Report
+                </a>
+                <a
+                  className="btn btn-ghost btn-sm"
+                  href={aiExportUrl(run.id, "sarif")}
+                  download
+                  data-testid="ai-export-sarif"
+                  title="AI findings as SARIF 2.1.0 (rejected suggestions excluded)"
+                >
+                  SARIF
+                </a>
+              </div>
+            ) : null}
+          </>
+        }
       />
       <div className="split">
         <div className="stack">

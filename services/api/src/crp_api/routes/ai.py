@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crp_analysis.ai.config import resolve
+from crp_analysis.ai.export import build_ai_export, build_ai_sarif
 from crp_analysis.ai.prompts import PROMPT_VERSION
+from crp_api import __version__
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
@@ -386,19 +389,17 @@ async def list_ai_runs(
     principal: CurrentPrincipal,
     container: Container,
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    finding_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> AiRunPage:
+    """Newest runs first; ``finding_id`` narrows to second opinions on that finding."""
     async with transaction(container.session_factory) as session:
         project = await get_scoped(
             session, principal, Project, project_id, not_found="project_not_found"
         )
-        runs = (
-            await session.scalars(
-                select(AiRun)
-                .where(AiRun.project_id == project.id)
-                .order_by(AiRun.created_at.desc())
-                .limit(limit)
-            )
-        ).all()
+        query = select(AiRun).where(AiRun.project_id == project.id)
+        if finding_id is not None:
+            query = query.where(AiRun.finding_id == finding_id)
+        runs = (await session.scalars(query.order_by(AiRun.created_at.desc()).limit(limit))).all()
         return AiRunPage(items=[_run_response(run, []) for run in runs])
 
 
@@ -414,6 +415,54 @@ async def get_ai_run(
             )
         ).all()
         return _run_response(run, list(findings))
+
+
+@router.get(
+    "/ai-runs/{run_id}/export",
+    responses={**_ERRORS, 409: {"model": ErrorResponse}},
+)
+async def export_ai_run(
+    run_id: uuid.UUID,
+    principal: CurrentPrincipal,
+    container: Container,
+    format: Annotated[Literal["json", "sarif"], Query()] = "json",
+) -> JSONResponse:
+    """Download a finished run as JSON (``crp-ai-run-export/v1``) or its AI findings as SARIF.
+
+    Kept separate from scan exports: these are AI results with their evidence class.
+    """
+    async with transaction(container.session_factory) as session:
+        run = await get_scoped(session, principal, AiRun, run_id, not_found="ai_run_not_found")
+        if not AiRunState(run.state).is_terminal:
+            raise ApiError(409, "ai_run_not_finished", "Exports are available once the run ends")
+        findings = (
+            await session.scalars(
+                select(AiFinding).where(AiFinding.run_id == run.id).order_by(AiFinding.sequence)
+            )
+        ).all()
+        project = await session.get(Project, run.project_id)
+        snapshot = await session.get(Snapshot, run.snapshot_id)
+        response = _run_response(run, list(findings))
+    export = build_ai_export(
+        response.model_dump(mode="json"),
+        project={"id": str(run.project_id), "name": project.name if project else ""},
+        snapshot={
+            "id": str(run.snapshot_id),
+            "manifest_sha256": snapshot.manifest_sha256 if snapshot else None,
+        },
+        tool_version=__version__,
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+    document = build_ai_sarif(export) if format == "sarif" else export
+    filename = f"refactorx-ai-{run.id.hex[:12]}.{'sarif' if format == 'sarif' else 'json'}"
+    return JSONResponse(
+        document,
+        media_type="application/sarif+json" if format == "sarif" else "application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post("/ai-runs/{run_id}/cancel", response_model=AiRunResponse, responses=_ERRORS)

@@ -255,6 +255,12 @@ async def test_run_lifecycle_through_the_api(api_factory: ApiFactory) -> None:
     fetched = await api.client.get(f"/v1/ai-runs/{run['id']}", headers=api.auth)
     assert fetched.status_code == 200 and fetched.json()["kind"] == "file_review"
 
+    early = await api.client.get(f"/v1/ai-runs/{run['id']}/export", headers=api.auth)
+    assert early.status_code == 409 and early.json()["code"] == "ai_run_not_finished"
+    other = await api.client.get(
+        f"/v1/projects/{project}/ai-runs?finding_id={uuid.uuid4()}", headers=api.auth
+    )
+    assert other.json()["items"] == []  # the filter narrows to one finding's second opinions
     canceled = await api.client.post(f"/v1/ai-runs/{run['id']}/cancel", headers=api.auth)
     assert canceled.status_code == 200 and canceled.json()["cancel_requested_at"] is not None
     assert gateway.cancelled_ai_runs == [uuid.UUID(run["id"])]

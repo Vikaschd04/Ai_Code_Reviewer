@@ -1,0 +1,546 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:crp:schema:ai-run-export:v1",
+  "title": "refactorX AI run export v1",
+  "description": "One AI question or review of one frozen snapshot: provenance (provider, model, prompt version), usage, the answer or review, AI findings with their evidence class and citation checks, and limitations. AI output, kept separate from deterministic scan exports.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "generated_at",
+    "tool",
+    "project",
+    "snapshot",
+    "run",
+    "usage",
+    "answer",
+    "findings",
+    "limitations",
+    "notice"
+  ],
+  "properties": {
+    "format": {
+      "const": "crp-ai-run-export/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "component",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "component": {
+          "const": "ai-review"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "manifest_sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "state",
+        "question",
+        "target_paths",
+        "finding_id",
+        "scan_id",
+        "provider",
+        "model",
+        "prompt_version",
+        "created_at",
+        "started_at",
+        "finished_at",
+        "error_code",
+        "error_message"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "kind": {
+          "enum": [
+            "question",
+            "file_review",
+            "finding_review"
+          ]
+        },
+        "state": {
+          "enum": [
+            "QUEUED",
+            "RUNNING",
+            "SUCCEEDED",
+            "PARTIAL",
+            "BUDGET_EXHAUSTED",
+            "FAILED",
+            "CANCELED"
+          ]
+        },
+        "question": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_paths": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "finding_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scan_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "prompt_version": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error_message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "usage": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "usage_reported",
+        "budget_tokens",
+        "cost_usd",
+        "excerpts"
+      ],
+      "properties": {
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_read_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_write_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "usage_reported": {
+          "type": "boolean"
+        },
+        "budget_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "excerpts": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "answer": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/answer"
+        }
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notice": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "start_line",
+        "end_line",
+        "quote",
+        "status",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quote": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "verified",
+            "unquoted",
+            "quote_mismatch",
+            "bad_range",
+            "unknown_path"
+          ]
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "text",
+        "abstained",
+        "uncertainty",
+        "inferred_intent",
+        "evidence_class",
+        "citations",
+        "reviewed_paths",
+        "assessment"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "answer",
+            "review"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "abstained": {
+          "type": "boolean"
+        },
+        "uncertainty": {
+          "type": "string"
+        },
+        "inferred_intent": {
+          "type": "string"
+        },
+        "evidence_class": {
+          "anyOf": [
+            {
+              "enum": [
+                "verified_anchor",
+                "hypothesis",
+                "rejected"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/anchor"
+          }
+        },
+        "reviewed_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assessment": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "verdict",
+                "explanation",
+                "evidence_class",
+                "anchors"
+              ],
+              "properties": {
+                "verdict": {
+                  "enum": [
+                    "confirmed",
+                    "likely_false_positive",
+                    "uncertain"
+                  ]
+                },
+                "explanation": {
+                  "type": "string"
+                },
+                "evidence_class": {
+                  "enum": [
+                    "verified_anchor",
+                    "hypothesis",
+                    "rejected"
+                  ]
+                },
+                "anchors": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/anchor"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "category",
+        "severity",
+        "severity_rationale",
+        "confidence",
+        "evidence_class",
+        "anchors",
+        "triggering_conditions",
+        "impact",
+        "recommendation",
+        "validation_needed",
+        "uncertainty",
+        "related_finding_id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info"
+          ]
+        },
+        "severity_rationale": {
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "evidence_class": {
+          "enum": [
+            "verified_anchor",
+            "hypothesis",
+            "rejected"
+          ]
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/anchor"
+          }
+        },
+        "triggering_conditions": {
+          "type": "string"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "recommendation": {
+          "type": "string"
+        },
+        "validation_needed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uncertainty": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "related_finding_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

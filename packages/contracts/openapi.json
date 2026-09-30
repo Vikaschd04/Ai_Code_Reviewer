@@ -4861,6 +4861,102 @@
         ]
       }
     },
+    "/v1/ai-runs/{run_id}/export": {
+      "get": {
+        "description": "Download a finished run as JSON (``crp-ai-run-export/v1``) or its AI findings as SARIF.\n\nKept separate from scan exports: these are AI results with their evidence class.",
+        "operationId": "export_ai_run_v1_ai_runs__run_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "sarif"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Ai Run",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/v1/ai/status": {
       "get": {
         "description": "Whether AI review can run on this server, its limits and this month's usage.",
@@ -6918,6 +7014,7 @@
     },
     "/v1/projects/{project_id}/ai-runs": {
       "get": {
+        "description": "Newest runs first; ``finding_id`` narrows to second opinions on that finding.",
         "operationId": "list_ai_runs_v1_projects__project_id__ai_runs_get",
         "parameters": [
           {
@@ -6940,6 +7037,23 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "finding_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Finding Id"
             }
           }
         ],

@@ -543,9 +543,16 @@ export async function updateAiPolicy(current: AiPolicy, enabled: boolean): Promi
   throw toApiError(response, error);
 }
 
-export async function listAiRuns(projectId: string, signal?: Sig): Promise<AiRun[]> {
+export async function listAiRuns(
+  projectId: string,
+  signal?: Sig,
+  findingId?: string,
+): Promise<AiRun[]> {
   const { data, error, response } = await api.GET("/v1/projects/{project_id}/ai-runs", {
-    params: { path: { project_id: projectId }, query: { limit: 30 } },
+    params: {
+      path: { project_id: projectId },
+      query: { limit: 30, ...(findingId ? { finding_id: findingId } : {}) },
+    },
     signal: signal ?? null,
   });
   if (data) return data.items;
@@ -576,4 +583,8 @@ export async function cancelAiRun(runId: string): Promise<AiRun> {
   });
   if (data) return data;
   throw toApiError(response, error);
+}
+
+export function aiExportUrl(runId: string, format: "json" | "sarif"): string {
+  return `/v1/ai-runs/${encodeURIComponent(runId)}/export?format=${format}`;
 }

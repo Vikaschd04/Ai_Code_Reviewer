@@ -1,13 +1,15 @@
 import { useState } from "react";
 
 import { describeError, type AiAnchor, type AiRun, type AiStatus } from "../api/client";
-import { fetchAiPolicy, fetchAiStatus, startAiRun } from "../api/endpoints";
+import { fetchAiPolicy, fetchAiStatus, listAiRuns, startAiRun } from "../api/endpoints";
+import { formatRelative } from "../lib/format";
 import { plural } from "../lib/labels";
 import { navigate } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 import { Alert } from "./Common";
 import { FileLocation } from "./FileLocation";
 import { Icon, type IconName } from "./Icon";
+import { statusLabel } from "./Status";
 
 type Tone = "ok" | "warn" | "bad";
 
@@ -120,26 +122,47 @@ export function isTerminalRun(state: string): boolean {
   return ["SUCCEEDED", "PARTIAL", "FAILED", "CANCELED", "BUDGET_EXHAUSTED"].includes(state);
 }
 
-/** On a finding: ask AI whether it is a real problem (shown only when AI is set up). */
+/** Plain-language verdicts of a finding review (the model's view, never the evidence class). */
+export const VERDICTS: Record<string, { tone: "ok" | "warn" | "neutral"; label: string }> = {
+  confirmed: { tone: "warn", label: "Real problem" },
+  likely_false_positive: { tone: "ok", label: "Likely not a problem" },
+  uncertain: { tone: "neutral", label: "Not sure" },
+};
+
+function runOutcome(run: AiRun): string {
+  const verdict = run.answer?.assessment?.verdict;
+  if (verdict) return VERDICTS[verdict]?.label ?? verdict;
+  return statusLabel(run.state);
+}
+
+/** On a finding: earlier AI second opinions, and asking for a new one when AI is set up. */
 export function AiFindingCheck({ projectId, findingId }: { projectId: string; findingId: string }) {
   const status = useAsync((signal) => fetchAiStatus(signal), []);
   const policy = useAsync((signal) => fetchAiPolicy(projectId, signal), [projectId]);
+  const earlier = useAsync(
+    (signal) => listAiRuns(projectId, signal, findingId),
+    [projectId, findingId],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!status.data?.available || !policy.data) return null;
+  const runs = earlier.data ?? [];
+  const canAsk = status.data?.available === true && policy.data !== null;
+  if (!canAsk && runs.length === 0) return null;
   return (
     <section className="card stack" aria-labelledby="ai-check-title" data-testid="ai-check">
       <div className="stack stack-xs">
         <h2 id="ai-check-title" className="card-title">
           <Icon name="sparkles" size={16} /> AI second opinion
         </h2>
-        <p className="card-sub">
-          {policy.data.enabled
-            ? "AI reads the code around this finding and says whether it is a real problem, citing the lines it relies on."
-            : "AI review is switched off for this project."}
-        </p>
+        {canAsk ? (
+          <p className="card-sub">
+            {policy.data?.enabled
+              ? "AI reads the code around this finding and says whether it is a real problem, citing the lines it relies on."
+              : "AI review is switched off for this project."}
+          </p>
+        ) : null}
       </div>
-      {policy.data.enabled ? (
+      {canAsk && policy.data?.enabled ? (
         <div className="row">
           <button
             type="button"
@@ -162,11 +185,24 @@ export function AiFindingCheck({ projectId, findingId }: { projectId: string; fi
             <Icon name="sparkles" size={15} /> {busy ? "Starting…" : "Ask AI to check this"}
           </button>
         </div>
-      ) : (
+      ) : null}
+      {canAsk && !policy.data?.enabled ? (
         <a href={`#/projects/${projectId}?tab=ai`} className="small">
           AI review settings
         </a>
-      )}
+      ) : null}
+      {runs.length > 0 ? (
+        <ul className="stack stack-sm plain-list" data-testid="ai-check-history">
+          {runs.map((run) => (
+            <li key={run.id} className="row row-between">
+              <a href={`#/ai-runs/${run.id}`} className="small">
+                {runOutcome(run)}
+              </a>
+              <span className="small muted">{formatRelative(run.created_at)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {error ? <Alert tone="bad">{error}</Alert> : null}
     </section>
   );

@@ -91,12 +91,12 @@ comments on a file's first statement. **They are not model quality.**
 - Secret masking is heuristic (K-P01-02); a secret the redactor misses would be sent for projects
   with AI switched on.
 - A model call in flight when a run is cancelled may still be billed by the provider.
-- AI findings are not yet linked to issues or included in exports; no fixes (P05).
+- AI findings are exported per run and shown on the finding they assess, but never become tracked issues; no fixes (P05).
 
 ## Next tasks
 
 1. Owner: set `CRP_AI_PROVIDER`, `CRP_AI_API_KEY` (and `CRP_AI_MODEL` for OpenAI-compatible) on
    the server (docs/DEPLOYMENT.md "AI review"), then run `crp-dev ai-eval --split all --live`
    locally with the same settings and record the numbers here; that closes the P03 gate.
-2. Link verified AI findings to issues and exports; add AI runs to the audit view.
+2. Done (30 September 2026, later): per-run JSON/SARIF export (`GET /v1/ai-runs/{id}/export`, schema-validated in `test_ai_export.py` and on real runs in `test_ai_run.py`) and earlier second opinions on the finding page. AI findings intentionally do not become tracked issues (no deterministic re-check).
 3. Re-evaluate OCR only when the conditions in P03_OCR_EVALUATION.md are met.
