@@ -53,10 +53,11 @@ from crp_core.domain.states import (
     AnchorKind,
     CaptureStatus,
     MembershipRole,
+    ScanMode,
     ScanState,
     Severity,
 )
-from crp_core.workflows.contracts import ENGINE_NAMES
+from crp_core.workflows.contracts import ENGINE_NAMES, SCAN_POLICY
 from crp_core.workflows.gateway import WorkflowUnavailableError
 
 router = APIRouter(tags=["scans"], responses={401: {"model": ErrorResponse}})
@@ -65,8 +66,8 @@ _ERRORS: dict[int | str, dict[str, Any]] = {
     403: {"model": ErrorResponse},
 }
 _IDEMPOTENCY = re.compile(r"^[A-Za-z0-9_.:-]{8,128}$")
-SCAN_MODE = "baseline"
-POLICY = "crp-baseline-v1"
+SCAN_MODE = ScanMode.BASELINE.value
+POLICY = SCAN_POLICY
 _SEVERITY_ORDER = {s.value: i for i, s in enumerate(Severity)}
 _EVENT_STREAM_SECONDS = 1800
 

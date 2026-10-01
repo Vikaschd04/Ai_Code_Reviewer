@@ -113,6 +113,34 @@ Run states: QUEUED, RUNNING, SUCCEEDED, PARTIAL, BUDGET_EXHAUSTED, FAILED (`erro
 
 Proposal states: PROPOSED, VALIDATING, VALIDATED (every step that could run passed for the current patch), VALIDATION_FAILED, REJECTED. Validation states: QUEUED, RUNNING, PASSED, FAILED, CANCELED; steps `integrity`, `syntax`, `checks`, `tests`, `build` with `passed` / `failed` / `not_run` and a plain `detail`.
 
+## Implemented in P06 (GitHub, ADR 0015)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/github/status | credentials | `available` (app can authenticate), `linking_available`, `webhooks_available`, plain `reason`, `admin_hint` (workspace admins only, never the demo account), `install_url` |
+| POST /v1/workspaces/{id}/github/link | admin (not demo) | `{authorize_url}`; stores a one-time state (SHA-256 only, 10 min, bound to user and workspace). 503 `github_not_configured` / `linking_not_configured` |
+| GET /v1/github/callback | none (browser redirect) | 303 to `#/github?code&state` (or `?error`); touches no data (the session cookie is SameSite=Strict) |
+| GET /v1/github/setup | none (browser redirect) | 303 to `#/github?installed=1`; the forged-able `installation_id` is ignored |
+| POST /v1/workspaces/{id}/github/link/complete | admin (not demo) | `{code, state}` → `{linked: [installation], skipped: [{account, reason}]}`; only installations the GitHub user can access (`/user/installations`), one workspace per installation; repositories synced. 403 `link_state_invalid` (another user/workspace), 409 `link_state_used` / `link_state_expired`, 403 `github_authorization_failed` |
+| GET /v1/workspaces/{id}/github/installations | member | installations (account, suspended/revoked, synced) with repositories (default branch, private, removed, connected project) |
+| POST /v1/workspaces/{id}/github/installations/{installation}/sync | admin | refresh the repository list from GitHub (missing ones marked removed) |
+| DELETE /v1/workspaces/{id}/github/installations/{installation} | admin | unlink: connections removed, active reviews canceled; reviews and snapshots stay |
+| POST /v1/github/webhook | `X-Hub-Signature-256` | 401 `invalid_signature`; 400 `invalid_webhook` (headers/JSON); 413 above `CRP_GITHUB_WEBHOOK_MAX_BYTES`; 503 `webhooks_not_configured`. Recorded by `X-GitHub-Delivery` (`duplicate` on redelivery). `ping`; `installation` (deleted/suspend/unsuspend/new permissions); `installation_repositories`; `repository` renamed; `push` to the default branch → branch review; `pull_request` opened/reopened/synchronize/ready_for_review/base edited → pull request review (forks only when allowed), closed → its reviews canceled. 202 `accepted` with review ids, otherwise 200 `ignored`/`ok` with a plain `detail` |
+| GET /v1/projects/{id}/git-connection | viewer | `{connected, can_edit, status (active/access_removed/installation_revoked/installation_suspended), status_reason, repository, installation_account, review_pushes, review_pull_requests, review_forks (false), publish_checks (false), publish_pull_requests (false), check_fail_threshold (never/critical/high/medium), reconcile_days, last_full_review_at, version}` |
+| PUT /v1/projects/{id}/git-connection | admin (not demo) | `{repository_id}` → 201; creates the `github` source and starts a full review of the default branch. 409 `already_connected` / `repository_connected` / unavailable status; 404 `repository_not_found` (other workspace) |
+| PATCH /v1/projects/{id}/git-connection | admin (not demo) | policy fields + `version`; 409 `version_conflict`; audited in `git_connection_events` |
+| DELETE /v1/projects/{id}/git-connection | admin (not demo) | disconnect; active reviews canceled |
+| POST /v1/projects/{id}/code-reviews | member | `{kind: branch\|pull_request, pull_request?, full?}` → 202 review (manual reviews also of forks). 409 `not_connected` / unavailable status; 422 `pull_request_required`; 503 `workflow_unavailable` (stored FAILED) |
+| GET /v1/projects/{id}/code-reviews | viewer | newest first; `kind`, `pull_request`, `limit` ≤ 100 |
+| GET /v1/code-reviews/{id} | viewer | review: kind, trigger, state, ref, head/base/merge-base commits, pull request title/author/url/fork, snapshots and scans, `changes` (added/modified/removed/renamed/configuration/impacted), `result` (new/unchanged/fixed/not_rechecked counts, by severity, top new and fixed items, incomplete checks, cache reuse), publish state/error, superseded_by, error |
+| POST /v1/code-reviews/{id}/cancel | member | idempotent |
+| POST /v1/fix-proposals/{id}/pull-request | member | 201 `{number, url, repository, branch, base_ref, base_sha, commit_sha}`; idempotent per fix. 409 `pull_request_unavailable` (plain reason: not allowed, fork, not validated, not from GitHub), 409 `stale_patch` `{reviewed, current}`, 409 `github_rejected`, 409 access codes, 503 `github_unavailable` / `github_not_configured` |
+| GET /v1/fix-proposals/{id} | viewer | adds `pull_request`, `pull_request_available`, `pull_request_reason` |
+| GET /v1/snapshots/{id} | viewer | adds `git_ref`, `git_provider`, `git_repository`, `git_tree_sha`, `git_capture` (how the capture was checked against the commit) |
+| GET /v1/capabilities | credentials | `git_integration` is `available` or `not_configured` |
+
+Review states: QUEUED, CAPTURING, SCANNING, PUBLISHING, SUCCEEDED, PARTIAL, FAILED (`github_unavailable`, `installation_not_found`, `installation_suspended`, `capture_rejected`, `scan_failed`, `interrupted`, …), SUPERSEDED, SKIPPED (`already_reviewed`, `pull_request_closed`, `fork_not_reviewed`, `branch_not_found`), CANCELED. Scan `mode`: `baseline`, `pull_request`, `reference`.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 
@@ -139,7 +167,7 @@ Proposal states: PROPOSED, VALIDATING, VALIDATED (every step that could run pass
 | POST /findings/{finding_id}/fix-proposals | Phase 5 constrained proposal; implemented (above) |
 | POST /fix-proposals/{proposal_id}/validate | Approved profile, budget, copied source; implemented as `POST /v1/fix-proposals/{id}/validations` (source-level; tests/build not run) |
 | GET /fix-proposals/{proposal_id}/patch | Authorized patch download; implemented (above) |
-| POST /fix-proposals/{proposal_id}/pull-requests | Phase 6 freshness/auth checks |
+| POST /fix-proposals/{proposal_id}/pull-requests | Phase 6 freshness/auth checks; implemented as `POST /v1/fix-proposals/{id}/pull-request` (above) |
 
 The local CLI uses the same authenticated intake protocol and validates the canonical manifest; it does not require a browser-to-localhost server bridge. Design multipart/many-file transfer before adding folder uploads; do not pretend one ZIP endpoint natively supports every mode.
 

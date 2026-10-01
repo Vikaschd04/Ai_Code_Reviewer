@@ -18,6 +18,15 @@ describe("parseRoute", () => {
     expect(parseRoute(`#/findings/${ID}`)).toEqual({ name: "finding", id: ID });
     expect(parseRoute(`#/ai-runs/${ID}`)).toEqual({ name: "ai-run", id: ID });
     expect(parseRoute(`#/fixes/${ID}`)).toEqual({ name: "fix", id: ID });
+    expect(parseRoute(`#/reviews/${ID}`)).toEqual({ name: "review", id: ID });
+  });
+
+  it("passes GitHub sign-in results to the GitHub page", () => {
+    expect(parseRoute("#/github?code=abc&state=xyz")).toEqual({
+      name: "github",
+      params: { code: "abc", state: "xyz" },
+    });
+    expect(parseRoute("#/github")).toEqual({ name: "github", params: {} });
   });
 
   it("rejects unknown paths and malformed identifiers", () => {

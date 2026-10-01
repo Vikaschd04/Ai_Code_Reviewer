@@ -8,11 +8,11 @@ implementation and validation evidence exist.
 from __future__ import annotations
 
 from crp_analysis.ai.config import resolve
+from crp_analysis.sources.github import resolve_github
 from crp_api.schemas import Capability, CapabilityState
 from crp_core.config import Settings
 
 _A = CapabilityState.AVAILABLE
-_P = CapabilityState.PLANNED
 
 CAPABILITIES: tuple[Capability, ...] = (
     Capability(
@@ -113,13 +113,6 @@ CAPABILITIES: tuple[Capability, ...] = (
         reason="Deterministic fixes for selected findings as editable patches, checked on a copy "
         "(applies, parses, finding gone, no new findings). Project tests and builds are not run",
     ),
-    Capability(
-        id="git_integration",
-        label="Git integration",
-        state=_P,
-        phase="P06",
-        reason="Git connector and pull-request analysis arrive in Phase 6",
-    ),
 )
 
 
@@ -138,5 +131,18 @@ def capabilities_for(settings: Settings) -> list[Capability]:
             else "Needs a model provider set up by the server operator"
         ),
     )
+    github = resolve_github(settings)
+    git = Capability(
+        id="git_integration",
+        label="GitHub",
+        state=_A if github.app_ready else CapabilityState.NOT_CONFIGURED,
+        phase="P06",
+        reason=(
+            "Connect GitHub repositories: reviews of the default branch and pull requests, "
+            "compared with the merge base; optional checks, comments and fix pull requests"
+            if github.app_ready
+            else "Needs a GitHub App set up by the server operator"
+        ),
+    )
     index = next(i for i, c in enumerate(CAPABILITIES) if c.id == "fix_workbench")
-    return [*CAPABILITIES[:index], ai, *CAPABILITIES[index:]]
+    return [*CAPABILITIES[:index], ai, *CAPABILITIES[index:], git]

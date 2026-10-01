@@ -41,6 +41,7 @@ from crp_devtools.paths import DevPaths
 from crp_devtools.supervisor import ServiceSpec, Supervisor
 from crp_devtools.testing.fake_ai import MODEL as FAKE_AI_MODEL
 from crp_devtools.testing.fake_ai import FakeAiProvider
+from crp_devtools.testing.fake_github import FakeGitHub, generate_app_key
 from crp_devtools.testing.fixture_projects import prepare_fixture, zip_directory
 
 WEB_PACKAGE = "@crp/web"
@@ -207,6 +208,51 @@ def _e2e_fixtures(directory: Path) -> dict[str, Path]:
     return {**archives, "malicious": malicious}
 
 
+_E2E_SHOP = {
+    "README.md": "# Shop\n\nSynthetic repository of the labelled fake GitHub (browser tests).\n",
+    "pom.xml": (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<project xmlns="http://maven.apache.org/POM/4.0.0">'
+        "\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>acme</groupId>\n"
+        "  <artifactId>shop</artifactId>\n  <version>1.0.0</version>\n</project>\n"
+    ),
+    "src/main/java/shop/Orders.java": (
+        "package shop;\n\npublic class Orders {\n    public boolean paid(String status) {\n"
+        '        return status == "PAID";\n    }\n}\n'
+    ),
+    "src/main/java/shop/Billing.java": (
+        "package shop;\n\npublic class Billing {\n    public boolean due(String state) {\n"
+        '        return state == "DUE";\n    }\n}\n'
+    ),
+}
+
+
+def _e2e_github(work: Path, web_url: str, api_url: str) -> tuple[FakeGitHub, dict[str, str]]:
+    """Labelled fake GitHub with one installation (acme/shop) and the settings that point at it."""
+    private, public = generate_app_key()
+    key_file = work / "secrets" / "github-app.pem"
+    write_secret_file(key_file, private.decode())
+    secret = generate_token()
+    fake = FakeGitHub(public_key_pem=public, callback_url=f"{web_url}/v1/github/callback")
+    repo = fake.add_repo(101, "acme", "shop")
+    repo.commit("main", dict(_E2E_SHOP), "initial")
+    fake.add_installation(9001, "acme", [101])
+    fake.add_user("e2e-admin", [9001])
+    fake.webhook_url = f"{api_url}/v1/github/webhook"
+    fake.webhook_secret = secret
+    fake.start()
+    env = {
+        "CRP_GITHUB_APP_ID": str(fake.app_id),
+        "CRP_GITHUB_CLIENT_ID": fake.client_id,
+        "CRP_GITHUB_CLIENT_SECRET": fake.client_secret,
+        "CRP_GITHUB_PRIVATE_KEY_FILE": str(key_file),
+        "CRP_GITHUB_WEBHOOK_SECRET": secret,
+        "CRP_GITHUB_APP_SLUG": fake.slug,
+        "CRP_GITHUB_API_URL": fake.base_url,
+        "CRP_GITHUB_WEB_URL": fake.base_url,
+    }
+    return fake, env
+
+
 def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
     """Start throwaway PostgreSQL/Temporal/API/worker/web instances and run Playwright."""
     work = Path(tempfile.mkdtemp(prefix="crp-e2e-"))
@@ -222,6 +268,7 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
     supervisor = Supervisor(echo=False)
     fake_ai_key = generate_token()
     fake_ai = FakeAiProvider(fake_ai_key)  # labelled test double: no real model is called
+    fake_github: FakeGitHub | None = None  # labelled test double: github.com is never contacted
     exit_code = 1
     try:
         fake_ai.start()
@@ -251,6 +298,10 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
                 "CRP_AI_API_KEY": fake_ai_key,
             }
         )
+        fake_github, github_env = _e2e_github(
+            work, f"http://{LOOPBACK}:{web_port}", f"http://{LOOPBACK}:{api_port}"
+        )
+        env.update(github_env)
         migrate_and_provision(settings_from_env(env))
         subprocess.run([pnpm(), "--filter", WEB_PACKAGE, "build"], cwd=paths.repo, check=True)  # noqa: S603
         web_args = [
@@ -283,6 +334,7 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
                 "CRP_E2E_SAP_ZIP": str(fixtures["sap"]),
                 "CRP_E2E_SALESFORCE_ZIP": str(fixtures["salesforce"]),
                 "CRP_E2E_MALICIOUS_ZIP": str(fixtures["malicious"]),
+                "CRP_E2E_GITHUB_URL": fake_github.base_url,
             }
         )
         result = subprocess.run(  # noqa: S603
@@ -295,6 +347,8 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
     finally:
         supervisor.stop_all()
         fake_ai.stop()
+        if fake_github is not None:
+            fake_github.stop()
         temporal.stop()
         cluster.stop()
         if exit_code != 0:

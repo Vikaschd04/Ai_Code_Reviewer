@@ -1,8 +1,11 @@
 """Apply a finished scan to the project's durable issues (status + strict recheck state).
 
-Only scans of the project's newest evaluated-or-newer snapshot that completed at least one
-engine update issues; older-snapshot or failed/canceled scans only link their findings to
-existing issues. Present fingerprints become VERIFIED_PRESENT (RESOLVED ones reopen); absent
+Only baseline scans (uploads, captures and the default branch's latest commit) of the project's
+newest evaluated-or-newer snapshot that completed at least one engine update issues. Pull request
+and comparison scans, scans of a commit whose review was superseded, older-snapshot and
+failed/canceled scans only link their findings to existing issues. A file renamed with identical
+content keeps its issues: they move to the new path (event ``moved``) instead of reappearing as
+new issues. Present fingerprints become VERIFIED_PRESENT (RESOLVED ones reopen); absent
 ones are classified by ``crp_analysis.lifecycle.classify_absence`` and are RESOLVED only on a
 VERIFIED_ABSENT recheck. Every change is written to ``issue_events``. Project rows are locked so
 concurrent finalizations of one project serialize.
@@ -19,7 +22,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from crp_analysis.lifecycle import Prior, RunView, classify_absence
+from crp_analysis.sources.changes import diff_manifests
 from crp_core.db.models import (
+    CodeReview,
     EngineRun,
     FileCoverage,
     FileEntry,
@@ -30,7 +35,14 @@ from crp_core.db.models import (
     Scan,
     Snapshot,
 )
-from crp_core.domain.states import FileDisposition, FindingStatus, RecheckState, ScanState
+from crp_core.domain.states import (
+    CodeReviewState,
+    FileDisposition,
+    FindingStatus,
+    RecheckState,
+    ScanMode,
+    ScanState,
+)
 
 _AUTO_RESOLVABLE = frozenset(
     {FindingStatus.OPEN.value, FindingStatus.TRIAGED.value, FindingStatus.FIX_PROPOSED.value}
@@ -66,6 +78,17 @@ async def _applicable(session: AsyncSession, scan: Scan, final: ScanState) -> st
     """None when the lifecycle applies, else the reason it does not."""
     if final not in {ScanState.SUCCEEDED, ScanState.PARTIAL}:
         return f"scan ended {final.value}; issues were not re-evaluated"
+    if scan.mode != ScanMode.BASELINE.value:
+        return "pull request and comparison reviews never change the project's issues"
+    superseded = await session.scalar(
+        select(CodeReview.id).where(
+            CodeReview.head_scan_id == scan.id,
+            (CodeReview.cancel_requested_at.is_not(None))
+            | (CodeReview.state == CodeReviewState.SUPERSEDED.value),
+        )
+    )
+    if superseded is not None:
+        return "a newer commit of this branch is being reviewed; issues keep their state"
     newest = (
         await session.execute(
             select(func.max(Snapshot.frozen_at))
@@ -82,6 +105,88 @@ async def _applicable(session: AsyncSession, scan: Scan, final: ScanState) -> st
     ):
         return "a newer snapshot has already been evaluated; issues keep their newer state"
     return None
+
+
+async def _manifest(session: AsyncSession, snapshot_id: UUID) -> dict[str, str]:
+    rows = await session.execute(
+        select(FileEntry.path, FileEntry.blob_sha256).where(
+            FileEntry.snapshot_id == snapshot_id,
+            FileEntry.disposition == FileDisposition.ANALYZABLE.value,
+        )
+    )
+    return {path: sha for path, sha in rows.all() if sha}
+
+
+def _slot_keys(rows: list[tuple[Finding, str]]) -> dict[tuple[object, ...], str]:
+    """(path, engine, rule, line, column, n) -> fingerprint; n numbers identical locations."""
+    seen: Counter[tuple[object, ...]] = Counter()
+    keys: dict[tuple[object, ...], str] = {}
+    for finding, path in sorted(
+        rows,
+        key=lambda r: (
+            r[1],
+            r[0].engine,
+            r[0].rule_id,
+            r[0].start_line or 0,
+            r[0].start_column or 0,
+        ),
+    ):
+        base = (path, finding.engine, finding.rule_id, finding.start_line, finding.start_column)
+        keys[(*base, seen[base])] = finding.fingerprint
+        seen[base] += 1
+    return keys
+
+
+async def _moves(
+    session: AsyncSession,
+    scan: Scan,
+    findings: list[tuple[Finding, str]],
+    issues: dict[str, Issue],
+) -> dict[str, tuple[Issue, str]]:
+    """Issues of files renamed with identical content since the last evaluated scan.
+
+    Identical content gives identical findings at identical lines, so a finding in the new file
+    takes over the issue of the same rule, line and column in the old file.
+    """
+    previous = (
+        await session.execute(
+            select(Scan)
+            .where(
+                Scan.project_id == scan.project_id,
+                Scan.lifecycle_applied.is_(True),
+                Scan.id != scan.id,
+            )
+            .order_by(Scan.finished_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if previous is None or previous.snapshot_id == scan.snapshot_id:
+        return {}
+    renames = diff_manifests(
+        await _manifest(session, previous.snapshot_id), await _manifest(session, scan.snapshot_id)
+    ).renames
+    if not renames:
+        return {}
+    old_rows = [
+        (finding, path)
+        for finding, path in (
+            await session.execute(
+                select(Finding, FileEntry.path)
+                .join(FileEntry, FileEntry.id == Finding.file_entry_id)
+                .where(Finding.scan_id == previous.id, FileEntry.path.in_(set(renames.values())))
+            )
+        ).all()
+    ]
+    old_keys = _slot_keys(old_rows)
+    new_rows = [(finding, path) for finding, path in findings if path in renames]
+    moves: dict[str, tuple[Issue, str]] = {}
+    for key, new_fp in _slot_keys(new_rows).items():
+        path = str(key[0])
+        old_fp = old_keys.get((renames[path], *key[1:]))
+        issue = issues.get(old_fp) if old_fp else None
+        if issue is not None and new_fp not in issues and new_fp != old_fp:
+            moves[new_fp] = (issue, path)
+    return moves
 
 
 async def apply_lifecycle(
@@ -109,8 +214,18 @@ async def apply_lifecycle(
             await session.execute(select(Issue).where(Issue.project_id == scan.project_id))
         ).scalars()
     }
-    present: set[str] = set()
     events: list[IssueEvent] = []
+    rows = [(finding, path) for finding, path in findings]
+    for new_fp, (moved, new_path) in (await _moves(session, scan, rows, issues)).items():
+        old_path = moved.path
+        issues.pop(moved.fingerprint, None)
+        moved.fingerprint, moved.path = new_fp, new_path
+        issues[new_fp] = moved
+        events.append(
+            _event(moved, scan.id, "moved", "the file was renamed", path=[old_path, new_path])
+        )
+        counts["moved"] += 1
+    present: set[str] = set()
     for finding, path in findings:
         present.add(finding.fingerprint)
         run = by_engine.get(finding.engine)

@@ -33,6 +33,7 @@ import { isLocalDevelopment, useSession } from "../lib/session";
 import { useAsync } from "../lib/useAsync";
 import { AiView } from "./AiView";
 import { FixesView } from "./FixesView";
+import { GitHubView } from "./GitHubView";
 import { ArchitectureView } from "./ArchitectureView";
 import { IssuesView } from "./IssuesView";
 
@@ -410,6 +411,7 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
           { id: "architecture", label: "Architecture", href: `${base}?tab=architecture` },
           { id: "ai", label: "AI review", href: `${base}?tab=ai` },
           { id: "fixes", label: "Fixes", href: `${base}?tab=fixes` },
+          { id: "github", label: "GitHub", href: `${base}?tab=github` },
           {
             id: "reviews",
             label: `Reviews (${overview.data.scan_count})`,
@@ -426,6 +428,9 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
       {tab === "issues" ? <IssuesView projectId={projectId} /> : null}
       {tab === "ai" ? <AiView projectId={projectId} snapshotId={snapshot?.id ?? null} /> : null}
       {tab === "fixes" ? <FixesView projectId={projectId} /> : null}
+      {tab === "github" ? (
+        <GitHubView projectId={projectId} workspaceId={project.workspace_id} />
+      ) : null}
       {tab === "architecture" ? (
         snapshot ? (
           <ArchitectureView snapshotId={snapshot.id} />

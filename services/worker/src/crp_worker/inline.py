@@ -1,7 +1,8 @@
 """In-process workflow runner for lite deployments (``CRP_PROFILE=lite``; ADR 0010).
 
 Implements the ``WorkflowGateway`` contract without a Temporal server by running the same
-activities (intake, scan, diagnostic) as asyncio tasks inside the API process. Behaviour kept:
+activities (intake, scan, fix validation, AI runs, code reviews, diagnostic) as asyncio tasks
+inside the API process. Behaviour kept:
 workflow IDs are idempotent (one run per ID at a time), activities are retried like the
 Temporal retry policies, scan cancellation stops the running engine and finalizes CANCELED,
 and every outcome is published through the same transactional activity code.
@@ -29,9 +30,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from crp_analysis.engines.base import EngineAdapter
+from crp_analysis.sources.github import resolve_github
 from crp_core.artifacts import ArtifactStore
 from crp_core.config import Settings
-from crp_core.db.models import AiRun, FixValidation, Intake, Scan
+from crp_core.db.models import AiRun, CodeReview, FixValidation, Intake, Scan
 from crp_core.db.session import create_session_factory, transaction
 from crp_core.domain.states import AiRunState, FixValidationState, IntakeState, ScanState
 from crp_core.workflows.contracts import (
@@ -44,11 +46,14 @@ from crp_core.workflows.contracts import (
     FinalizeInput,
     FixValidationFinalize,
     FixValidationInput,
+    GitReviewFinalize,
+    GitReviewInput,
     IntakeWorkflowInput,
     ScanWorkflowInput,
     ai_run_workflow_id,
     diagnostic_workflow_id,
     fix_validation_workflow_id,
+    git_review_workflow_id,
     intake_workflow_id,
     scan_workflow_id,
 )
@@ -62,11 +67,14 @@ from crp_core.workflows.gateway import (
 from crp_worker.ai_run import AiRunActivities, fail_interrupted_runs
 from crp_worker.diagnostics import DiagnosticActivities
 from crp_worker.fix_validation import FixActivities
+from crp_worker.git_review import ACTIVE as ACTIVE_REVIEWS
+from crp_worker.git_review import GitReviewActivities, reconcile_due
 from crp_worker.intake import IntakeActivities
 from crp_worker.scan import ScanActivities, default_adapters
 
 logger = logging.getLogger(__name__)
 INLINE_QUEUE = "in-process"
+RECONCILE_INTERVAL_SECONDS = 3600
 
 
 async def _retry[T](call: Callable[[], Awaitable[T]], *, attempts: int, delay: float = 2.0) -> T:
@@ -113,6 +121,12 @@ class InlineWorkflowGateway:
         )
         self._diagnostics = DiagnosticActivities(store, engine, self._identity)
         self._ai = AiRunActivities(settings, store, sessions, transport=ai_transport)
+        self._git = GitReviewActivities(
+            settings, store, sessions, cancel_review=self.cancel_git_review
+        )
+        self._github_ready = resolve_github(settings).app_ready
+        self._canceled_reviews: set[UUID] = set()
+        self._reconcile: asyncio.Task[None] | None = None
         self._ai_slots = asyncio.Semaphore(1)
         self._scan_slots = asyncio.Semaphore(max_concurrent_scans)
         self._tasks: dict[str, asyncio.Task[Any]] = {}
@@ -174,6 +188,20 @@ class InlineWorkflowGateway:
             await self.start_intake(intake_id)
         for scan_id in pending_scans:
             await self.start_scan(scan_id)
+        async with transaction(self._sessions) as session:
+            reviews = list(
+                (
+                    await session.execute(
+                        select(CodeReview.id)
+                        .where(CodeReview.state.in_(ACTIVE_REVIEWS))
+                        .order_by(CodeReview.created_at)
+                    )
+                ).scalars()
+            )
+        for review_id in reviews:  # every review step is idempotent
+            await self.start_git_review(review_id)
+        if self._github_ready:
+            self._reconcile = asyncio.create_task(self._reconcile_loop())
         if pending_intakes or pending_scans:
             logger.info(
                 "resumed unfinished work",
@@ -181,6 +209,9 @@ class InlineWorkflowGateway:
             )
 
     async def close(self) -> None:
+        if self._reconcile is not None:
+            self._reconcile.cancel()
+        await self._git.close()
         tasks = [t for t in self._tasks.values() if not t.done()]
         for task in tasks:
             task.cancel()
@@ -320,6 +351,67 @@ class InlineWorkflowGateway:
                 ),
                 attempts=5,
             )
+
+    # -- code reviews -----------------------------------------------------------------------
+
+    async def start_git_review(self, review_id: UUID) -> str:
+        workflow_id = git_review_workflow_id(review_id)
+        self._spawn(workflow_id, lambda: self._run_git_review(review_id))
+        return workflow_id
+
+    async def cancel_git_review(self, review_id: UUID) -> None:
+        self._canceled_reviews.add(review_id)
+        task = self._tasks.get(git_review_workflow_id(review_id))
+        if task is not None and not task.done():
+            task.cancel()
+        else:
+            await self.start_git_review(review_id)  # prepare() sees the cancel request
+
+    async def _run_git_review(self, review_id: UUID) -> None:
+        payload = GitReviewInput(review_id=review_id)
+        try:
+            plan = await _retry(lambda: self._git.prepare(payload), attempts=3)
+            if plan.terminal:
+                return
+            for scan_id in plan.scan_ids:
+                await self._run_scan(scan_id)  # holds a scan slot like any other scan
+                if review_id in self._canceled_reviews:  # the scan absorbed the cancellation
+                    await self._end_canceled_review(review_id)
+                    return
+            result = await _retry(lambda: self._git.complete(payload), attempts=3)
+            if result.state == "PUBLISHING":
+                await _retry(lambda: self._git.publish(payload), attempts=3)
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None:
+                current.uncancel()
+            await self._end_canceled_review(review_id)
+        except Exception:
+            logger.exception("code review failed", extra={"review_id": str(review_id)})
+            await _retry(
+                lambda: self._git.finalize(
+                    GitReviewFinalize(review_id=review_id, interrupted=True)
+                ),
+                attempts=5,
+            )
+        finally:
+            self._canceled_reviews.discard(review_id)
+
+    async def _end_canceled_review(self, review_id: UUID) -> None:
+        await _retry(
+            lambda: self._git.finalize(GitReviewFinalize(review_id=review_id, canceled=True)),
+            attempts=5,
+        )
+
+    async def _reconcile_loop(self) -> None:
+        while True:
+            try:
+                await reconcile_due(self._sessions, self.start_git_review)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("scheduled full reviews could not be queued")
+            await asyncio.sleep(RECONCILE_INTERVAL_SECONDS)
 
     # -- AI runs ----------------------------------------------------------------------------
 

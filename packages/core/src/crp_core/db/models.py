@@ -42,6 +42,10 @@ from crp_core.domain.states import (
     AnchorKind,
     CacheMode,
     CaptureStatus,
+    CheckFailThreshold,
+    CodeReviewKind,
+    CodeReviewState,
+    CodeReviewTrigger,
     CoverageOutcome,
     EdgeClassification,
     EngineState,
@@ -51,11 +55,13 @@ from crp_core.domain.states import (
     FixKind,
     FixProposalState,
     FixValidationState,
+    GitProvider,
     GraphBuildState,
     GraphNodeKind,
     IntakeState,
     MembershipRole,
     ProjectOrigin,
+    PublishState,
     RecheckState,
     ScanState,
     Severity,
@@ -197,7 +203,12 @@ class Snapshot(TimestampMixin, Base):
             "git_commit IS NULL OR git_commit ~ '^([0-9a-f]{40}|[0-9a-f]{64})$'",
             name="git_commit_format",
         ),
+        CheckConstraint(
+            "git_tree_sha IS NULL OR git_tree_sha ~ '^([0-9a-f]{40}|[0-9a-f]{64})$'",
+            name="git_tree_sha_format",
+        ),
         CheckConstraint("file_count >= 0 AND total_bytes >= 0", name="counts_non_negative"),
+        Index("ix_snapshots_project_id_git_commit", "project_id", "git_commit"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -211,6 +222,13 @@ class Snapshot(TimestampMixin, Base):
     total_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
     git_commit: Mapped[str | None] = mapped_column(String(64))
     git_ref: Mapped[str | None] = mapped_column(String(255))
+    # Commit captures (P06): provider, repository name at capture time, the commit's tree and a
+    # summary of how the capture was checked against that tree (files fetched individually,
+    # symlinks, submodules, Git LFS pointers, file modes that differ from 100644).
+    git_provider: Mapped[str | None] = mapped_column(String(16))
+    git_repository: Mapped[str | None] = mapped_column(String(255))
+    git_tree_sha: Mapped[str | None] = mapped_column(String(64))
+    git_capture: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
     frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     intake_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, unique=True)
     manifest_key: Mapped[str | None] = mapped_column(String(512))
@@ -1073,6 +1091,313 @@ class FixValidation(Base):
     cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+_SHA = "'^([0-9a-f]{40}|[0-9a-f]{64})$'"
+
+
+class GitInstallation(TimestampMixin, Base):
+    """A Git provider app installation, linked to exactly one workspace after the installing user
+    proved access to it (GitHub user authorization); unlinked installations are never used."""
+
+    __tablename__ = "git_installations"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_id"),
+        UniqueConstraint("workspace_id", "id"),
+        CheckConstraint(enum_check("provider", GitProvider), name="provider_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    external_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    account_login: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    repository_selection: Mapped[str | None] = mapped_column(String(16))
+    permissions: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    linked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class GitRepository(TimestampMixin, Base):
+    """A repository an installation can read. ``removed_at`` is set when access is withdrawn."""
+
+    __tablename__ = "git_repositories"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "installation_id"],
+            ["git_installations.workspace_id", "git_installations.id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("installation_id", "external_id"),
+        UniqueConstraint("workspace_id", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    installation_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    external_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    default_branch: Mapped[str] = mapped_column(String(255), nullable=False)
+    private: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class GitConnection(TimestampMixin, Base):
+    """A project's connected repository and its review/publication policy (admin-managed).
+
+    Publication (checks, comments, fix pull requests) is off until an admin switches it on;
+    pull requests from forks are not reviewed automatically unless allowed.
+    """
+
+    __tablename__ = "git_connections"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "repository_id"],
+            ["git_repositories.workspace_id", "git_repositories.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id", "source_id"],
+            ["sources.workspace_id", "sources.project_id", "sources.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["updated_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("project_id"),
+        UniqueConstraint("repository_id"),
+        CheckConstraint(
+            enum_check("check_fail_threshold", CheckFailThreshold), name="threshold_valid"
+        ),
+        CheckConstraint("reconcile_days BETWEEN 1 AND 90", name="reconcile_days_range"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    repository_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    review_pushes: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    review_pull_requests: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true"
+    )
+    review_forks: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    publish_checks: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    publish_pull_requests: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    check_fail_threshold: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="never"
+    )
+    reconcile_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="7")
+    last_full_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - SQLAlchemy declarative API
+
+
+class GitConnectionEvent(Base):
+    """Append-only audit of connection and policy changes."""
+
+    __tablename__ = "git_connection_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    changes: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class GitLinkRequest(Base):
+    """One-time state for linking installations through GitHub user authorization.
+
+    Only the SHA-256 of the state is stored; it is bound to the user and workspace, expires after
+    ten minutes and can be used once.
+    """
+
+    __tablename__ = "git_link_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    state_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class GitDelivery(Base):
+    """A received webhook delivery (signature already verified); the id makes redelivery a no-op.
+
+    Payloads are not stored, only what routing needs.
+    """
+
+    __tablename__ = "git_deliveries"
+    __table_args__ = (
+        UniqueConstraint("provider", "delivery_id"),
+        CheckConstraint(enum_check("provider", GitProvider), name="provider_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    delivery_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    event: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str | None] = mapped_column(String(64))
+    installation_external_id: Mapped[int | None] = mapped_column(BigInteger)
+    repository_external_id: Mapped[int | None] = mapped_column(BigInteger)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text)
+    review_ids: Mapped[list[str] | None] = mapped_column(JsonDocument)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+
+class CodeReview(TimestampMixin, Base):
+    """A review of a branch's latest commit or of a pull request, bound to exact commits.
+
+    The reviewed head is resolved when the review runs, so late or duplicate events converge on
+    the newest commit; older reviews of the same branch or pull request end SUPERSEDED.
+    """
+
+    __tablename__ = "code_reviews"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["connection_id"], ["git_connections.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["head_snapshot_id"], ["snapshots.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["base_snapshot_id"], ["snapshots.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["head_scan_id"], ["scans.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["base_scan_id"], ["scans.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["requested_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("project_id", "idempotency_key"),
+        CheckConstraint(enum_check("kind", CodeReviewKind), name="kind_valid"),
+        CheckConstraint(enum_check("trigger", CodeReviewTrigger), name="trigger_valid"),
+        CheckConstraint(enum_check("state", CodeReviewState), name="state_valid"),
+        CheckConstraint(
+            f"publish_state IS NULL OR {enum_check('publish_state', PublishState)}",
+            name="publish_state_valid",
+        ),
+        CheckConstraint(f"head_sha IS NULL OR head_sha ~ {_SHA}", name="head_sha_format"),
+        CheckConstraint(f"base_sha IS NULL OR base_sha ~ {_SHA}", name="base_sha_format"),
+        CheckConstraint(
+            f"merge_base_sha IS NULL OR merge_base_sha ~ {_SHA}", name="merge_base_sha_format"
+        ),
+        CheckConstraint(
+            "kind <> 'pull_request' OR pr_number IS NOT NULL", name="pull_request_number"
+        ),
+        Index("ix_code_reviews_project_id_created_at", "project_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    trigger: Mapped[str] = mapped_column(String(16), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    ref: Mapped[str | None] = mapped_column(String(255))  # branch name (pull request: head)
+    head_sha: Mapped[str | None] = mapped_column(String(64))
+    pr_number: Mapped[int | None] = mapped_column(Integer)
+    pr_title: Mapped[str | None] = mapped_column(String(300))  # untrusted display text
+    pr_author: Mapped[str | None] = mapped_column(String(100))
+    pr_url: Mapped[str | None] = mapped_column(String(500))
+    fork: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    base_ref: Mapped[str | None] = mapped_column(String(255))
+    base_sha: Mapped[str | None] = mapped_column(String(64))
+    merge_base_sha: Mapped[str | None] = mapped_column(String(64))
+    full: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    head_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    base_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    head_scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    base_scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    changes: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    result: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    publish_state: Mapped[str | None] = mapped_column(String(16))
+    publish_error: Mapped[str | None] = mapped_column(Text)
+    check_run_id: Mapped[int | None] = mapped_column(BigInteger)
+    comment_id: Mapped[int | None] = mapped_column(BigInteger)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    superseded_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    delivery_id: Mapped[str | None] = mapped_column(String(64))
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    workflow_id: Mapped[str | None] = mapped_column(String(128))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class FixPullRequest(Base):
+    """A pull request opened for a validated fix after a person asked for it (never merged)."""
+
+    __tablename__ = "fix_pull_requests"
+    __table_args__ = (
+        ForeignKeyConstraint(["proposal_id"], ["fix_proposals.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("proposal_id"),
+        CheckConstraint(f"base_sha ~ {_SHA}", name="base_sha_format"),
+        CheckConstraint(f"commit_sha ~ {_SHA}", name="commit_sha_format"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    repository: Mapped[str] = mapped_column(String(255), nullable=False)
+    branch: Mapped[str] = mapped_column(String(255), nullable=False)
+    base_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    base_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    commit_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

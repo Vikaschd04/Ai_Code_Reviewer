@@ -6,6 +6,7 @@ import {
   editFix,
   fetchFix,
   fixDownloadUrl,
+  openFixPullRequest,
   rejectFix,
   validateFix,
 } from "../api/endpoints";
@@ -197,6 +198,69 @@ function Editor({ fix, onChange }: { fix: FixProposal; onChange: (next: FixPropo
   );
 }
 
+function PullRequest({
+  fix,
+  onChange,
+}: {
+  fix: FixProposal;
+  onChange: (next: FixProposal) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (fix.pull_request) {
+    return (
+      <p className="row small" data-testid="fix-pull-request">
+        <Icon name="branch" size={14} />
+        <a href={fix.pull_request.url} target="_blank" rel="noreferrer">
+          Pull request #{fix.pull_request.number} on GitHub
+        </a>
+        <span className="muted">from {fix.pull_request.branch}</span>
+      </p>
+    );
+  }
+  if (!fix.pull_request_available) {
+    return fix.pull_request_reason ? (
+      <p className="small muted" data-testid="fix-pull-request-reason">
+        Pull request: {fix.pull_request_reason}
+      </p>
+    ) : null;
+  }
+  return (
+    <div className="stack stack-xs">
+      <div className="row">
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={busy}
+          data-testid="fix-open-pull-request"
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            openFixPullRequest(fix.id)
+              .then(() => fetchFix(fix.id))
+              .then(
+                (next) => {
+                  setBusy(false);
+                  onChange(next);
+                },
+                (caught: unknown) => {
+                  setError(describeError(caught));
+                  setBusy(false);
+                },
+              );
+          }}
+        >
+          <Icon name="branch" size={14} /> {busy ? "Opening…" : "Open pull request"}
+        </button>
+      </div>
+      <p className="small muted">
+        Opens a pull request on the reviewed branch if it has not moved since. Nothing is merged.
+      </p>
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </div>
+  );
+}
+
 export function FixPage({ fixId }: { fixId: string }) {
   const [fix, setFix] = useState<FixProposal | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -302,6 +366,7 @@ export function FixPage({ fixId }: { fixId: string }) {
               Apply the downloaded patch with <code>git apply -p1</code> in a copy of exactly this
               upload, then build and test it in your own environment.
             </p>
+            <PullRequest fix={fix} onChange={setFix} />
             {fix.state === "REJECTED" ? (
               <Alert tone="info">Rejected: {fix.rejected_reason}</Alert>
             ) : rejecting ? (

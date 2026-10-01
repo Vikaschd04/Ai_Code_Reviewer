@@ -7,7 +7,15 @@ import {
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
+  type CodeReview,
+  type CodeReviewCreate,
   type FixOptions,
+  type FixPullRequest,
+  type GitConnection,
+  type GitConnectionUpdate,
+  type GitHubLinkResult,
+  type GitHubStatus,
+  type GitInstallation,
   type FixProposal,
   type FixValidation,
   type Capability,
@@ -676,4 +684,156 @@ export async function cancelFixValidation(validationId: string): Promise<FixVali
 
 export function fixDownloadUrl(proposalId: string, kind: "patch" | "summary"): string {
   return `/v1/fix-proposals/${encodeURIComponent(proposalId)}/${kind}`;
+}
+
+/** Open a pull request with a validated fix on the reviewed branch (never merged). */
+export async function openFixPullRequest(proposalId: string): Promise<FixPullRequest> {
+  const { data, error, response } = await api.POST("/v1/fix-proposals/{proposal_id}/pull-request", {
+    params: { path: { proposal_id: proposalId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+// -- Phase 6: GitHub ---------------------------------------------------------------------------
+
+export async function fetchGitHubStatus(signal?: Sig): Promise<GitHubStatus> {
+  const { data, error, response } = await api.GET("/v1/github/status", { signal: signal ?? null });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Start verified linking: returns the GitHub page where the admin confirms access. */
+export async function startGitHubLink(workspaceId: string): Promise<string> {
+  const { data, error, response } = await api.POST("/v1/workspaces/{workspace_id}/github/link", {
+    params: { path: { workspace_id: workspaceId } },
+  });
+  if (data) return data.authorize_url;
+  throw toApiError(response, error);
+}
+
+export async function completeGitHubLink(
+  workspaceId: string,
+  code: string,
+  state: string,
+): Promise<GitHubLinkResult> {
+  const { data, error, response } = await api.POST(
+    "/v1/workspaces/{workspace_id}/github/link/complete",
+    { params: { path: { workspace_id: workspaceId } }, body: { code, state } },
+  );
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function listGitInstallations(
+  workspaceId: string,
+  signal?: Sig,
+): Promise<GitInstallation[]> {
+  const { data, error, response } = await api.GET(
+    "/v1/workspaces/{workspace_id}/github/installations",
+    { params: { path: { workspace_id: workspaceId } }, signal: signal ?? null },
+  );
+  if (data) return data.items;
+  throw toApiError(response, error);
+}
+
+export async function syncGitInstallation(
+  workspaceId: string,
+  installationId: string,
+): Promise<GitInstallation> {
+  const { data, error, response } = await api.POST(
+    "/v1/workspaces/{workspace_id}/github/installations/{installation_id}/sync",
+    { params: { path: { workspace_id: workspaceId, installation_id: installationId } } },
+  );
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function unlinkGitInstallation(
+  workspaceId: string,
+  installationId: string,
+): Promise<void> {
+  const { error, response } = await api.DELETE(
+    "/v1/workspaces/{workspace_id}/github/installations/{installation_id}",
+    { params: { path: { workspace_id: workspaceId, installation_id: installationId } } },
+  );
+  if (!response.ok) throw toApiError(response, error);
+}
+
+export async function fetchGitConnection(projectId: string, signal?: Sig): Promise<GitConnection> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/git-connection", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function connectRepository(
+  projectId: string,
+  repositoryId: string,
+): Promise<GitConnection> {
+  const { data, error, response } = await api.PUT("/v1/projects/{project_id}/git-connection", {
+    params: { path: { project_id: projectId } },
+    body: { repository_id: repositoryId },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function updateGitConnection(
+  projectId: string,
+  body: GitConnectionUpdate,
+): Promise<GitConnection> {
+  const { data, error, response } = await api.PATCH("/v1/projects/{project_id}/git-connection", {
+    params: { path: { project_id: projectId } },
+    body,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function disconnectRepository(projectId: string): Promise<void> {
+  const { error, response } = await api.DELETE("/v1/projects/{project_id}/git-connection", {
+    params: { path: { project_id: projectId } },
+  });
+  if (!response.ok) throw toApiError(response, error);
+}
+
+export async function startCodeReview(
+  projectId: string,
+  body: CodeReviewCreate,
+): Promise<CodeReview> {
+  const { data, error, response } = await api.POST("/v1/projects/{project_id}/code-reviews", {
+    params: { path: { project_id: projectId } },
+    body,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function listCodeReviews(projectId: string, signal?: Sig): Promise<CodeReview[]> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/code-reviews", {
+    params: { path: { project_id: projectId }, query: { limit: 30 } },
+    signal: signal ?? null,
+  });
+  if (data) return data.items;
+  throw toApiError(response, error);
+}
+
+export async function fetchCodeReview(reviewId: string, signal?: Sig): Promise<CodeReview> {
+  const { data, error, response } = await api.GET("/v1/code-reviews/{review_id}", {
+    params: { path: { review_id: reviewId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function cancelCodeReview(reviewId: string): Promise<CodeReview> {
+  const { data, error, response } = await api.POST("/v1/code-reviews/{review_id}/cancel", {
+    params: { path: { review_id: reviewId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
 }

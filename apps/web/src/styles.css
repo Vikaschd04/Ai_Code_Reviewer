@@ -2921,3 +2921,46 @@ button.tile[aria-pressed="true"] {
     background: Highlight;
   }
 }
+
+/* Numbered instructions (GitHub connect flow) */
+.numbered-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  counter-reset: step;
+}
+
+.numbered-steps > li {
+  position: relative;
+  padding-left: var(--space-8);
+  counter-increment: step;
+}
+
+.numbered-steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+/* Layout helpers for compact forms (GitHub tab) */
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.input-narrow {
+  width: calc(var(--space-12) * 2);
+}

@@ -63,6 +63,15 @@ Fix page (`#/fixes/:id`), reached from the card or the project's **Fixes** tab:
 
 The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in light, dark and mobile (390 px, no horizontal scroll) by `apps/web/e2e/p05-fixes.spec.ts` screenshots `p05-*.png`.
 
+## Implemented in P06 (GitHub)
+
+- **Administration → GitHub** (workspace admins; shown when the server has a GitHub App): a plain "GitHub is not set up" card with setup steps for admins otherwise. Two numbered steps — **Install on GitHub** (new tab) and **Confirm access** (GitHub asks, then returns; the one-time code is removed from the address) — a result note ("Linked acme."), and one card per linked account with its repositories (private, no longer shared, connected project or "Not connected"), **Refresh list** and **Unlink** (with confirmation).
+- **Project → GitHub tab**: connect a repository (choose from linked accounts → **Connect and review**); once connected, a repository card (connected/not available with the reason, **Review latest commit**, **Review pull request** by number, **Disconnect repository** with confirmation), **What refactorX does** (checkboxes for pushes, pull requests, forks, posting a check and comment, fix pull requests; failing threshold; full re-check interval; read-only with "A workspace admin can change these" for others) and **Reviews of this repository** (what — "main at abc1234" or "Pull request #7: title" — status, "2 new problems · 1 fixed", posted to GitHub, started). The list refreshes every 10 s, every 2 s while something runs.
+- **Review page** (`#/reviews/:id`): title, "Compared with the merge base … of main" / "the last reviewed commit", status, **Open on GitHub**, **Stop** while running; tiles New / Fixed / Still present / Not rechecked; new and fixed problems (title, file name first with line, severity) linking to findings; **What changed** (counts, configuration-change note, collapsed file lists including renames and dependent files); **On GitHub** (posted, failed with reason, or nothing posted); collapsed technical details (commits, trigger, reuse, upload, replacement review).
+- **Uploads** captured from GitHub show "From GitHub: acme/shop · main · commit abc1234" and, under technical details, how the capture was checked against the commit; new file reasons: symbolic link, submodule, Git LFS, left out of GitHub's download, differs from the commit.
+- **Fix page**: **Open pull request** when allowed, then "Pull request #N on GitHub"; otherwise the plain reason (not allowed by an admin, fork, checks not passed).
+- The "Coming soon" sidebar list is gone (nothing planned remains). Checked in light, dark and mobile (390 px, no horizontal page scroll) by `apps/web/e2e/p06-github.spec.ts` screenshots `p06-*.png`.
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

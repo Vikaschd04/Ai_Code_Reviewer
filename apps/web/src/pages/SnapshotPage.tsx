@@ -4,6 +4,7 @@ import { describeError, type FileEntry } from "../api/client";
 import { fetchSnapshot, listFiles, startScan } from "../api/endpoints";
 import { CategoryBars } from "../components/Charts";
 import { Alert, Disclosure, Empty, Loading, PageHeader, Tabs } from "../components/Common";
+import { CaptureCheck, GitOrigin } from "../components/GitHub";
 import { FileLocation } from "../components/FileLocation";
 import { Icon } from "../components/Icon";
 import { formatBytes, formatDate, titleCase } from "../lib/format";
@@ -37,6 +38,12 @@ const DISPOSITIONS: { value: string; label: string }[] = [
   { value: "BINARY", label: "Binary" },
   { value: "OVERSIZED", label: "Too large" },
 ];
+
+const SOURCE_LABELS: Record<string, string> = {
+  zip_upload: "ZIP upload",
+  local_runner: "Local folder",
+  github: "GitHub commit",
+};
 
 function dispositionBadge(value: string) {
   const tone = value === "ANALYZABLE" ? "ok" : value === "EXCLUDED" ? "warn" : "neutral";
@@ -218,6 +225,7 @@ export function SnapshotPage({ snapshotId, tab = "scope" }: { snapshotId: string
           </button>
         }
       />
+      <GitOrigin snapshot={data} />
       {error ? <Alert tone="bad">{error}</Alert> : null}
       <Tabs
         current={tab}
@@ -300,14 +308,27 @@ export function SnapshotPage({ snapshotId, tab = "scope" }: { snapshotId: string
               </dd>
               <dt>Source</dt>
               <dd>
-                {data.source_mode === "local_runner" ? "Local folder" : "ZIP upload"} ·{" "}
-                {data.source_name}
+                {SOURCE_LABELS[data.source_mode] ?? "ZIP upload"} · {data.source_name}
               </dd>
               <dt>Scope policy</dt>
               <dd className="mono">{data.policy_version}</dd>
               <dt>Git commit</dt>
-              <dd className="muted">{data.git_commit ?? "none (identified by content)"}</dd>
+              <dd className={data.git_commit ? "hash" : "muted"}>
+                {data.git_commit ?? "none (identified by content)"}
+              </dd>
+              {data.git_tree_sha ? (
+                <>
+                  <dt>Git tree</dt>
+                  <dd className="hash">{data.git_tree_sha}</dd>
+                </>
+              ) : null}
             </dl>
+            {data.git_capture ? (
+              <div className="stack stack-xs">
+                <strong className="small">Checked against the commit</strong>
+                <CaptureCheck capture={data.git_capture} />
+              </div>
+            ) : null}
             {indicators.length > 0 ? (
               <div className="table-wrap">
                 <table className="data-table">

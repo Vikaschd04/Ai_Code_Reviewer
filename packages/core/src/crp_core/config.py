@@ -179,6 +179,30 @@ class Settings(BaseSettings):
     ai_monthly_cost_limit_usd: Annotated[float, Field(gt=0, le=1_000_000)] | None = None
     ai_keep_transcripts: bool = True
 
+    # GitHub (P06; ADR 0015). One GitHub App registered by the operator: its private key signs
+    # short-lived app tokens; each operation then uses an installation token limited to one
+    # repository and the permissions it needs. Secrets come from the environment or owner-only
+    # files and are never logged. Without an app id/client id and key, GitHub stays unavailable.
+    github_app_id: Annotated[int, Field(ge=1)] | None = None
+    github_client_id: str | None = None
+    github_client_secret: SecretStr | None = None
+    github_client_secret_file: Path | None = None
+    github_private_key: SecretStr | None = None
+    github_private_key_file: Path | None = None
+    github_webhook_secret: SecretStr | None = None
+    github_webhook_secret_file: Path | None = None
+    github_app_slug: str | None = None
+    github_api_url: str = "https://api.github.com"
+    github_web_url: str = "https://github.com"
+    # Optional: must equal a callback URL registered on the app; GitHub uses its first one if unset.
+    github_callback_url: str | None = None
+    github_request_timeout_seconds: Annotated[float, Field(gt=1, le=300)] = 30.0
+    github_webhook_max_bytes: Annotated[int, Field(ge=1024, le=64 * 1024 * 1024)] = 25 * 1024 * 1024
+    # Files GitHub's archive leaves out (export-ignore) are fetched one by one up to this count.
+    github_max_blob_fetches: Annotated[int, Field(ge=0, le=5000)] = 300
+    # Default days between full reviews (per-file results re-run instead of reused).
+    git_reconcile_days: Annotated[int, Field(ge=1, le=90)] = 7
+
     log_level: str = "INFO"
     log_format: str = "json"
 
@@ -205,6 +229,9 @@ class Settings(BaseSettings):
         "eslint_runner_dir",
         "node_executable",
         "web_static_dir",
+        "github_client_secret_file",
+        "github_private_key_file",
+        "github_webhook_secret_file",
     )
     @classmethod
     def _absolute_paths(cls, value: Path | None) -> Path | None:
@@ -232,6 +259,28 @@ class Settings(BaseSettings):
         scheme = urlsplit(value.get_secret_value()).scheme
         if scheme != "postgresql+psycopg":
             raise ValueError("CRP_DATABASE_URL must use the postgresql+psycopg:// scheme")
+        return value
+
+    @field_validator("github_api_url", "github_web_url", "github_callback_url")
+    @classmethod
+    def _github_urls(cls, value: str | None) -> str | None:
+        """https only, except loopback test doubles (a leaked token must never cross plain HTTP)."""
+        if value is None:
+            return None
+        parts = urlsplit(value)
+        if not parts.hostname or parts.query or parts.fragment:
+            raise ValueError("GitHub URLs must be absolute and have no query or fragment")
+        if parts.scheme != "https" and not (
+            parts.scheme == "http" and is_loopback_host(parts.hostname)
+        ):
+            raise ValueError("GitHub URLs must use https:// (http only for loopback test servers)")
+        return value.rstrip("/")
+
+    @field_validator("github_app_slug")
+    @classmethod
+    def _github_slug(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", value):
+            raise ValueError("CRP_GITHUB_APP_SLUG must be the app's URL name (lowercase, dashes)")
         return value
 
     @field_validator("log_format")

@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from crp_analysis.sources.github import GitHubClient, resolve_github
 from crp_api import __version__
 from crp_api.auth.local_token import LocalTokenProvider
 from crp_api.auth.throttle import FailedAttemptThrottle
@@ -21,8 +22,10 @@ from crp_api.middleware import (
 from crp_api.routes import (
     ai,
     auth,
+    code_reviews,
     diagnostics,
     fixes,
+    github,
     graph,
     health,
     intakes,
@@ -64,6 +67,8 @@ def create_app(
             raise RuntimeError("hosted mode requires an access token of at least 32 characters")
         engine = create_engine_from_settings(settings)
         workflows = workflow_gateway or TemporalWorkflowGateway(settings)
+        github_setup = resolve_github(settings)
+        github = GitHubClient(github_setup) if github_setup.app_ready else None
         app.state.container = AppContainer(
             settings=settings,
             engine=engine,
@@ -72,6 +77,7 @@ def create_app(
             artifacts=artifact_store or create_artifact_store(settings),
             identity=identity,
             login_throttle=FailedAttemptThrottle(),
+            github=github,
         )
         # In-process gateways (lite profile) resume unfinished work once the API is ready.
         start = getattr(workflows, "start", None)
@@ -81,6 +87,8 @@ def create_app(
             yield
         finally:
             await workflows.close()
+            if github is not None:
+                await github.close()
             await engine.dispose()
 
     app = FastAPI(
@@ -90,8 +98,9 @@ def create_app(
             "refactorX control-plane API: authentication (access token or optional demo "
             "account), readiness, projects and sample projects, ZIP/local-runner intake, frozen "
             "snapshots, scans (PMD, ESLint, Opengrep, Trivy, structure, graph) with coverage, "
-            "findings, issues, comparison and exports. Source-only analysis; no AI provider is "
-            "used."
+            "findings, issues, comparison and exports, AI review (when configured), validated "
+            "fixes and GitHub connections with branch and pull request reviews. Source-only "
+            "analysis: nothing is built or run."
         ),
         lifespan=lifespan,
         docs_url=f"{API_PREFIX}/docs",
@@ -111,6 +120,8 @@ def create_app(
         graph.router,
         ai.router,
         fixes.router,
+        github.router,
+        code_reviews.router,
         diagnostics.router,
     ):
         app.include_router(router, prefix=API_PREFIX)

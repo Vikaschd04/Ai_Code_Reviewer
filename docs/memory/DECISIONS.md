@@ -16,5 +16,6 @@
 | ADR 0012 bounded AI review | Accepted, implemented offline (live gate blocked on key) | 2026-09-30 | Anthropic or OpenAI-compatible, per-project opt-in off by default, read-only snapshot tools, citations checked against the upload, spend caps |
 | ADR 0013 framework packs | Accepted, implemented (experimental) | 2026-09-30 | SAP Commerce and Salesforce packs as adapters with capability records; secure XML; rules on pinned PMD/Opengrep plus a small in-process engine |
 | ADR 0014 validated fixes | Accepted, deterministic slice implemented | 2026-10-01 | Recipes first; proposals bound to upload/base/patch/result hashes; policy refuses suppressions and weakened tests; source-level ladder on copies, tests/build "not run" until an isolated runner exists |
+| ADR 0015 GitHub reviews | Accepted, implemented (live check pending) | 2026-10-01 | One App with repository-scoped tokens; verified linking; archive + tree reconciliation instead of Git; reviews converge on the newest commit; only default-branch reviews change issues; opt-in checks/comment and fix pull requests with exact-head freshness |
 
 Add implementation decisions only after recording alternatives, consequences and evidence in an ADR. Do not convert speculative preferences into verified implementation facts.

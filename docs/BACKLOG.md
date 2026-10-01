@@ -21,8 +21,8 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P04-02 | Salesforce pack | Metadata + permission/limit fixtures |
 | P05-01 | Patch author/workbench | Separate copy and constrained diff — **DONE for deterministic recipes** (P05_REPORT, ADR 0014); AI patches wait for the P03 provider |
 | P05-02 | Validation/export | Original-defect and regression evidence — **DONE source-level** (integrity/syntax/detector/regression, patch + `crp-fix-export/v1`); tests/build rungs need P05-F1 |
-| P06-01 | GitHub connector/webhooks | Scoped auth/idempotency |
-| P06-02 | Incremental scopes/PRs | Merge-base/cache/freshness tests |
+| P06-01 | GitHub connector/webhooks | Scoped auth/idempotency — **DONE** (fake GitHub; live check needs the owner's App, K-P06-01) |
+| P06-02 | Incremental scopes/PRs | Merge-base/cache/freshness tests — **DONE** (P06_REPORT, ADR 0015) |
 | P07-01 | Identity/tenant/execution hardening | Isolation/security assessment |
 | P07-02 | Scale/recovery/retention/release | Measured limits and runbooks |
 
@@ -63,3 +63,13 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P05-F2 | Bounded AI patches for contextual findings (after K-P03-01) | Same policy and ladder; labelled AI; budget and spend recorded |
 | P05-F3 | More recipes (rule by rule) and multi-file fixes | Positive/negative fixtures per recipe; scope list per fix |
 | P05-F4 | Whole-project re-check of a validated fix (callers, overloads) | Regression evidence beyond the changed file |
+
+## Follow-ups discovered in P06
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P06-F1 | Live verification on the owner's GitHub App and test repository (`crp-dev` checklist in docs/validation/P06_REPORT.md) | Every P06 mandatory check repeated against github.com |
+| P06-F2 | Re-publish a failed check/comment on demand (today the next review posts again) | Retry button; idempotent update |
+| P06-F3 | Similarity-based rename detection for changed-and-moved files (Git `-M`) | Lineage kept for edited renames |
+| P06-F4 | GitHub Enterprise Server and GitLab/Bitbucket adapters behind the same source-provider boundary | Adapter contract tests |
+| P06-F5 | Fix pull requests that move a stale fix automatically (rebase + revalidate in one step) | Stale fix → new validated PR without manual steps |

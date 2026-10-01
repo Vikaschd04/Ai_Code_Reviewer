@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — P06 GitHub reviews (1 October 2026)
+
+- GitHub through your own GitHub App (ADR 0015, docs/GITHUB.md): verified linking (the admin confirms on GitHub; forged installation ids are ignored), repositories per installation, one project per repository. Tokens are limited to one repository and to read, checks or fix permissions, and are never stored.
+- Reviews of the default branch on every push and of pull requests (opened, updated, base changed), compared with the previous review or the merge base. Late, duplicate and out-of-order events converge on the newest commit; older reviews are replaced; closed pull requests stop. Forks only when a project admin allows it (members can start them by hand).
+- Captures are GitHub's archive of the exact commit, checked against the commit's file list: files hidden with `export-ignore` or changed in the archive are fetched as committed; symlinks, submodules and Git LFS files are listed as not included. No Git command or repository script runs.
+- Incremental by design: unchanged files reuse their results; dependency, framework and architecture checks always cover the whole snapshot; scheduled full re-checks every 7 days (configurable). Pull request scans never change the project's issues; renamed files keep their issues on the default branch and are not reported as new in pull requests.
+- Optional publication per project (off by default): one `refactorX` check per commit with annotations on new problems and one summary comment per pull request, updated in place; the check fails only at a threshold the project sets. Fix pull requests from validated fixes on request, only when the branch has not moved (otherwise "stale"); never merged.
+- API: `/v1/github/*`, `/v1/workspaces/{id}/github/*`, `/v1/projects/{id}/git-connection`, `/v1/projects/{id}/code-reviews`, `/v1/code-reviews/{id}`, `POST /v1/fix-proposals/{id}/pull-request`; Git details on snapshots. Migration `0008`. Dependency `cryptography` 50.0.2.
+- UI: Administration → GitHub, project GitHub tab, review page, "From GitHub" on uploads, "Open pull request" on fixes. The "Coming soon" list is gone.
+- Fixes found while building: a worker bookkeeping write no longer bumps the connection's settings version; a revoked cached token is replaced so uninstalls are recognised.
+
 ## Unreleased — P05 validated fixes (1 October 2026)
 
 - Fixes for findings (ADR 0014): deterministic, approved recipes — ESLint's own safe fixes for `prefer-const`, `no-var` and `eqeqeq` (captured at scan time), `"literal".equals(value)` for Java string comparison with `==`, and moving retired Salesforce metadata API versions to the project's `sourceApiVersion`. Each fix explains what could behave differently.

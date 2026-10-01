@@ -43,6 +43,7 @@ class SourceMode(StrEnum):
     LOCAL_RUNNER = "local_runner"
     BROWSER_FILES = "browser_files"
     REGISTERED_MOUNT = "registered_mount"
+    GITHUB = "github"  # a connected repository; commits are captured through the GitHub API
 
 
 class CaptureStatus(StrEnum):
@@ -324,3 +325,67 @@ class FixValidationState(StrEnum):
             FixValidationState.FAILED,
             FixValidationState.CANCELED,
         }
+
+
+class ScanMode(StrEnum):
+    """Why a scan ran. Only ``baseline`` scans update the project's issues (P06; ADR 0015)."""
+
+    BASELINE = "baseline"  # an upload, capture or the default branch's latest commit
+    PULL_REQUEST = "pull_request"  # a pull request's head: compared, never changes issues
+    REFERENCE = "reference"  # a merge base or earlier commit scanned only for comparison
+
+
+class GitProvider(StrEnum):
+    GITHUB = "github"
+
+
+class CodeReviewKind(StrEnum):
+    BRANCH = "branch"  # the latest commit of a branch (the default branch for pushes)
+    PULL_REQUEST = "pull_request"
+
+
+class CodeReviewTrigger(StrEnum):
+    PUSH = "push"
+    PULL_REQUEST = "pull_request"
+    MANUAL = "manual"
+    RECONCILE = "reconcile"  # scheduled full review (per-file results are re-run, not reused)
+
+
+class CodeReviewState(StrEnum):
+    QUEUED = "QUEUED"
+    CAPTURING = "CAPTURING"  # fetching and verifying the commit(s)
+    SCANNING = "SCANNING"
+    PUBLISHING = "PUBLISHING"
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"  # results exist but some checks did not complete
+    FAILED = "FAILED"
+    SUPERSEDED = "SUPERSEDED"  # a newer commit of the same branch or pull request took over
+    SKIPPED = "SKIPPED"  # nothing to do (closed pull request, policy, already reviewed)
+    CANCELED = "CANCELED"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self not in {
+            CodeReviewState.QUEUED,
+            CodeReviewState.CAPTURING,
+            CodeReviewState.SCANNING,
+            CodeReviewState.PUBLISHING,
+        }
+
+
+class PublishState(StrEnum):
+    """Whether a review's results were posted back to the Git provider."""
+
+    OFF = "off"  # the project does not publish
+    PUBLISHED = "published"
+    FAILED = "failed"
+    SKIPPED = "skipped"  # e.g. the review was superseded before results were ready
+
+
+class CheckFailThreshold(StrEnum):
+    """Lowest severity of a *new* finding that makes the published check fail."""
+
+    NEVER = "never"
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"

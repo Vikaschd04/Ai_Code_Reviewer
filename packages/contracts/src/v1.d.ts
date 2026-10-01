@@ -175,6 +175,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/code-reviews/{review_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Review */
+        get: operations["get_review_v1_code_reviews__review_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/code-reviews/{review_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Review */
+        post: operations["cancel_review_v1_code_reviews__review_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/diagnostics/workflow-runs": {
         parameters: {
             query?: never;
@@ -361,6 +395,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/fix-proposals/{proposal_id}/pull-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Pull Request
+         * @description Open a pull request with this validated fix on the reviewed branch (never merged).
+         *
+         *     The branch must still point at the reviewed commit; otherwise 409 ``stale_patch``: review
+         *     the newer commit, move the fix there and check it again.
+         */
+        post: operations["open_pull_request_v1_fix_proposals__proposal_id__pull_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/fix-proposals/{proposal_id}/rebase": {
         parameters: {
             query?: never;
@@ -451,6 +508,23 @@ export interface paths {
         put?: never;
         /** Cancel Fix Validation */
         post: operations["cancel_fix_validation_v1_fix_validations__validation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/github/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Github Status */
+        get: operations["github_status_v1_github_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -761,6 +835,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/code-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reviews */
+        get: operations["list_reviews_v1_projects__project_id__code_reviews_get"];
+        put?: never;
+        /**
+         * Start Review
+         * @description Review the default branch's newest commit, or a pull request, now.
+         */
+        post: operations["start_review_v1_projects__project_id__code_reviews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/fix-proposals": {
         parameters: {
             query?: never;
@@ -776,6 +871,35 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{project_id}/git-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Connection */
+        get: operations["get_connection_v1_projects__project_id__git_connection_get"];
+        /**
+         * Connect Repository
+         * @description Connect a repository from a linked installation and start its first (full) review.
+         */
+        put: operations["connect_repository_v1_projects__project_id__git_connection_put"];
+        post?: never;
+        /**
+         * Disconnect Repository
+         * @description Disconnect: reviews stop; earlier snapshots, scans and reviews stay as history.
+         */
+        delete: operations["disconnect_repository_v1_projects__project_id__git_connection_delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Connection
+         * @description Change what is reviewed and published (admins; versioned and audited).
+         */
+        patch: operations["update_connection_v1_projects__project_id__git_connection_patch"];
         trace?: never;
     };
     "/v1/projects/{project_id}/intakes": {
@@ -1109,6 +1233,103 @@ export interface paths {
         get: operations["node_neighborhood_v1_snapshots__snapshot_id__graph_nodes__node_id__neighborhood_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{workspace_id}/github/installations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Installations */
+        get: operations["list_installations_v1_workspaces__workspace_id__github_installations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{workspace_id}/github/installations/{installation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink Installation
+         * @description Unlink an installation: its repositories disconnect; reviews stay as history.
+         */
+        delete: operations["unlink_installation_v1_workspaces__workspace_id__github_installations__installation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{workspace_id}/github/installations/{installation_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Installation
+         * @description Refresh the repository list from GitHub (admins).
+         */
+        post: operations["sync_installation_v1_workspaces__workspace_id__github_installations__installation_id__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{workspace_id}/github/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Link
+         * @description Begin verified linking: returns the GitHub page where the admin confirms access.
+         */
+        post: operations["start_link_v1_workspaces__workspace_id__github_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{workspace_id}/github/link/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Link
+         * @description Finish linking with GitHub's one-time code: link the installations this user can access.
+         */
+        post: operations["complete_link_v1_workspaces__workspace_id__github_link_complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1469,10 +1690,119 @@ export interface components {
          */
         CapabilityState: "available" | "not_configured" | "planned";
         /**
+         * CheckFailThreshold
+         * @description Lowest severity of a *new* finding that makes the published check fail.
+         * @enum {string}
+         */
+        CheckFailThreshold: "never" | "critical" | "high" | "medium";
+        /**
          * CheckStatus
          * @enum {string}
          */
         CheckStatus: "ok" | "failed" | "unavailable";
+        /** CodeReviewCreate */
+        CodeReviewCreate: {
+            /**
+             * Full
+             * @description Re-run every check instead of reusing results
+             * @default false
+             */
+            full: boolean;
+            /** @default branch */
+            kind: components["schemas"]["CodeReviewKind"];
+            /** Pull Request */
+            pull_request?: number | null;
+        };
+        /**
+         * CodeReviewKind
+         * @enum {string}
+         */
+        CodeReviewKind: "branch" | "pull_request";
+        /** CodeReviewPage */
+        CodeReviewPage: {
+            /** Items */
+            items: components["schemas"]["CodeReviewResponse"][];
+        };
+        /** CodeReviewResponse */
+        CodeReviewResponse: {
+            /** Base Ref */
+            base_ref: string | null;
+            /** Base Scan Id */
+            base_scan_id: string | null;
+            /** Base Sha */
+            base_sha: string | null;
+            /** Base Snapshot Id */
+            base_snapshot_id: string | null;
+            /** Changes */
+            changes: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Fork */
+            fork: boolean;
+            /** Full */
+            full: boolean;
+            /** Head Scan Id */
+            head_scan_id: string | null;
+            /** Head Sha */
+            head_sha: string | null;
+            /** Head Snapshot Id */
+            head_snapshot_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Merge Base Sha */
+            merge_base_sha: string | null;
+            /** Pr Author */
+            pr_author: string | null;
+            /** Pr Number */
+            pr_number: number | null;
+            /** Pr Title */
+            pr_title: string | null;
+            /** Pr Url */
+            pr_url: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Publish Error */
+            publish_error: string | null;
+            /** Publish State */
+            publish_state: string | null;
+            /** Published At */
+            published_at: string | null;
+            /** Ref */
+            ref: string | null;
+            /** Repository */
+            repository: string | null;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /** Started At */
+            started_at: string | null;
+            /** State */
+            state: string;
+            /** Superseded By */
+            superseded_by: string | null;
+            /** Trigger */
+            trigger: string;
+        };
         /** ComparisonGroup */
         ComparisonGroup: {
             /** Count */
@@ -2015,6 +2345,17 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            pull_request?: components["schemas"]["FixPullRequestResponse"] | null;
+            /**
+             * Pull Request Available
+             * @default false
+             */
+            pull_request_available: boolean;
+            /**
+             * Pull Request Reason
+             * @description Why a pull request cannot be opened (plain language)
+             */
+            pull_request_reason?: string | null;
             /** Recipe Id */
             recipe_id: string;
             /** Rejected Reason */
@@ -2044,6 +2385,28 @@ export interface components {
             validations_used: number;
             /** Version */
             version: number;
+        };
+        /** FixPullRequestResponse */
+        FixPullRequestResponse: {
+            /** Base Ref */
+            base_ref: string;
+            /** Base Sha */
+            base_sha: string;
+            /** Branch */
+            branch: string;
+            /** Commit Sha */
+            commit_sha: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Number */
+            number: number;
+            /** Repository */
+            repository: string;
+            /** Url */
+            url: string;
         };
         /** FixRebase */
         FixRebase: {
@@ -2173,6 +2536,190 @@ export interface components {
              * @enum {string}
              */
             version_status: "supported" | "unsupported_version" | "unknown_version";
+        };
+        /** GitConnectionCreate */
+        GitConnectionCreate: {
+            /**
+             * Repository Id
+             * Format: uuid
+             */
+            repository_id: string;
+        };
+        /** GitConnectionResponse */
+        GitConnectionResponse: {
+            /** Can Edit */
+            can_edit: boolean;
+            /** @default never */
+            check_fail_threshold: components["schemas"]["CheckFailThreshold"];
+            /** Connected */
+            connected: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Id */
+            id?: string | null;
+            /** Installation Account */
+            installation_account?: string | null;
+            /** Last Full Review At */
+            last_full_review_at?: string | null;
+            /**
+             * Publish Checks
+             * @default false
+             */
+            publish_checks: boolean;
+            /**
+             * Publish Pull Requests
+             * @default false
+             */
+            publish_pull_requests: boolean;
+            /**
+             * Reconcile Days
+             * @default 7
+             */
+            reconcile_days: number;
+            repository?: components["schemas"]["GitRepositoryResponse"] | null;
+            /**
+             * Review Forks
+             * @default false
+             */
+            review_forks: boolean;
+            /**
+             * Review Pull Requests
+             * @default true
+             */
+            review_pull_requests: boolean;
+            /**
+             * Review Pushes
+             * @default true
+             */
+            review_pushes: boolean;
+            /** Status */
+            status?: ("active" | "access_removed" | "installation_revoked" | "installation_suspended") | null;
+            /** Status Reason */
+            status_reason?: string | null;
+            /** Version */
+            version?: number | null;
+        };
+        /** GitConnectionUpdate */
+        GitConnectionUpdate: {
+            check_fail_threshold?: components["schemas"]["CheckFailThreshold"] | null;
+            /** Publish Checks */
+            publish_checks?: boolean | null;
+            /** Publish Pull Requests */
+            publish_pull_requests?: boolean | null;
+            /** Reconcile Days */
+            reconcile_days?: number | null;
+            /** Review Forks */
+            review_forks?: boolean | null;
+            /** Review Pull Requests */
+            review_pull_requests?: boolean | null;
+            /** Review Pushes */
+            review_pushes?: boolean | null;
+            /** Version */
+            version: number;
+        };
+        /** GitHubLinkComplete */
+        GitHubLinkComplete: {
+            /** Code */
+            code: string;
+            /** State */
+            state: string;
+        };
+        /** GitHubLinkResult */
+        GitHubLinkResult: {
+            /** Linked */
+            linked: components["schemas"]["GitInstallationResponse"][];
+            /** Skipped */
+            skipped: components["schemas"]["GitLinkSkip"][];
+        };
+        /** GitHubLinkStart */
+        GitHubLinkStart: {
+            /**
+             * Authorize Url
+             * @description GitHub page that asks the admin to confirm access
+             */
+            authorize_url: string;
+        };
+        /** GitHubStatus */
+        GitHubStatus: {
+            /**
+             * Admin Hint
+             * @description Setup steps; only for workspace admins
+             */
+            admin_hint: string | null;
+            /**
+             * Available
+             * @description Reviews and publication can authenticate as the app
+             */
+            available: boolean;
+            /** Install Url */
+            install_url: string | null;
+            /** Linking Available */
+            linking_available: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Webhooks Available */
+            webhooks_available: boolean;
+        };
+        /** GitInstallationList */
+        GitInstallationList: {
+            /** Items */
+            items: components["schemas"]["GitInstallationResponse"][];
+        };
+        /** GitInstallationResponse */
+        GitInstallationResponse: {
+            /** Account */
+            account: string;
+            /** Account Type */
+            account_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Linked At
+             * Format: date-time
+             */
+            linked_at: string;
+            /** Repositories */
+            repositories: components["schemas"]["GitRepositoryResponse"][];
+            /** Repository Selection */
+            repository_selection: string | null;
+            /** Revoked */
+            revoked: boolean;
+            /** Suspended */
+            suspended: boolean;
+            /** Synced At */
+            synced_at: string | null;
+        };
+        /** GitLinkSkip */
+        GitLinkSkip: {
+            /** Account */
+            account: string;
+            /** Reason */
+            reason: string;
+        };
+        /** GitRepositoryResponse */
+        GitRepositoryResponse: {
+            /** Archived */
+            archived: boolean;
+            /** Default Branch */
+            default_branch: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Private */
+            private: boolean;
+            /** Project Id */
+            project_id: string | null;
+            /** Project Name */
+            project_name: string | null;
+            /** Removed */
+            removed: boolean;
         };
         /** GraphBuildResponse */
         GraphBuildResponse: {
@@ -2964,8 +3511,23 @@ export interface components {
             file_count: number;
             /** Frozen At */
             frozen_at: string | null;
+            /**
+             * Git Capture
+             * @description How a commit capture was checked against the commit's tree
+             */
+            git_capture?: {
+                [key: string]: unknown;
+            } | null;
             /** Git Commit */
             git_commit: string | null;
+            /** Git Provider */
+            git_provider?: string | null;
+            /** Git Ref */
+            git_ref?: string | null;
+            /** Git Repository */
+            git_repository?: string | null;
+            /** Git Tree Sha */
+            git_tree_sha?: string | null;
             /**
              * Id
              * Format: uuid
@@ -3522,6 +4084,140 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_review_v1_code_reviews__review_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeReviewResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_review_v1_code_reviews__review_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeReviewResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4157,6 +4853,82 @@ export interface operations {
             };
         };
     };
+    open_pull_request_v1_fix_proposals__proposal_id__pull_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixPullRequestResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     rebase_fix_proposal_v1_fix_proposals__proposal_id__rebase_post: {
         parameters: {
             query?: never;
@@ -4509,6 +5281,35 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    github_status_v1_github_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubStatus"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5787,6 +6588,148 @@ export interface operations {
             };
         };
     };
+    list_reviews_v1_projects__project_id__code_reviews_get: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["CodeReviewKind"] | null;
+                pull_request?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeReviewPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_review_v1_projects__project_id__code_reviews_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeReviewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeReviewResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_fix_proposals_v1_projects__project_id__fix_proposals_get: {
         parameters: {
             query?: {
@@ -5853,6 +6796,280 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connection_v1_projects__project_id__git_connection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    connect_repository_v1_projects__project_id__git_connection_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitConnectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    disconnect_repository_v1_projects__project_id__git_connection_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_connection_v1_projects__project_id__git_connection_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitConnectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -7127,6 +8344,390 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_installations_v1_workspaces__workspace_id__github_installations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitInstallationList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unlink_installation_v1_workspaces__workspace_id__github_installations__installation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                installation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sync_installation_v1_workspaces__workspace_id__github_installations__installation_id__sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                installation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitInstallationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_link_v1_workspaces__workspace_id__github_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubLinkStart"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    complete_link_v1_workspaces__workspace_id__github_link_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitHubLinkComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubLinkResult"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

@@ -9,13 +9,14 @@ import sys
 
 from pydantic import ValidationError
 
+from crp_analysis.sources.github import resolve_github
 from crp_core.artifacts import create_artifact_store
 from crp_core.config import Settings, describe_settings_error, load_settings
 from crp_core.db.session import create_engine_from_settings
 from crp_core.log import configure_logging
 from crp_core.workflows.gateway import WorkflowUnavailableError
 from crp_core.workflows.temporal import connect_temporal
-from crp_worker.runtime import build_worker, worker_identity
+from crp_worker.runtime import build_worker, reconcile_loop, worker_identity
 
 logger = logging.getLogger("crp_worker")
 
@@ -42,8 +43,15 @@ async def run(settings: Settings) -> None:
                 "worker polling",
                 extra={"task_queue": settings.temporal_task_queue, "identity": identity},
             )
+            reconcile = (
+                asyncio.create_task(reconcile_loop(settings, engine, stop))
+                if resolve_github(settings).app_ready
+                else None
+            )
             await stop.wait()
             logger.info("worker shutting down")
+            if reconcile is not None:
+                await reconcile
     finally:
         await engine.dispose()
 

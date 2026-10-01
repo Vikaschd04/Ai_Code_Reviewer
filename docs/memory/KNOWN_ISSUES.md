@@ -1,6 +1,6 @@
 # Known issues and gaps
 
-Updated 1 October 2026 (P05 fixes). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate; K-P05-01 and K-P05-02 keep P05 IN_PROGRESS.
+Updated 1 October 2026 (P06 GitHub). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate; K-P05-01 and K-P05-02 keep P05 IN_PROGRESS; K-P06-01 blocks the P06 live gate.
 
 | ID | Symptom / gap | Scope | Severity | Evidence | Workaround / next action |
 |---|---|---|---|---|---|
@@ -44,6 +44,13 @@ Updated 1 October 2026 (P05 fixes). None of these block the P00–P02 or P04 gat
 | K-P05-03 | Only three recipe families (ESLint `prefer-const`/`no-var`/`eqeqeq`, Java string-literal `equals`, Salesforce retired API version); ESLint fixes need a scan made after this release; one file per fix | fixes | Low | P05_REPORT | Add recipes rule by rule with positive/negative fixtures |
 | K-P05-04 | Issue status stays under triage; `FIX_PROPOSED` is not set by fixes (reserved for P06 pull requests); fix history is shown on the finding | issues | Info | ADR 0014 | Revisit with P06 |
 | K-P05-05 | The regression check compares per-rule counts on the changed file only; effects on other files (callers, overload resolution) are not analysed | fixes | Low | validation.py | Reviewers build and test the patch; whole-project re-check with an isolated runner later |
+| K-P06-01 | GitHub verified only against the labelled fake GitHub (real HTTP, real Git object ids and archive rules); no real github.com App, installation or repository has been used yet | P06 gate (live connector) | High (gate) | P06_REPORT | Owner registers a GitHub App (docs/GITHUB.md), installs it on a test repository and runs the live checklist in P06_REPORT |
+| K-P06-02 | Webhooks need a public HTTPS address; local development reviews only on demand (Review buttons) | GitHub | Low | GITHUB.md | Use the hosted deployment, or trigger reviews by hand |
+| K-P06-03 | Renames are recognised only when content is identical; a file moved and edited is reported as removed + added (its findings count as new in a pull request) | GitHub reviews | Low | ADR 0015 | P06-F3 similarity detection |
+| K-P06-04 | A failed check/comment publication is not retried on demand; the next review of the pull request posts again | publication | Low | git_review.py | P06-F2 |
+| K-P06-05 | Free hosting runs one scan at a time: busy repositories queue reviews (newer pushes replace waiting ones) | free deployment | Medium | ADR 0010 | Paid plan or `deploy/render-standard.yaml` for teams |
+| K-P06-07 | On Render free the service sleeps; a webhook sent while it wakes (about a minute) can time out on GitHub's side, and GitHub does not resend it automatically | free deployment | Medium | DEPLOYMENT.md | Redeliver from the App's Advanced tab or press Review latest commit; a paid always-on plan avoids it |
+| K-P06-06 | The App's private key on the server can mint tokens for all its installations | security | Medium | ADR 0015 | Owner-only secret storage and the rotation runbook in docs/GITHUB.md |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 
 Known planned limitations: no Git ingestion until P06; no AI provider required in P00/P01; no universal defect detection; SAP/Salesforce runtime checks depend on authorized platform environments; private runner execution is distinct from local snapshot upload.

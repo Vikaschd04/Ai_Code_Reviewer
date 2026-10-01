@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from temporalio import activity, workflow
 from temporalio.common import RetryPolicy
@@ -54,6 +55,76 @@ def limits_from(settings: Settings) -> IntakeLimits:
         max_path_length=settings.intake_max_path_length,
         max_path_depth=settings.intake_max_path_depth,
     )
+
+
+async def freeze_snapshot(
+    session: AsyncSession,
+    store: ArtifactStore,
+    intake: Intake,
+    outcome: IntakeOutcome,
+    inventory: dict[str, object],
+    *,
+    git: dict[str, object] | None = None,
+) -> UUID:
+    """Create the intake's frozen snapshot and file entries (idempotent) and mark it READY.
+
+    ``git`` carries commit metadata for provider captures (P06): ``commit``, ``ref``,
+    ``provider``, ``repository``, ``tree`` and the capture report.
+    """
+    existing = (
+        await session.execute(select(Snapshot.id).where(Snapshot.intake_id == intake.id))
+    ).scalar_one_or_none()
+    if existing is None:
+        snapshot = Snapshot(
+            workspace_id=intake.workspace_id,
+            project_id=intake.project_id,
+            source_id=intake.source_id,
+            capture_status=CaptureStatus.FROZEN.value,
+            manifest_sha256=outcome.digest,
+            file_count=len(outcome.entries),
+            total_bytes=sum(e.size_bytes or 0 for e in outcome.entries),
+            frozen_at=datetime.now(UTC),
+            intake_id=intake.id,
+            policy_version=POLICY_VERSION,
+            analyzable_count=outcome.analyzable_count,
+            excluded_count=outcome.excluded_count,
+            inventory=inventory,
+        )
+        if git is not None:
+            snapshot.git_commit = str(git["commit"])
+            snapshot.git_ref = str(git["ref"]) if git.get("ref") else None
+            snapshot.git_provider = str(git["provider"])
+            snapshot.git_repository = str(git["repository"])
+            snapshot.git_tree_sha = str(git["tree"])
+            report = git.get("capture")
+            snapshot.git_capture = report if isinstance(report, dict) else None
+        session.add(snapshot)
+        await session.flush()
+        key = ArtifactKey(f"snapshots/{snapshot.id.hex}/manifest.json")
+        document = manifest_document(outcome.entries, policy_version=POLICY_VERSION)
+        await asyncio.to_thread(store.put_bytes, key, document, overwrite=True)
+        snapshot.manifest_key = str(key)
+        session.add_all(
+            FileEntry(
+                workspace_id=intake.workspace_id,
+                project_id=intake.project_id,
+                snapshot_id=snapshot.id,
+                path=entry.path,
+                disposition=entry.disposition.value,
+                reason=entry.reason,
+                size_bytes=entry.size_bytes,
+                blob_sha256=entry.sha256 if entry.disposition.value == "ANALYZABLE" else None,
+                language=entry.language,
+                category=entry.category,
+                line_count=entry.line_count,
+            )
+            for entry in outcome.entries
+        )
+        existing = snapshot.id
+    intake.state = IntakeState.READY.value
+    intake.snapshot_id = existing
+    intake.finalized_at = datetime.now(UTC)
+    return existing
 
 
 class IntakeActivities:
@@ -136,54 +207,7 @@ class IntakeActivities:
             if row is None or IntakeState(row.state) is not IntakeState.VALIDATING:
                 state = row.state if row is not None else "MISSING"
                 return IntakeWorkflowResult(intake_id=intake.id, state=state)
-            existing = (
-                await session.execute(select(Snapshot.id).where(Snapshot.intake_id == intake.id))
-            ).scalar_one_or_none()
-            if existing is None:
-                snapshot = Snapshot(
-                    workspace_id=row.workspace_id,
-                    project_id=row.project_id,
-                    source_id=row.source_id,
-                    capture_status=CaptureStatus.FROZEN.value,
-                    manifest_sha256=outcome.digest,
-                    file_count=len(outcome.entries),
-                    total_bytes=sum(e.size_bytes or 0 for e in outcome.entries),
-                    frozen_at=datetime.now(UTC),
-                    intake_id=row.id,
-                    policy_version=POLICY_VERSION,
-                    analyzable_count=outcome.analyzable_count,
-                    excluded_count=outcome.excluded_count,
-                    inventory=inventory,
-                )
-                session.add(snapshot)
-                await session.flush()
-                key = ArtifactKey(f"snapshots/{snapshot.id.hex}/manifest.json")
-                document = manifest_document(outcome.entries, policy_version=POLICY_VERSION)
-                await asyncio.to_thread(self._store.put_bytes, key, document, overwrite=True)
-                snapshot.manifest_key = str(key)
-                session.add_all(
-                    FileEntry(
-                        workspace_id=row.workspace_id,
-                        project_id=row.project_id,
-                        snapshot_id=snapshot.id,
-                        path=entry.path,
-                        disposition=entry.disposition.value,
-                        reason=entry.reason,
-                        size_bytes=entry.size_bytes,
-                        blob_sha256=entry.sha256
-                        if entry.disposition.value == "ANALYZABLE"
-                        else None,
-                        language=entry.language,
-                        category=entry.category,
-                        line_count=entry.line_count,
-                    )
-                    for entry in outcome.entries
-                )
-                existing = snapshot.id
-            snapshot_id = existing
-            row.state = IntakeState.READY.value
-            row.snapshot_id = snapshot_id
-            row.finalized_at = datetime.now(UTC)
+            snapshot_id = await freeze_snapshot(session, self._store, row, outcome, inventory)
         await asyncio.to_thread(self._discard_upload, intake)
         return IntakeWorkflowResult(intake_id=intake.id, state="READY", snapshot_id=snapshot_id)
 

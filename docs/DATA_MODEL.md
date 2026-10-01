@@ -41,6 +41,20 @@ Retention (P02): project deletion cascades to issues, events, graph data and cac
 
 Issue status is not changed by P05; `FIX_PROPOSED` stays reserved for Phase 6 pull requests (ADR 0014). Retention: deleting a project, upload or finding deletes its proposals and validations; patches contain only lines of the stored upload.
 
+## Added in P06 (migration `0008`, ADR 0015)
+
+- `git_installations` (workspace FK cascade; unique `(provider, external_id)` so an installation belongs to one workspace): account, type, repository selection, permissions, `suspended_at`, `revoked_at`, `linked_by`, `synced_at`.
+- `git_repositories` (composite FK to the installation, cascade; unique `(installation_id, external_id)`): full name, default branch, private, archived, `removed_at`.
+- `git_connections` (one per project and one per repository; composite FKs to project, repository and the `github` source): `review_pushes`, `review_pull_requests`, `review_forks` (false), `publish_checks` (false), `publish_pull_requests` (false), `check_fail_threshold` (CHECK), `reconcile_days` (1–90), `last_full_review_at` (written without bumping the policy `version`), creator/editor, optimistic `version`. `git_connection_events`: append-only audit (connected, policy_changed, disconnected).
+- `git_link_requests`: SHA-256 of the one-time linking state, user, workspace, expiry, `used_at`, result.
+- `git_deliveries`: unique `(provider, delivery_id)`; event, action, installation/repository ids, outcome, detail, review ids — no payloads.
+- `code_reviews` (project FK cascade; connection, snapshots and scans `SET NULL`; unique `(project_id, idempotency_key)`): kind (branch/pull_request), trigger (push/pull_request/manual/reconcile), state (CHECK), ref, head/base/merge-base commits (hex CHECKs), pull request number/title/author/url/fork, `full`, head/base snapshot and scan, `changes`, `result`, publish state/error, check run and comment ids, `superseded_by`, delivery id, cancel/timestamps.
+- `fix_pull_requests` (proposal FK cascade; unique per proposal): repository, branch, base ref/commit, commit, number, url, creator.
+- `snapshots` add `git_provider`, `git_repository`, `git_tree_sha` (CHECK), `git_capture` (verification report) and an index on `(project_id, git_commit)`; `sources.mode` / `intakes.mode` accept `github`.
+- `scans.mode` is now `baseline`, `pull_request` or `reference`; only `baseline` scans update issues.
+
+Retention: deleting a project removes its connection, reviews, deliveries' review links (ids only), fix pull request records and captured snapshots; unlinking an installation removes its repositories and connections but keeps reviews. No GitHub tokens are stored.
+
 ## Target model
 
 All domain records are workspace/project scoped. UUIDs are opaque identifiers, not authorization. Source identity works without Git.

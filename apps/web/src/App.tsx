@@ -17,10 +17,12 @@ import { AiRunPage } from "./pages/AiRunPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { FindingPage } from "./pages/FindingPage";
 import { FixPage } from "./pages/FixPage";
+import { GitHubPage } from "./pages/GitHubPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OperationsPage } from "./pages/OperationsPage";
 import { ProjectPage } from "./pages/ProjectPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { ReviewPage } from "./pages/ReviewPage";
 import { ScanPage } from "./pages/ScanPage";
 import { SnapshotPage } from "./pages/SnapshotPage";
 
@@ -31,7 +33,7 @@ type Session =
   | { kind: "degraded"; reason: string }
   | { kind: "unreachable"; reason: string };
 
-type Section = "dashboard" | "projects" | "operations";
+type Section = "dashboard" | "projects" | "operations" | "github";
 
 const PLANNED_ICONS: Record<string, IconName> = {
   architecture_graph: "graph",
@@ -54,6 +56,8 @@ const ROUTE_LABELS: Record<Route["name"], string> = {
   finding: "Finding",
   "ai-run": "AI answer",
   fix: "Fix",
+  review: "Code review",
+  github: "GitHub",
   operations: "System status",
   "not-found": "Not found",
 };
@@ -69,7 +73,9 @@ async function resolveSession(): Promise<Session> {
 }
 
 function sectionOf(route: Route): Section | null {
-  if (route.name === "dashboard" || route.name === "operations") return route.name;
+  if (route.name === "dashboard" || route.name === "operations" || route.name === "github") {
+    return route.name;
+  }
   if (route.name === "not-found") return null;
   return "projects";
 }
@@ -108,6 +114,9 @@ function Sidebar({
     (c) => c.id === "ai_investigation" && c.state === "available",
   );
   const operator = principal?.is_operator === true;
+  const gitAvailable = capabilities.some(
+    (c) => c.id === "git_integration" && c.state === "available",
+  );
   return (
     <aside className="sidebar">
       <a className="brand" href="#/" aria-label="refactorX overview">
@@ -147,6 +156,16 @@ function Sidebar({
                   current={current === "operations"}
                 />
               </li>
+              {principal && gitAvailable ? (
+                <li>
+                  <NavLink
+                    href="#/github"
+                    icon="branch"
+                    label="GitHub"
+                    current={current === "github"}
+                  />
+                </li>
+              ) : null}
             </ul>
           </div>
         ) : null}
@@ -236,6 +255,10 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
       return <AiRunPage key={route.id} runId={route.id} />;
     case "fix":
       return <FixPage key={route.id} fixId={route.id} />;
+    case "review":
+      return <ReviewPage key={route.id} reviewId={route.id} />;
+    case "github":
+      return <GitHubPage params={route.params} />;
     case "operations":
       return principal.is_operator ? (
         <>

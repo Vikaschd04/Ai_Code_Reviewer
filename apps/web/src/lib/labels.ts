@@ -118,6 +118,11 @@ export function fileReason(reason: string | null | undefined): string {
     binary_content: "Binary file",
     nested_archive: "Archive inside the upload",
     text_too_large: "Too large to review",
+    symlink: "Shortcut (symbolic link); not followed",
+    submodule: "Separate repository (submodule); not included",
+    git_lfs: "Large file stored outside Git (LFS)",
+    not_in_archive: "Left out of GitHub's download; could not be fetched",
+    differs_from_commit: "Differs from the commit; could not be fetched",
   };
   return known[reason] ?? reason.replaceAll("_", " ");
 }

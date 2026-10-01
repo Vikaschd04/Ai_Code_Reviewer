@@ -28,6 +28,8 @@ class RecordingGateway:
         self.cancelled_ai_runs: list[UUID] = []
         self.fix_validations: list[UUID] = []
         self.cancelled_fix_validations: list[UUID] = []
+        self.git_reviews: list[UUID] = []
+        self.cancelled_git_reviews: list[UUID] = []
 
     async def describe_service(self) -> WorkflowServiceStatus:
         return WorkflowServiceStatus(address="test", namespace="test", server_version=None)
@@ -66,6 +68,13 @@ class RecordingGateway:
 
     async def cancel_fix_validation(self, validation_id: UUID) -> None:
         self.cancelled_fix_validations.append(validation_id)
+
+    async def start_git_review(self, review_id: UUID) -> str:
+        self.git_reviews.append(review_id)
+        return f"crp-review-{review_id.hex}"
+
+    async def cancel_git_review(self, review_id: UUID) -> None:
+        self.cancelled_git_reviews.append(review_id)
 
     async def close(self) -> None:
         return None

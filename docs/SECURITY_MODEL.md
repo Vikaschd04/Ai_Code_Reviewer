@@ -140,3 +140,17 @@ Residual risk: masking is heuristic, so a secret the redactor misses would reach
 | Authorization | Reads need project viewer access, changes need member access; proposals of other workspaces are 404 | test_fixes_of_other_workspaces_are_invisible |
 
 Residual risk: the ladder is source-level. A fix that passes it may still fail to compile against the rest of the project or change behaviour where the "What to watch" note warns; reviewers build and test the patch in their own environment.
+
+### GitHub (P06, ADR 0015)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Least-privilege, revocable access | One operator App; per-operation installation tokens limited to one repository and to read, checks or fix permissions; tokens only in memory (≤ 1 h); a revoked cached token is replaced once and an uninstall is recorded; suspended/uninstalled installations and removed repositories stop reviews | test_tokens_are_scoped_to_one_repository_and_the_needed_permissions, test_revoked_and_suspended_installations, test_partial_scans_outages_and_revoked_access |
+| Verified linking | Forged `installation_id` ignored; one-time state (hash, 10 min, user + workspace bound); only installations the GitHub user can access; admins only, never the demo account; user token used once | test_linking_is_verified_and_bound_to_the_admin |
+| Authentic, idempotent webhooks | HMAC-SHA256 `X-Hub-Signature-256` compared in constant time before parsing; size limit; delivery ids unique; nothing recorded for unauthenticated calls | test_webhooks_need_a_valid_signature_and_are_idempotent |
+| No repository code or Git runs | Captures are GitHub's archive of an exact commit (no clone, hooks, filters or submodules); archive host gets no credentials; symlinks excluded; reconciled with the commit tree so `export-ignore` cannot hide files | test_capture_matches_the_commit_even_when_the_archive_hides_or_alters_files, test_connected_repository_is_reviewed_exactly_as_committed |
+| Forks are untrusted | Not reviewed automatically unless a project admin allows it; never targeted by fix pull requests | test_fix_pull_requests_forks_and_stale_patches |
+| Publication is opt-in and exact | Off by default per project (admin, audited); one check per commit and one updated comment; Markdown from repositories escaped; fix pull requests only on human request for validated fixes, exact-head freshness (`stale_patch`), never merged | test_publication_posts_one_check_and_keeps_one_comment, test_published_text_escapes_repository_content_and_caps_annotations |
+| Workspace isolation | Installations bound to one workspace; connections, reviews and snapshots are project-scoped (other workspaces get 404); engine caches are project-scoped; tokens never span repositories | test_connections_are_admin_managed_and_scoped |
+
+Residual risk: the App's private key on the server can mint tokens for every installation of the App — protect it like a production credential (owner-only file or secret store) and rotate it on suspicion (docs/GITHUB.md runbook). Repository content in reviews, comments and annotations is shown escaped but remains untrusted text.

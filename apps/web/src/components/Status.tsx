@@ -15,6 +15,12 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   VALIDATED: { tone: "ok", icon: "check", label: "Checks passed" },
   VALIDATION_FAILED: { tone: "bad", icon: "x", label: "Checks failed" },
   PASSED: { tone: "ok", icon: "check", label: "Passed" },
+  // Code reviews of GitHub branches and pull requests (P06).
+  CAPTURING: { tone: "live", icon: "download", label: "Getting the code" },
+  SCANNING: { tone: "live", icon: "pulse", label: "Reviewing" },
+  PUBLISHING: { tone: "live", icon: "upload", label: "Posting to GitHub" },
+  SUPERSEDED: { tone: "neutral", icon: "clock", label: "Replaced by a newer commit" },
+  SKIPPED: { tone: "neutral", icon: "info", label: "Skipped" },
   not_ready: { tone: "warn", icon: "alert", label: "Not ready" },
   unavailable: { tone: "warn", icon: "alert", label: "Unavailable" },
   UNAVAILABLE: { tone: "bad", icon: "x", label: "Unavailable" },

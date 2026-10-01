@@ -198,4 +198,4 @@ async def test_capabilities_disclose_planned_features(api: ApiHarness) -> None:
     assert states["issue_lifecycle"] == states["exports"] == "available"
     assert states["ai_investigation"] == "not_configured"  # no model provider in tests
     assert states["fix_workbench"] == "available"
-    assert states["git_integration"] == "planned"
+    assert states["git_integration"] == "not_configured"  # no GitHub App in tests

@@ -78,6 +78,7 @@ class IntakeWorkflowResult(_Contract):
 # -- scan --------------------------------------------------------------------------------------
 
 SCAN_WORKFLOW_NAME = "ScanWorkflow"
+SCAN_POLICY = "crp-baseline-v1"  # scan policy version recorded on every scan
 ENGINE_NAMES = (
     "structure",
     "graph",
@@ -178,4 +179,34 @@ class FixValidationFinalize(_Contract):
 
 class FixValidationResult(_Contract):
     validation_id: UUID
+    state: str
+
+
+GIT_REVIEW_WORKFLOW_NAME = "GitReviewWorkflow"
+
+
+def git_review_workflow_id(review_id: UUID) -> str:
+    return f"crp-review-{review_id.hex}"
+
+
+class GitReviewInput(_Contract):
+    review_id: UUID
+
+
+class GitReviewPlan(_Contract):
+    """Scans to run (reference scans first, then the head scan); ``terminal`` ends the review."""
+
+    review_id: UUID
+    scan_ids: list[UUID] = Field(default_factory=list)
+    terminal: bool = False
+
+
+class GitReviewFinalize(_Contract):
+    review_id: UUID
+    canceled: bool = False
+    interrupted: bool = False
+
+
+class GitReviewResult(_Contract):
+    review_id: UUID
     state: str

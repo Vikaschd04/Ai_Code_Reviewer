@@ -12,7 +12,12 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from crp_core.config import DeploymentEnvironment
-from crp_core.domain.states import MembershipRole, ProjectOrigin
+from crp_core.domain.states import (
+    CheckFailThreshold,
+    CodeReviewKind,
+    MembershipRole,
+    ProjectOrigin,
+)
 from crp_core.workflows.contracts import DiagnosticWorkflowResult
 from crp_core.workflows.gateway import WorkflowRunStatus
 
@@ -249,6 +254,13 @@ class SnapshotResponse(ApiModel):
     excluded_count: int
     total_bytes: int
     git_commit: str | None
+    git_ref: str | None = None
+    git_provider: str | None = None
+    git_repository: str | None = None
+    git_tree_sha: str | None = None
+    git_capture: dict[str, object] | None = Field(
+        default=None, description="How a commit capture was checked against the commit's tree"
+    )
     frozen_at: datetime | None
     created_at: datetime
     inventory: dict[str, object] | None
@@ -946,6 +958,17 @@ class FixFindingSummary(ApiModel):
     start_line: int | None
 
 
+class FixPullRequestResponse(ApiModel):
+    number: int
+    url: str
+    repository: str
+    branch: str
+    base_ref: str
+    base_sha: str
+    commit_sha: str
+    created_at: datetime
+
+
 class FixProposalResponse(ApiModel):
     id: UUID
     project_id: UUID
@@ -975,7 +998,152 @@ class FixProposalResponse(ApiModel):
     finding: FixFindingSummary | None
     latest_validation: FixValidationResponse | None
     labels: list[str] = Field(description="Plain statements of what was and was not verified")
+    pull_request: FixPullRequestResponse | None = None
+    pull_request_available: bool = False
+    pull_request_reason: str | None = Field(
+        default=None, description="Why a pull request cannot be opened (plain language)"
+    )
 
 
 class FixProposalPage(ApiModel):
     items: list[FixProposalResponse]
+
+
+# -- GitHub (P06) ------------------------------------------------------------------------------
+
+
+class GitHubStatus(ApiModel):
+    available: bool = Field(description="Reviews and publication can authenticate as the app")
+    linking_available: bool
+    webhooks_available: bool
+    reason: str | None
+    admin_hint: str | None = Field(description="Setup steps; only for workspace admins")
+    install_url: str | None
+
+
+class GitHubLinkStart(ApiModel):
+    authorize_url: str = Field(description="GitHub page that asks the admin to confirm access")
+
+
+class GitHubLinkComplete(ApiModel):
+    code: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    state: Annotated[str, StringConstraints(min_length=20, max_length=200)]
+
+
+class GitRepositoryResponse(ApiModel):
+    id: UUID
+    full_name: str
+    default_branch: str
+    private: bool
+    archived: bool
+    removed: bool
+    project_id: UUID | None
+    project_name: str | None
+
+
+class GitInstallationResponse(ApiModel):
+    id: UUID
+    account: str
+    account_type: str
+    repository_selection: str | None
+    suspended: bool
+    revoked: bool
+    linked_at: datetime
+    synced_at: datetime | None
+    repositories: list[GitRepositoryResponse]
+
+
+class GitLinkSkip(ApiModel):
+    account: str
+    reason: str
+
+
+class GitHubLinkResult(ApiModel):
+    linked: list[GitInstallationResponse]
+    skipped: list[GitLinkSkip]
+
+
+class GitInstallationList(ApiModel):
+    items: list[GitInstallationResponse]
+
+
+class GitConnectionCreate(ApiModel):
+    repository_id: UUID
+
+
+class GitConnectionUpdate(ApiModel):
+    version: int = Field(ge=1)
+    review_pushes: bool | None = None
+    review_pull_requests: bool | None = None
+    review_forks: bool | None = None
+    publish_checks: bool | None = None
+    publish_pull_requests: bool | None = None
+    check_fail_threshold: CheckFailThreshold | None = None
+    reconcile_days: int | None = Field(default=None, ge=1, le=90)
+
+
+class GitConnectionResponse(ApiModel):
+    connected: bool
+    can_edit: bool
+    id: UUID | None = None
+    status: (
+        Literal["active", "access_removed", "installation_revoked", "installation_suspended"] | None
+    ) = None
+    status_reason: str | None = None
+    repository: GitRepositoryResponse | None = None
+    installation_account: str | None = None
+    review_pushes: bool = True
+    review_pull_requests: bool = True
+    review_forks: bool = False
+    publish_checks: bool = False
+    publish_pull_requests: bool = False
+    check_fail_threshold: CheckFailThreshold = CheckFailThreshold.NEVER
+    reconcile_days: int = 7
+    last_full_review_at: datetime | None = None
+    version: int | None = None
+    created_at: datetime | None = None
+
+
+class CodeReviewCreate(ApiModel):
+    kind: CodeReviewKind = CodeReviewKind.BRANCH
+    pull_request: int | None = Field(default=None, ge=1, le=10_000_000)
+    full: bool = Field(default=False, description="Re-run every check instead of reusing results")
+
+
+class CodeReviewResponse(ApiModel):
+    id: UUID
+    project_id: UUID
+    repository: str | None
+    kind: str
+    trigger: str
+    state: str
+    ref: str | None
+    head_sha: str | None
+    pr_number: int | None
+    pr_title: str | None
+    pr_author: str | None
+    pr_url: str | None
+    fork: bool
+    base_ref: str | None
+    base_sha: str | None
+    merge_base_sha: str | None
+    full: bool
+    head_snapshot_id: UUID | None
+    base_snapshot_id: UUID | None
+    head_scan_id: UUID | None
+    base_scan_id: UUID | None
+    changes: dict[str, object] | None
+    result: dict[str, object] | None
+    publish_state: str | None
+    publish_error: str | None
+    published_at: datetime | None
+    superseded_by: UUID | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class CodeReviewPage(ApiModel):
+    items: list[CodeReviewResponse]

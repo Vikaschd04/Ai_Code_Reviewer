@@ -34,7 +34,8 @@ Status: selected and verified in P00–P01 on 26 September 2026. Exact transitiv
 | alembic | 1.20.0 | MIT | migrations |
 | psycopg[binary] | 3.3.6 | **LGPL-3.0-only** | PostgreSQL driver |
 | temporalio | 1.33.0 | MIT | workflow client/worker |
-| httpx | 0.28.1 | BSD-3-Clause | runner, doctor, tests |
+| httpx | 0.28.1 | BSD-3-Clause | runner, doctor, AI and GitHub clients, tests |
+| cryptography | 50.0.2 (cffi 2.1.1 MIT-0, pycparser 3.0 BSD-3-Clause) | Apache-2.0 OR BSD-3-Clause | GitHub App JWT (RS256) signing (P06; checked on PyPI 1 Oct 2026; wheels for macOS arm64 and manylinux x86_64) |
 | ruff | 0.16.9 | MIT | format + lint |
 | mypy | 2.3.1 (strict, pydantic plugin) | MIT | type checks |
 | pytest / pytest-asyncio | 9.1.1 / 1.4.0 | MIT / Apache-2.0 | tests |

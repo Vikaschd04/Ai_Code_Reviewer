@@ -53,6 +53,15 @@ export type AiRun = Schemas["AiRunResponse"];
 export type AiRunCreate = Schemas["AiRunCreate"];
 export type AiAnchor = Schemas["AiAnchorResponse"];
 export type AiFinding = Schemas["AiFindingResponse"];
+export type FixPullRequest = Schemas["FixPullRequestResponse"];
+export type GitHubStatus = Schemas["GitHubStatus"];
+export type GitHubLinkResult = Schemas["GitHubLinkResult"];
+export type GitInstallation = Schemas["GitInstallationResponse"];
+export type GitRepository = Schemas["GitRepositoryResponse"];
+export type GitConnection = Schemas["GitConnectionResponse"];
+export type GitConnectionUpdate = Schemas["GitConnectionUpdate"];
+export type CodeReview = Schemas["CodeReviewResponse"];
+export type CodeReviewCreate = Schemas["CodeReviewCreate"];
 
 export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin" });
 

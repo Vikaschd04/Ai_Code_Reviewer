@@ -57,6 +57,11 @@ def _line_text(lines: list[str], number: int) -> str:
     return ""
 
 
+def evidence_line(text: str, line: int) -> str:
+    """The normalized text of one line, as used in fingerprints (for rename-aware matching)."""
+    return _line_text(text.splitlines(), line)
+
+
 def _digest(*parts: str) -> str:
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
 

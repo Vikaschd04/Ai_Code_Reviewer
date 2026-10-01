@@ -29,17 +29,20 @@ from crp_core.workflows.contracts import (
     DIAGNOSTIC_WORKFLOW_ID_PATTERN,
     DIAGNOSTIC_WORKFLOW_NAME,
     FIX_VALIDATION_WORKFLOW_NAME,
+    GIT_REVIEW_WORKFLOW_NAME,
     INTAKE_WORKFLOW_NAME,
     SCAN_WORKFLOW_NAME,
     AiRunInput,
     DiagnosticWorkflowInput,
     DiagnosticWorkflowResult,
     FixValidationInput,
+    GitReviewInput,
     IntakeWorkflowInput,
     ScanWorkflowInput,
     ai_run_workflow_id,
     diagnostic_workflow_id,
     fix_validation_workflow_id,
+    git_review_workflow_id,
     intake_workflow_id,
     scan_workflow_id,
 )
@@ -58,6 +61,7 @@ DIAGNOSTIC_EXECUTION_TIMEOUT = timedelta(minutes=2)
 INTAKE_EXECUTION_TIMEOUT = timedelta(hours=1)
 AI_RUN_EXECUTION_TIMEOUT = timedelta(hours=2)
 FIX_VALIDATION_EXECUTION_TIMEOUT = timedelta(hours=1)
+GIT_REVIEW_EXECUTION_TIMEOUT = timedelta(hours=12)  # capture + up to two scans + publication
 SCAN_EXECUTION_TIMEOUT = timedelta(hours=8)
 _RPC_TIMEOUT = timedelta(seconds=5)
 
@@ -312,6 +316,28 @@ class TemporalWorkflowGateway:
             self._reset_on_unavailable(exc)
             raise WorkflowUnavailableError(
                 f"could not cancel fix validation: {exc.status.name}"
+            ) from exc
+
+    async def start_git_review(self, review_id: UUID) -> str:
+        return await self._start_once(
+            GIT_REVIEW_WORKFLOW_NAME,
+            GitReviewInput(review_id=review_id),
+            git_review_workflow_id(review_id),
+            GIT_REVIEW_EXECUTION_TIMEOUT,
+        )
+
+    async def cancel_git_review(self, review_id: UUID) -> None:
+        client = await self._get_client()
+        try:
+            await client.get_workflow_handle(git_review_workflow_id(review_id)).cancel(
+                rpc_timeout=_RPC_TIMEOUT
+            )
+        except RPCError as exc:
+            if exc.status is RPCStatusCode.NOT_FOUND:
+                return
+            self._reset_on_unavailable(exc)
+            raise WorkflowUnavailableError(
+                f"could not cancel code review: {exc.status.name}"
             ) from exc
 
     async def close(self) -> None:

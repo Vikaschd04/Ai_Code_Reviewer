@@ -89,6 +89,10 @@ refactorX works fully without AI. To let reviewers ask questions about their cod
 
 What is sent: only short excerpts of that project's latest upload that the AI asks for, with values that look like passwords or keys masked first. Nothing is sent for projects where AI review is off. Every call's token usage is recorded, runs stop at their limits and are never retried automatically, and each answer shows which cited lines were checked against the code. Design: ADR 0012; evaluation status: docs/validation/P03_REPORT.md.
 
+## GitHub (optional)
+
+Reviews of pushes and pull requests use **your own GitHub App**. Register it with the exact URLs, permissions and events in [docs/GITHUB.md](GITHUB.md), using `https://<your-service>.onrender.com` as the host. Then add on Render → **Environment**: `CRP_GITHUB_APP_ID`, `CRP_GITHUB_CLIENT_ID`, `CRP_GITHUB_CLIENT_SECRET`, `CRP_GITHUB_PRIVATE_KEY` (the `.pem` content; mark secret), `CRP_GITHUB_WEBHOOK_SECRET` and `CRP_GITHUB_APP_SLUG`, and **Save and deploy**. Sign in as the owner → **Administration → GitHub** → install and confirm → connect repositories from each project's **GitHub** tab. Nothing is posted to GitHub until a project admin allows it. On the free plan reviews run one at a time, and the service sleeps after 15 idle minutes: an event sent while it is asleep can time out on GitHub's side (GitHub does not resend it automatically). Redeliver it from the App's **Advanced** tab or press **Review latest commit**; the next push or pull request update is reviewed normally.
+
 ## Security posture (read before sharing the URL)
 
 This is a **single-user** hosted mode (`CRP_ENVIRONMENT=hosted`), not the multi-tenant/SSO deployment planned for P07:

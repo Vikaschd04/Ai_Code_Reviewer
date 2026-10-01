@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** Hash routes: #/, #/projects, #/projects/:id, #/snapshots/:id, #/scans/:id, #/findings/:id,
- * #/ai-runs/:id, #/fixes/:id, #/operations */
+ * #/ai-runs/:id, #/fixes/:id, #/reviews/:id, #/github, #/operations */
 export type Route =
   | { name: "dashboard" }
   | { name: "projects" }
@@ -11,6 +11,8 @@ export type Route =
   | { name: "finding"; id: string }
   | { name: "ai-run"; id: string }
   | { name: "fix"; id: string }
+  | { name: "review"; id: string }
+  | { name: "github"; params: Record<string, string> }
   | { name: "operations" }
   | { name: "not-found" };
 
@@ -24,9 +26,10 @@ export function parseRoute(hash: string): Route {
   if (clean === "/") return { name: "dashboard" };
   if (clean === "/projects") return { name: "projects" };
   if (clean === "/operations") return { name: "operations" };
-  const match = new RegExp(`^/(projects|snapshots|scans|findings|ai-runs|fixes)/(${UUID})$`).exec(
-    clean,
-  );
+  if (clean === "/github") return { name: "github", params: Object.fromEntries(params) };
+  const match = new RegExp(
+    `^/(projects|snapshots|scans|findings|ai-runs|fixes|reviews)/(${UUID})$`,
+  ).exec(clean);
   if (match?.[2]) {
     const id = match[2];
     switch (match[1]) {
@@ -40,6 +43,8 @@ export function parseRoute(hash: string): Route {
         return { name: "ai-run", id };
       case "fixes":
         return { name: "fix", id };
+      case "reviews":
+        return { name: "review", id };
       default:
         return { name: "finding", id };
     }

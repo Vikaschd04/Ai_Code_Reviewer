@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import posixpath
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -32,6 +33,13 @@ from crp_analysis.fixes.patching import (
     unified_diff,
 )
 from crp_analysis.manifest import blob_key
+from crp_analysis.sources import publication
+from crp_analysis.sources.github import (
+    GitHubAccessError,
+    GitHubConflictError,
+    GitHubError,
+    RepoAccess,
+)
 from crp_api import __version__
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
@@ -44,18 +52,25 @@ from crp_api.schemas import (
     FixOptions,
     FixProposalPage,
     FixProposalResponse,
+    FixPullRequestResponse,
     FixRebase,
     FixReject,
     FixStepResponse,
     FixValidationResponse,
 )
+from crp_api.services import git as git_service
 from crp_api.services.scope import get_scoped
 from crp_core.artifacts import ArtifactKey
 from crp_core.db.models import (
+    CodeReview,
     FileEntry,
     Finding,
     FixProposal,
+    FixPullRequest,
     FixValidation,
+    GitConnection,
+    GitInstallation,
+    GitRepository,
     Project,
     Snapshot,
 )
@@ -158,11 +173,20 @@ def _validation(row: FixValidation, proposal: FixProposal) -> FixValidationRespo
     )
 
 
-def _labels(proposal: FixProposal, latest: FixValidation | None) -> list[str]:
-    labels = [
-        f"Applies to this upload only (snapshot {str(proposal.snapshot_id)[:8]}); a newer upload "
-        "needs the fix moved and checked again."
-    ]
+def _labels(
+    proposal: FixProposal, latest: FixValidation | None, snapshot: Snapshot | None = None
+) -> list[str]:
+    if snapshot is not None and snapshot.git_commit and snapshot.git_ref:
+        first = (
+            f"Applies to commit {snapshot.git_commit[:7]} of {snapshot.git_ref} only; a newer "
+            "commit needs the fix moved and checked again."
+        )
+    else:
+        first = (
+            f"Applies to this upload only (snapshot {str(proposal.snapshot_id)[:8]}); a newer "
+            "upload needs the fix moved and checked again."
+        )
+    labels = [first]
     current = latest is not None and latest.patch_sha256 == proposal.patch_sha256
     if proposal.state == FixProposalState.REJECTED:
         labels.append("Rejected.")
@@ -221,8 +245,144 @@ async def _response(session: AsyncSession, proposal: FixProposal) -> FixProposal
         if finding is not None
         else None,
         latest_validation=_validation(latest, proposal) if latest is not None else None,
-        labels=_labels(proposal, latest),
+        labels=_labels(proposal, latest, await session.get(Snapshot, proposal.snapshot_id)),
+        **(await _pull_request_state(session, proposal, latest)),
     )
+
+
+def _pr_response(row: FixPullRequest) -> FixPullRequestResponse:
+    return FixPullRequestResponse(
+        number=row.number,
+        url=row.url,
+        repository=row.repository,
+        branch=row.branch,
+        base_ref=row.base_ref,
+        base_sha=row.base_sha,
+        commit_sha=row.commit_sha,
+        created_at=row.created_at,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _PrTarget:
+    access: RepoAccess
+    branch: str
+    base_sha: str
+    tree_sha: str
+    mode: str
+
+
+async def _pull_request_target(
+    session: AsyncSession, proposal: FixProposal, latest: FixValidation | None
+) -> tuple[_PrTarget | None, str | None]:
+    """Where a pull request for this fix would go, or why it cannot be opened (plain text)."""
+    snapshot = await session.get(Snapshot, proposal.snapshot_id)
+    if snapshot is None or snapshot.git_provider is None or not snapshot.git_commit:
+        return None, None  # not from a connected repository: no pull requests
+    row = (
+        await session.execute(
+            select(GitConnection, GitRepository, GitInstallation)
+            .join(GitRepository, GitRepository.id == GitConnection.repository_id)
+            .join(GitInstallation, GitInstallation.id == GitRepository.installation_id)
+            .where(GitConnection.project_id == proposal.project_id)
+        )
+    ).one_or_none()
+    if row is None:
+        return None, "The repository is no longer connected to this project."
+    connection, repository, installation = row
+    status, reason = git_service.connection_status(installation, repository)
+    if status != "active":
+        return None, reason
+    if snapshot.git_repository and snapshot.git_repository != repository.full_name:
+        renamed = await session.scalar(
+            select(GitRepository.id).where(GitRepository.full_name == snapshot.git_repository)
+        )
+        if renamed is not None and renamed != repository.id:
+            return None, "This fix belongs to a different repository than the connected one."
+    if not connection.publish_pull_requests:
+        return None, "A project admin has not allowed refactorX to open pull requests."
+    fork = await session.scalar(
+        select(CodeReview.id).where(
+            CodeReview.head_snapshot_id == snapshot.id, CodeReview.fork.is_(True)
+        )
+    )
+    if fork is not None:
+        return None, "This code comes from a fork; refactorX cannot add a branch there."
+    if not snapshot.git_ref:
+        return None, "The reviewed commit is not on a known branch."
+    passed = (
+        latest is not None
+        and latest.state == FixValidationState.PASSED.value
+        and latest.patch_sha256 == proposal.patch_sha256
+        and proposal.state == FixProposalState.VALIDATED.value
+    )
+    if not passed:
+        return (
+            None,
+            "Run the checks first: only fixes whose checks passed can become pull requests.",
+        )
+    capture = snapshot.git_capture or {}
+    executable = capture.get("executable") if isinstance(capture, dict) else None
+    mode = "100755" if isinstance(executable, list) and proposal.path in executable else "100644"
+    return (
+        _PrTarget(
+            RepoAccess(installation.external_id, repository.external_id, repository.full_name),
+            snapshot.git_ref,
+            snapshot.git_commit,
+            snapshot.git_tree_sha or "",
+            mode,
+        ),
+        None,
+    )
+
+
+async def _pull_request_state(
+    session: AsyncSession, proposal: FixProposal, latest: FixValidation | None
+) -> dict[str, Any]:
+    existing = await session.scalar(
+        select(FixPullRequest).where(FixPullRequest.proposal_id == proposal.id)
+    )
+    if existing is not None:
+        return {"pull_request": _pr_response(existing), "pull_request_available": False}
+    target, reason = await _pull_request_target(session, proposal, latest)
+    return {"pull_request_available": target is not None, "pull_request_reason": reason}
+
+
+def _md(text: object) -> str:
+    return publication.md(text)
+
+
+def _pull_request_text(
+    proposal: FixProposal, finding: Finding | None, latest: FixValidation, short_sha: str
+) -> tuple[str, str, str]:
+    title = f"refactorX: {proposal.title}"[:250]
+    where = f"`{proposal.path}`" if "`" not in proposal.path else _md(proposal.path)
+    lines = ["Opened from refactorX by a reviewer for a finding in this repository.", ""]
+    if finding is not None:
+        line = f" line {finding.start_line}" if finding.start_line else ""
+        lines.append(
+            f"**Finding:** {_md(finding.title)} ({_md(finding.engine)} {_md(finding.rule_id)}) "
+            f"in {where}{line}"
+        )
+    lines.append(f"**Fix:** {_md(proposal.title)}: {_md(proposal.explanation)}")
+    if proposal.behaviour_note:
+        lines.append(f"**What to watch:** {_md(proposal.behaviour_note)}")
+    lines += ["", f"Checks refactorX ran on a copy of commit {short_sha}:"]
+    marks = {"passed": "Passed", "failed": "Failed", "not_run": "Not run"}
+    for step in latest.steps or []:
+        state = marks.get(str(step.get("state")), str(step.get("state")))
+        lines.append(f"- {state}: {_md(step.get('label'))}. {_md(step.get('detail'))}")
+    lines += [
+        "",
+        "refactorX did not compile, build or test this change. Review it and let your own CI "
+        "run before merging.",
+    ]
+    message = (
+        f"{proposal.title}\n\nFixes {finding.title if finding else 'a finding'} in "
+        f"{proposal.path}.\nPrepared and checked by refactorX at source level; not built or "
+        "tested."
+    )
+    return title, "\n".join(lines), message
 
 
 def _patch_fields(path: str, base: str, edits: list[Edit]) -> dict[str, Any]:
@@ -639,6 +799,113 @@ async def download_fix_summary(
             "Cache-Control": "no-store",
         },
     )
+
+
+@router.post(
+    "/fix-proposals/{proposal_id}/pull-request",
+    status_code=201,
+    response_model=FixPullRequestResponse,
+    responses={**_ERRORS, 503: {"model": ErrorResponse}},
+)
+async def open_pull_request(
+    proposal_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> FixPullRequestResponse:
+    """Open a pull request with this validated fix on the reviewed branch (never merged).
+
+    The branch must still point at the reviewed commit; otherwise 409 ``stale_patch``: review
+    the newer commit, move the fix there and check it again.
+    """
+    client = container.github
+    if client is None:
+        raise ApiError(503, "github_not_configured", "GitHub is not set up on this server")
+    async with transaction(container.session_factory) as session:
+        proposal = await _editable(session, principal, proposal_id)  # locked: one PR at a time
+        existing = await session.scalar(
+            select(FixPullRequest).where(FixPullRequest.proposal_id == proposal.id)
+        )
+        if existing is not None:
+            return _pr_response(existing)
+        latest = await session.scalar(
+            select(FixValidation)
+            .where(FixValidation.proposal_id == proposal.id)
+            .order_by(FixValidation.created_at.desc())
+            .limit(1)
+        )
+        target, reason = await _pull_request_target(session, proposal, latest)
+        if target is None or latest is None:
+            raise ApiError(409, "pull_request_unavailable", reason or "Not a GitHub commit")
+        entry = (
+            await session.execute(
+                select(FileEntry).where(
+                    FileEntry.snapshot_id == proposal.snapshot_id, FileEntry.path == proposal.path
+                )
+            )
+        ).scalar_one_or_none()
+        if entry is None:
+            raise ApiError(404, "file_not_found", "The fix's file is not in this upload")
+        base = await _text(container, entry)
+        after = apply_edits(base, [Edit.from_json(e) for e in proposal.edits])
+        if (
+            sha256_text(after) != proposal.result_sha256
+            or sha256_text(base) != proposal.base_sha256
+        ):
+            raise ApiError(409, "patch_conflict", "The stored file does not match the fix")
+        finding = await session.get(Finding, proposal.finding_id)
+        title, body, message = _pull_request_text(proposal, finding, latest, target.base_sha[:7])
+        try:
+            head = await client.branch_head(target.access, target.branch)
+            if head != target.base_sha:
+                raise ApiError(
+                    409,
+                    "stale_patch",
+                    f"{target.branch} moved on since the reviewed commit; review the newer "
+                    "commit, move the fix there and check it again",
+                    {"reviewed": target.base_sha, "current": head},
+                )
+            commit = await client.create_fix_commit(
+                target.access,
+                parent_sha=target.base_sha,
+                base_tree=target.tree_sha or await client.commit_tree(target.access, head),
+                path=proposal.path,
+                mode=target.mode,
+                content=after.encode("utf-8"),
+                message=message,
+            )
+            branch = f"refactorx/fix-{proposal.id.hex[:12]}"
+            for attempt in range(1, 4):
+                try:
+                    await client.create_branch(target.access, branch, commit)
+                    break
+                except GitHubConflictError:
+                    if attempt == 3:
+                        raise
+                    branch = f"refactorx/fix-{proposal.id.hex[:12]}-{attempt + 1}"
+            number, url = await client.create_pull_request(
+                target.access, head=branch, base=target.branch, title=title, body=body
+            )
+        except GitHubAccessError as exc:
+            raise ApiError(409, exc.code, exc.message) from exc
+        except GitHubConflictError as exc:
+            raise ApiError(409, "github_rejected", exc.message) from exc
+        except GitHubError as exc:
+            raise ApiError(503, "github_unavailable", exc.message) from exc
+        row = FixPullRequest(
+            proposal_id=proposal.id,
+            workspace_id=proposal.workspace_id,
+            project_id=proposal.project_id,
+            repository=target.access.full_name,
+            branch=branch,
+            base_ref=target.branch,
+            base_sha=target.base_sha,
+            commit_sha=commit,
+            number=number,
+            url=url[:500],
+            created_by=principal.user_id,
+        )
+        session.add(row)
+        await session.flush()
+        await session.refresh(row)
+        return _pr_response(row)
 
 
 @router.post(

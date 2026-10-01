@@ -1,0 +1,231 @@
+"""Shared GitHub connection helpers for routes and webhook handling (P06; ADR 0015)."""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from crp_analysis.sources.github import GitHubClient
+from crp_api.schemas import GitInstallationResponse, GitRepositoryResponse
+from crp_core.db.models import (
+    CodeReview,
+    GitConnection,
+    GitInstallation,
+    GitRepository,
+    Project,
+)
+from crp_core.domain.states import CodeReviewState
+from crp_core.workflows.gateway import WorkflowGateway, WorkflowUnavailableError
+
+logger = logging.getLogger(__name__)
+
+ACTIVE_REVIEWS = (
+    CodeReviewState.QUEUED.value,
+    CodeReviewState.CAPTURING.value,
+    CodeReviewState.SCANNING.value,
+    CodeReviewState.PUBLISHING.value,
+)
+
+
+async def repositories(
+    session: AsyncSession, installation_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[GitRepositoryResponse]]:
+    rows = (
+        await session.execute(
+            select(GitRepository, GitConnection.project_id, Project.name)
+            .outerjoin(GitConnection, GitConnection.repository_id == GitRepository.id)
+            .outerjoin(Project, Project.id == GitConnection.project_id)
+            .where(GitRepository.installation_id.in_(installation_ids))
+            .order_by(GitRepository.full_name)
+        )
+    ).all()
+    grouped: dict[uuid.UUID, list[GitRepositoryResponse]] = {i: [] for i in installation_ids}
+    for repo, project_id, project_name in rows:
+        grouped[repo.installation_id].append(repository_response(repo, project_id, project_name))
+    return grouped
+
+
+def repository_response(
+    repo: GitRepository, project_id: uuid.UUID | None = None, project_name: str | None = None
+) -> GitRepositoryResponse:
+    return GitRepositoryResponse(
+        id=repo.id,
+        full_name=repo.full_name,
+        default_branch=repo.default_branch,
+        private=repo.private,
+        archived=repo.archived,
+        removed=repo.removed_at is not None,
+        project_id=project_id,
+        project_name=project_name,
+    )
+
+
+def installation_response(
+    installation: GitInstallation, repos: list[GitRepositoryResponse]
+) -> GitInstallationResponse:
+    return GitInstallationResponse(
+        id=installation.id,
+        account=installation.account_login,
+        account_type=installation.account_type,
+        repository_selection=installation.repository_selection,
+        suspended=installation.suspended_at is not None,
+        revoked=installation.revoked_at is not None,
+        linked_at=installation.created_at,
+        synced_at=installation.synced_at,
+        repositories=repos,
+    )
+
+
+async def store_repositories(
+    session: AsyncSession, installation: GitInstallation, listed: list[dict[str, Any]]
+) -> None:
+    """Upsert the repositories GitHub lists for an installation; mark missing ones removed."""
+    now = datetime.now(UTC)
+    seen: set[int] = set()
+    existing = {
+        r.external_id: r
+        for r in (
+            await session.execute(
+                select(GitRepository).where(GitRepository.installation_id == installation.id)
+            )
+        ).scalars()
+    }
+    for item in listed:
+        external = int(item["id"])
+        seen.add(external)
+        repo = existing.get(external)
+        if repo is None:
+            session.add(
+                GitRepository(
+                    workspace_id=installation.workspace_id,
+                    installation_id=installation.id,
+                    external_id=external,
+                    full_name=str(item["full_name"])[:255],
+                    default_branch=str(item.get("default_branch") or "main")[:255],
+                    private=bool(item.get("private", True)),
+                    archived=bool(item.get("archived", False)),
+                )
+            )
+        else:
+            repo.full_name = str(item["full_name"])[:255]
+            repo.default_branch = str(item.get("default_branch") or repo.default_branch)[:255]
+            repo.private = bool(item.get("private", repo.private))
+            repo.archived = bool(item.get("archived", repo.archived))
+            repo.removed_at = None
+    for external, repo in existing.items():
+        if external not in seen and repo.removed_at is None:
+            repo.removed_at = now
+    installation.synced_at = now
+
+
+async def sync_installation(
+    session: AsyncSession, client: GitHubClient, installation: GitInstallation
+) -> None:
+    listed = await client.installation_repositories(installation.external_id)
+    await store_repositories(session, installation, listed)
+
+
+async def create_review(
+    session: AsyncSession,
+    connection: GitConnection,
+    *,
+    kind: str,
+    trigger: str,
+    key: str,
+    ref: str | None = None,
+    pr_number: int | None = None,
+    requested_by: uuid.UUID | None = None,
+    delivery_id: str | None = None,
+    full: bool = False,
+) -> uuid.UUID:
+    """Insert a QUEUED review (idempotent per project and key) and return its id."""
+    review_id = (
+        await session.execute(
+            insert(CodeReview)
+            .values(
+                id=uuid.uuid4(),
+                workspace_id=connection.workspace_id,
+                project_id=connection.project_id,
+                connection_id=connection.id,
+                kind=kind,
+                trigger=trigger,
+                state=CodeReviewState.QUEUED.value,
+                idempotency_key=key,
+                ref=ref,
+                pr_number=pr_number,
+                requested_by=requested_by,
+                delivery_id=delivery_id,
+                full=full,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[CodeReview.project_id, CodeReview.idempotency_key]
+            )
+            .returning(CodeReview.id)
+        )
+    ).scalar_one_or_none()
+    if review_id is None:
+        review_id = (
+            await session.execute(
+                select(CodeReview.id).where(
+                    CodeReview.project_id == connection.project_id,
+                    CodeReview.idempotency_key == key,
+                )
+            )
+        ).scalar_one()
+    review = await session.get(CodeReview, review_id)
+    if review is not None and review.workflow_id is None:
+        review.workflow_id = f"crp-review-{review_id.hex}"
+    return review_id
+
+
+async def request_cancel(session: AsyncSession, *conditions: Any) -> list[uuid.UUID]:
+    """Record a cancel request on matching active reviews; callers cancel their workflows."""
+    now = datetime.now(UTC)
+    reviews = list(
+        (
+            await session.execute(
+                select(CodeReview).where(CodeReview.state.in_(ACTIVE_REVIEWS), *conditions)
+            )
+        ).scalars()
+    )
+    for review in reviews:
+        review.cancel_requested_at = review.cancel_requested_at or now
+    return [review.id for review in reviews]
+
+
+async def start_reviews(workflows: WorkflowGateway, review_ids: list[uuid.UUID]) -> list[str]:
+    """Start review workflows; failures are logged and returned (reviews stay QUEUED)."""
+    problems = []
+    for review_id in review_ids:
+        try:
+            await workflows.start_git_review(review_id)
+        except WorkflowUnavailableError as exc:
+            logger.warning("could not start a code review", extra={"review_id": str(review_id)})
+            problems.append(str(exc))
+    return problems
+
+
+async def cancel_reviews(workflows: WorkflowGateway, review_ids: list[uuid.UUID]) -> None:
+    for review_id in review_ids:
+        try:
+            await workflows.cancel_git_review(review_id)
+        except WorkflowUnavailableError:
+            logger.warning("could not cancel a code review", extra={"review_id": str(review_id)})
+
+
+def connection_status(
+    installation: GitInstallation, repository: GitRepository
+) -> tuple[str, str | None]:
+    if installation.revoked_at is not None:
+        return "installation_revoked", "The GitHub App was uninstalled from this account."
+    if installation.suspended_at is not None:
+        return "installation_suspended", "The GitHub App installation is suspended on GitHub."
+    if repository.removed_at is not None:
+        return "access_removed", "refactorX no longer has access to this repository on GitHub."
+    return "active", None
