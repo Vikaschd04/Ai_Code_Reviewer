@@ -22,6 +22,10 @@ Rows are NOT_IMPLEMENTED unless a status is given. Replace with evidence-backed 
 | SAP build / Salesforce org validation | 4–5 C | Customer toolchain/environment — NOT RUN (conditional profiles defined in FRAMEWORK_ADAPTERS.md; fix validation reports them as not run) |
 | Patch workbench and download | 5 M | Independent validation and input preservation — **IMPLEMENTED for deterministic fixes; source-level validation** (P05_REPORT; 3 recipe families; tests/build not run — no isolated runner; AI patches not implemented until the P03 provider is live) |
 | GitHub/incremental/PR publication | 6 M/C | Auth, webhook and freshness gates — **IMPLEMENTED; verified against a labelled fake GitHub; live connector check BLOCKED** until the owner provides a GitHub App and test repository (P06_REPORT, ADR 0015) |
+| Fix workspace: manual/AI/bulk fixes, compare, multi-file export | 8 M | Exports apply only to the exact base; provenance; honest re-check — NOT_IMPLEMENTED (planned, current development) |
+| Compile/build in the portal | 9 M/C | Tiered isolation; no project code in Tiers 0–1; containment tests — NOT_IMPLEMENTED (paid compute needed for Tiers 1–2) |
+| Architecture intelligence (model, metrics, rules, smells, performance/scalability signals, recommendations, AI architect) | 10 M | Measured accuracy; evidence classes; "potential" vs runtime-confirmed — NOT_IMPLEMENTED (next phase focus) |
+| Architecture remediation and migration plans | 11 M | Verified refactorings; what-if equals re-analysis — NOT_IMPLEMENTED |
 | SSO/multi-tenant private execution | 7 M | Isolation and release qualification |
 
 Every language/version has independent inventory, parse, resolve, rules, AI, build and runtime statuses. A single green language badge is insufficient. Demo mode must be visibly labelled and cannot satisfy mandatory engine integration gates.

@@ -16,7 +16,7 @@ Deployment: free public trial on Render free (`render.yaml`, lite profile: one p
 
 UX (standing owner rule, 30 September 2026): reviewer-first UI — plain language, technical details collapsed, admin/dev pages hidden from reviewers, light/dark/mobile screenshot review (docs/UI_SPEC.md). Demo account (shared `demo` workspace, quotas) and one-click sample project ("Sample: Online store") exist for trials; disable the demo before real customer code (ADR 0011).
 
-Phases: P00–P02 and P04 COMPLETE; P03 BLOCKED on the live-provider gate only (K-P03-01); P05 IN_PROGRESS (K-P05-01 isolated runner, K-P05-02 AI patches); P06 BLOCKED only on the live GitHub check (K-P06-01). Next: owner adds `CRP_AI_*` (P03 live eval) and a GitHub App + test repo (P06 live checklist); otherwise P05-F1 isolated runner or P07 hardening.
+Roadmap (8 Oct 2026, owner requirements; docs/ROADMAP.md, research/MARKET_ANALYSIS_2026.md, ARCHITECTURE_INTELLIGENCE.md): current development P08 Fix workspace (change sets, manual/AI/bulk fixes, compare, patch/changed-files/full exports), then P09 Isolated build (tiered compile), P10 Architecture intelligence (next phase focus), P11 Architecture remediation, P07 release last. Phases: P00–P02 and P04 COMPLETE; P03 BLOCKED on the live-provider gate only (K-P03-01); P05 IN_PROGRESS (K-P05-01 isolated runner, K-P05-02 AI patches); P06 BLOCKED only on the live GitHub check (K-P06-01). Next: owner adds `CRP_AI_*` (P03 live eval) and a GitHub App + test repo (P06 live checklist); otherwise P05-F1 isolated runner or P07 hardening.
 
 Blockers: live AI provider validation needs the owner's API key (provider and per-project policy already approved by the owner). Disk is tight (~6 GB free).
 

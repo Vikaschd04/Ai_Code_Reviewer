@@ -23,6 +23,21 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P05-02 | Validation/export | Original-defect and regression evidence — **DONE source-level** (integrity/syntax/detector/regression, patch + `crp-fix-export/v1`); tests/build rungs need P05-F1 |
 | P06-01 | GitHub connector/webhooks | Scoped auth/idempotency — **DONE** (fake GitHub; live check needs the owner's App, K-P06-01) |
 | P06-02 | Incremental scopes/PRs | Merge-base/cache/freshness tests — **DONE** (P06_REPORT, ADR 0015) |
+| P08-01 | Change-set core and exports (patch, changed-files ZIP, full ZIP, summary) | Patch applies only to the exact base; changed-files ZIP exact; upload unchanged — **NEXT** |
+| P08-02 | Editor and simplified compare (per file, per change set, two uploads/commits) | Policy flags on save; inert rendering; light/dark/mobile |
+| P08-03 | Bulk recipe fixes, conflicts and change-set re-check | Fixed / still present / new reported correctly |
+| P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest |
+| P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules |
+| P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded |
+| P09-02 | Tier 1 safe compile in a sandbox (Java `-proc:none`, npm `--ignore-scripts`) | Malicious processor/script not executed; egress blocked |
+| P09-03 | Tier 2 builds/tests in microVMs, bring-your-own CI, Salesforce/SAP profiles | Containment tests; results bound to hashes |
+| P10-01 | Architecture model and structural metrics with views | Hand-computed metric fixtures |
+| P10-02 | Intended-architecture rules as code | Violations with lifecycle |
+| P10-03 | Smell, performance and scalability catalogs (incl. SAP/Salesforce) | Positive/negative fixtures per row |
+| P10-04 | Git-history hotspots and change coupling; runtime evidence import | Not-available honesty; span mapping |
+| P10-05 | Recommendations board and grounded AI architect | Cited, labelled, measured |
+| P11-01 | Refactoring recipes with what-if simulation | Predicted equals re-analysed metrics |
+| P11-02 | AI multi-file plans and migration plans | Bounded, verified, staleness handled |
 | P07-01 | Identity/tenant/execution hardening | Isolation/security assessment |
 | P07-02 | Scale/recovery/retention/release | Measured limits and runbooks |
 
