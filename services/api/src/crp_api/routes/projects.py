@@ -21,6 +21,7 @@ from crp_api.services import demo, project_deletion, samples
 from crp_api.services import projects as project_service
 from crp_core.db.models import Scan, Snapshot, Source
 from crp_core.db.session import transaction
+from crp_core.domain.states import ScanMode
 
 router = APIRouter(prefix="/projects", tags=["projects"], responses={401: {"model": ErrorResponse}})
 
@@ -171,7 +172,7 @@ async def project_overview(
                 await session.execute(
                     select(Snapshot, Source)
                     .join(Source, Source.id == Snapshot.source_id)
-                    .where(Snapshot.project_id == project.id)
+                    .where(Snapshot.project_id == project.id, Snapshot.change_set_id.is_(None))
                     .order_by(Snapshot.created_at.desc())
                     .limit(1)
                 )
@@ -179,7 +180,7 @@ async def project_overview(
             scan = (
                 await session.execute(
                     select(Scan)
-                    .where(Scan.project_id == project.id)
+                    .where(Scan.project_id == project.id, Scan.mode == ScanMode.BASELINE.value)
                     .order_by(Scan.created_at.desc())
                     .limit(1)
                 )
@@ -188,9 +189,11 @@ async def project_overview(
                 await session.execute(
                     select(
                         select(func.count())
-                        .where(Snapshot.project_id == project.id)
+                        .where(Snapshot.project_id == project.id, Snapshot.change_set_id.is_(None))
                         .scalar_subquery(),
-                        select(func.count()).where(Scan.project_id == project.id).scalar_subquery(),
+                        select(func.count())
+                        .where(Scan.project_id == project.id, Scan.mode == ScanMode.BASELINE.value)
+                        .scalar_subquery(),
                     )
                 )
             ).one()

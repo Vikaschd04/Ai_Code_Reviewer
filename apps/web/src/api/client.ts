@@ -62,6 +62,17 @@ export type GitConnection = Schemas["GitConnectionResponse"];
 export type GitConnectionUpdate = Schemas["GitConnectionUpdate"];
 export type CodeReview = Schemas["CodeReviewResponse"];
 export type CodeReviewCreate = Schemas["CodeReviewCreate"];
+export type Workspace = Schemas["ChangeSetResponse"];
+export type WorkspaceListItem = Schemas["ChangeSetListItem"];
+export type WorkspaceFile = Schemas["ChangeSetFileSummary"];
+export type WorkspaceCheck = Schemas["ChangeSetCheckResponse"];
+export type WorkspaceFileContent = Schemas["WorkspaceFileContent"];
+export type WorkspaceSaveResult = Schemas["WorkspaceSaveResult"];
+export type WorkspaceFixResult = Schemas["WorkspaceFixResult"];
+export type WorkspaceIssue = Schemas["WorkspaceIssue"];
+export type WorkspaceIssuePage = Schemas["WorkspaceIssuePage"];
+export type SnapshotComparison = Schemas["SnapshotComparisonResponse"];
+export type FileComparison = Schemas["FileComparison"];
 
 export const api = createClient<paths>({ baseUrl: "", credentials: "same-origin" });
 

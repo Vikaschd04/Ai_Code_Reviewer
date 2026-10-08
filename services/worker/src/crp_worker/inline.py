@@ -33,13 +33,21 @@ from crp_analysis.engines.base import EngineAdapter
 from crp_analysis.sources.github import resolve_github
 from crp_core.artifacts import ArtifactStore
 from crp_core.config import Settings
-from crp_core.db.models import AiRun, CodeReview, FixValidation, Intake, Scan
+from crp_core.db.models import AiRun, ChangeSetCheck, CodeReview, FixValidation, Intake, Scan
 from crp_core.db.session import create_session_factory, transaction
-from crp_core.domain.states import AiRunState, FixValidationState, IntakeState, ScanState
+from crp_core.domain.states import (
+    AiRunState,
+    ChangeSetCheckState,
+    FixValidationState,
+    IntakeState,
+    ScanState,
+)
 from crp_core.workflows.contracts import (
     DIAGNOSTIC_WORKFLOW_ID_PATTERN,
     AiRunFinalize,
     AiRunInput,
+    ChangeSetCheckFinalize,
+    ChangeSetCheckInput,
     DiagnosticWorkflowInput,
     DiagnosticWorkflowResult,
     EngineTask,
@@ -51,6 +59,7 @@ from crp_core.workflows.contracts import (
     IntakeWorkflowInput,
     ScanWorkflowInput,
     ai_run_workflow_id,
+    change_set_check_workflow_id,
     diagnostic_workflow_id,
     fix_validation_workflow_id,
     git_review_workflow_id,
@@ -65,6 +74,7 @@ from crp_core.workflows.gateway import (
     WorkflowServiceStatus,
 )
 from crp_worker.ai_run import AiRunActivities, fail_interrupted_runs
+from crp_worker.change_set import ChangeSetCheckActivities
 from crp_worker.diagnostics import DiagnosticActivities
 from crp_worker.fix_validation import FixActivities
 from crp_worker.git_review import ACTIVE as ACTIVE_REVIEWS
@@ -125,6 +135,8 @@ class InlineWorkflowGateway:
             settings, store, sessions, cancel_review=self.cancel_git_review
         )
         self._github_ready = resolve_github(settings).app_ready
+        self._checks = ChangeSetCheckActivities(settings, store, sessions)
+        self._canceled_checks: set[UUID] = set()
         self._canceled_reviews: set[UUID] = set()
         self._reconcile: asyncio.Task[None] | None = None
         self._ai_slots = asyncio.Semaphore(1)
@@ -200,6 +212,25 @@ class InlineWorkflowGateway:
             )
         for review_id in reviews:  # every review step is idempotent
             await self.start_git_review(review_id)
+        async with transaction(self._sessions) as session:
+            checks = list(
+                (
+                    await session.execute(
+                        select(ChangeSetCheck.id)
+                        .where(
+                            ChangeSetCheck.state.in_(
+                                [
+                                    ChangeSetCheckState.QUEUED.value,
+                                    ChangeSetCheckState.RUNNING.value,
+                                ]
+                            )
+                        )
+                        .order_by(ChangeSetCheck.created_at)
+                    )
+                ).scalars()
+            )
+        for check_id in checks:  # idempotent: the derived snapshot and scans are reused
+            await self.start_change_set_check(check_id)
         if self._github_ready:
             self._reconcile = asyncio.create_task(self._reconcile_loop())
         if pending_intakes or pending_scans:
@@ -396,6 +427,54 @@ class InlineWorkflowGateway:
             )
         finally:
             self._canceled_reviews.discard(review_id)
+
+    # -- fix-workspace checks ---------------------------------------------------------------
+
+    async def start_change_set_check(self, check_id: UUID) -> str:
+        workflow_id = change_set_check_workflow_id(check_id)
+        self._spawn(workflow_id, lambda: self._run_check(check_id))
+        return workflow_id
+
+    async def cancel_change_set_check(self, check_id: UUID) -> None:
+        self._canceled_checks.add(check_id)
+        task = self._tasks.get(change_set_check_workflow_id(check_id))
+        if task is not None and not task.done():
+            task.cancel()
+        else:
+            await self.start_change_set_check(check_id)  # prepare() sees the cancel request
+
+    async def _run_check(self, check_id: UUID) -> None:
+        payload = ChangeSetCheckInput(check_id=check_id)
+        try:
+            plan = await _retry(lambda: self._checks.prepare(payload), attempts=3)
+            if plan.terminal:
+                return
+            for scan_id in plan.scan_ids:
+                await self._run_scan(scan_id)
+                if check_id in self._canceled_checks:
+                    await self._end_check(check_id, canceled=True)
+                    return
+            await _retry(lambda: self._checks.complete(payload), attempts=3)
+        except asyncio.CancelledError:
+            current = asyncio.current_task()
+            if current is not None:
+                current.uncancel()
+            await self._end_check(check_id, canceled=True)
+        except Exception:
+            logger.exception("workspace check failed", extra={"check_id": str(check_id)})
+            await self._end_check(check_id, canceled=False)
+        finally:
+            self._canceled_checks.discard(check_id)
+
+    async def _end_check(self, check_id: UUID, *, canceled: bool) -> None:
+        await _retry(
+            lambda: self._checks.finalize(
+                ChangeSetCheckFinalize(
+                    check_id=check_id, canceled=canceled, interrupted=not canceled
+                )
+            ),
+            attempts=5,
+        )
 
     async def _end_canceled_review(self, review_id: UUID) -> None:
         await _retry(

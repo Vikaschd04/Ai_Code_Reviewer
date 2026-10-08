@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -8,7 +8,7 @@ import {
   type Principal,
 } from "./api/client";
 import { fetchAuthOptions, fetchCapabilities, fetchPrincipal, signOut } from "./api/endpoints";
-import { Alert, PageHeader } from "./components/Common";
+import { Alert, Loading, PageHeader } from "./components/Common";
 import { BrandMark, Icon, Wordmark, type IconName } from "./components/Icon";
 import { useRoute, type Route } from "./lib/router";
 import { SessionContext } from "./lib/session";
@@ -25,6 +25,11 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { ScanPage } from "./pages/ScanPage";
 import { SnapshotPage } from "./pages/SnapshotPage";
+
+// The workspace carries the code editor; load it only when a workspace is opened.
+const WorkspacePage = lazy(() =>
+  import("./pages/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
+);
 
 type Session =
   | { kind: "checking" }
@@ -57,6 +62,7 @@ const ROUTE_LABELS: Record<Route["name"], string> = {
   "ai-run": "AI answer",
   fix: "Fix",
   review: "Code review",
+  workspace: "Fix workspace",
   github: "GitHub",
   operations: "System status",
   "not-found": "Not found",
@@ -257,6 +263,18 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
       return <FixPage key={route.id} fixId={route.id} />;
     case "review":
       return <ReviewPage key={route.id} reviewId={route.id} />;
+    case "workspace":
+      return (
+        <Suspense fallback={<Loading lines={6} />}>
+          <WorkspacePage
+            key={route.id}
+            workspaceId={route.id}
+            tab={route.tab}
+            path={route.path}
+            line={route.line}
+          />
+        </Suspense>
+      );
     case "github":
       return <GitHubPage params={route.params} />;
     case "operations":

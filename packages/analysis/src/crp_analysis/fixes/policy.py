@@ -2,8 +2,8 @@
 
 A fix repairs the problem; it never hides it. Edits outside the proposal's allowed files, unsafe
 paths, suppression markers (NOPMD, eslint-disable, inline eslint rule settings, @SuppressWarnings,
-nosemgrep, trivy:ignore, ...), fewer test annotations or assertions, and changes to analyzer or
-build configuration are refused before any validation runs.
+nosemgrep, trivy:ignore, ...), fewer test annotations or assertions, skipped or focused tests,
+and changes to analyzer or build configuration are refused before any validation runs.
 """
 
 from __future__ import annotations
@@ -24,6 +24,12 @@ _SUPPRESSION = re.compile(
 _TESTS = re.compile(
     r"@Test\b|@isTest\b|\bassert\w*\s*\(|\bAssert\.|System\.assert|\bexpect\s*\(|\btestMethod\b",
     re.IGNORECASE,
+)
+# Disabling or focusing tests (only the focused ones run) weakens a suite without removing it.
+_SKIPS = re.compile(
+    r"\b(?:it|test|describe|context|suite)\.(?:skip|only|todo)\s*\(|\bx(?:it|describe|test)\s*\(|"
+    r"\bf(?:it|describe)\s*\(|@Ignore\b|@Disabled\b|@unittest\.skip|pytest\.mark\.skip|"
+    r"\bpending\s*\(\s*\)",
 )
 _CONFIG_NAMES = frozenset(
     {
@@ -72,6 +78,8 @@ def check(path: str, before: str, after: str, allowed_paths: frozenset[str]) -> 
         found.append(
             Violation("test_weakened", "the change removes test annotations or assertions")
         )
+    elif len(_SKIPS.findall(after)) > len(_SKIPS.findall(before)):
+        found.append(Violation("test_weakened", "the change skips or focuses tests"))
     if changed_lines(before, after) > MAX_CHANGED_LINES:
         found.append(
             Violation(

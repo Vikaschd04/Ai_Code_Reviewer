@@ -249,6 +249,7 @@ async def _target(
             .where(
                 Snapshot.project_id == project.id,
                 Snapshot.capture_status == CaptureStatus.FROZEN.value,
+                Snapshot.change_set_id.is_(None),
             )
             .order_by(Snapshot.frozen_at.desc())
             .limit(1)

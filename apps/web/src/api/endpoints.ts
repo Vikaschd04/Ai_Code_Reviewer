@@ -9,6 +9,15 @@ import {
   type AuthOptions,
   type CodeReview,
   type CodeReviewCreate,
+  type FileComparison,
+  type SnapshotComparison,
+  type Workspace,
+  type WorkspaceCheck,
+  type WorkspaceFileContent,
+  type WorkspaceFixResult,
+  type WorkspaceIssuePage,
+  type WorkspaceListItem,
+  type WorkspaceSaveResult,
   type FixOptions,
   type FixPullRequest,
   type GitConnection,
@@ -833,6 +842,191 @@ export async function fetchCodeReview(reviewId: string, signal?: Sig): Promise<C
 export async function cancelCodeReview(reviewId: string): Promise<CodeReview> {
   const { data, error, response } = await api.POST("/v1/code-reviews/{review_id}/cancel", {
     params: { path: { review_id: reviewId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+// -- Phase 8: fix workspaces ---------------------------------------------------------------------
+
+export async function listWorkspaces(
+  projectId: string,
+  signal?: Sig,
+): Promise<WorkspaceListItem[]> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/change-sets", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
+  });
+  if (data) return data.items;
+  throw toApiError(response, error);
+}
+
+/** Open a workspace on an upload (the latest one when no upload is given). */
+export async function createWorkspace(
+  projectId: string,
+  body: { snapshot_id?: string; title?: string } = {},
+): Promise<Workspace> {
+  const { data, error, response } = await api.POST("/v1/projects/{project_id}/change-sets", {
+    params: { path: { project_id: projectId } },
+    body,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function fetchWorkspace(workspaceId: string, signal?: Sig): Promise<Workspace> {
+  const { data, error, response } = await api.GET("/v1/change-sets/{change_set_id}", {
+    params: { path: { change_set_id: workspaceId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  const { error, response } = await api.DELETE("/v1/change-sets/{change_set_id}", {
+    params: { path: { change_set_id: workspaceId } },
+  });
+  if (!response.ok) throw toApiError(response, error);
+}
+
+export async function fetchWorkspaceFile(
+  workspaceId: string,
+  path: string,
+  signal?: Sig,
+): Promise<WorkspaceFileContent> {
+  const { data, error, response } = await api.GET("/v1/change-sets/{change_set_id}/file", {
+    params: { path: { change_set_id: workspaceId }, query: { path } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function saveWorkspaceFile(
+  workspace: Workspace,
+  path: string,
+  content: string,
+  findingIds: string[] = [],
+): Promise<WorkspaceSaveResult> {
+  const { data, error, response } = await api.PUT("/v1/change-sets/{change_set_id}/file", {
+    params: { path: { change_set_id: workspace.id } },
+    body: { version: workspace.version, path, content, finding_ids: findingIds },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function deleteWorkspaceFile(workspace: Workspace, path: string): Promise<Workspace> {
+  const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/file/delete", {
+    params: { path: { change_set_id: workspace.id } },
+    body: { version: workspace.version, path },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function revertWorkspaceFile(workspace: Workspace, path: string): Promise<Workspace> {
+  const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/file/revert", {
+    params: { path: { change_set_id: workspace.id } },
+    body: { version: workspace.version, path },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Apply automatic fixes to the selected findings, or to every finding of one rule. */
+export async function applyWorkspaceFixes(
+  workspace: Workspace,
+  selection: { finding_ids: string[] } | { engine: string; rule_id: string },
+): Promise<WorkspaceFixResult> {
+  const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/fixes", {
+    params: { path: { change_set_id: workspace.id } },
+    body: { version: workspace.version, ...selection },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export interface WorkspaceIssueQuery {
+  outcome?: "fixed" | "still_present" | "suppressed" | "not_rechecked" | "unchecked" | undefined;
+  severity?: string | undefined;
+  q?: string | undefined;
+  fixable?: boolean | undefined;
+  cursor?: string | undefined;
+}
+
+export async function listWorkspaceIssues(
+  workspaceId: string,
+  query: WorkspaceIssueQuery,
+  signal?: Sig,
+): Promise<WorkspaceIssuePage> {
+  const { data, error, response } = await api.GET("/v1/change-sets/{change_set_id}/issues", {
+    params: {
+      path: { change_set_id: workspaceId },
+      query: {
+        limit: 100,
+        ...(query.outcome ? { outcome: query.outcome } : {}),
+        ...(query.severity ? { severity: query.severity } : {}),
+        ...(query.q ? { q: query.q } : {}),
+        ...(query.fixable !== undefined ? { fixable: query.fixable } : {}),
+        ...(query.cursor ? { cursor: query.cursor } : {}),
+      },
+    },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function startWorkspaceCheck(workspaceId: string): Promise<WorkspaceCheck> {
+  const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/checks", {
+    params: { path: { change_set_id: workspaceId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function cancelWorkspaceCheck(checkId: string): Promise<WorkspaceCheck> {
+  const { data, error, response } = await api.POST("/v1/change-set-checks/{check_id}/cancel", {
+    params: { path: { check_id: checkId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export type WorkspaceExport = "patch" | "mbox" | "changed" | "full" | "summary" | "summary-md";
+
+export function workspaceExportUrl(workspaceId: string, format: WorkspaceExport): string {
+  return `/v1/change-sets/${encodeURIComponent(workspaceId)}/export?format=${format}`;
+}
+
+export async function compareSnapshots(
+  snapshotId: string,
+  baseId: string,
+  signal?: Sig,
+): Promise<SnapshotComparison> {
+  const { data, error, response } = await api.GET("/v1/snapshots/{snapshot_id}/compare", {
+    params: { path: { snapshot_id: snapshotId }, query: { base: baseId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function compareSnapshotFile(
+  snapshotId: string,
+  baseId: string,
+  path: string,
+  previousPath: string | null,
+  signal?: Sig,
+): Promise<FileComparison> {
+  const { data, error, response } = await api.GET("/v1/snapshots/{snapshot_id}/compare/file", {
+    params: {
+      path: { snapshot_id: snapshotId },
+      query: { base: baseId, path, ...(previousPath ? { previous_path: previousPath } : {}) },
+    },
+    signal: signal ?? null,
   });
   if (data) return data;
   throw toApiError(response, error);

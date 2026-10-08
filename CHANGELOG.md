@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — P08 fix workspaces (8 October 2026)
+
+- Fix workspaces (ADR 0016): fix many issues on top of one upload — the upload is never changed. Each change keeps where it came from (by hand, automatic fix, undone, downloaded), and one content digest binds checks and downloads to exactly these changes.
+- Fix in bulk: select issues (or "all like this" for a rule) and apply the known safe fixes; a fix whose lines were already changed by hand is skipped with the reason instead of guessed. Fix by hand in a code editor (CodeMirror 6, MIT) with line numbers, search, Ctrl/⌘+S, Java/Apex, JavaScript/TypeScript, XML and JSON colouring; add and delete files. Binary, oversized, not-stored and non-UTF-8 files are not editable; CRLF line endings and Unicode are kept.
+- Honest flags: markers that hide problems, skipped/focused or weakened tests and configuration changes are flagged on save; recipes refuse them. The fix policy now also catches `it.skip`, `xit`, `describe.only`, `@Disabled`, `@Ignore` and similar.
+- Check my changes: a copy of the upload with the changes is reviewed by the same checks (unchanged files reuse earlier results) and compared with the original review — Fixed, Still present, **Hidden, not fixed** (never counted as fixed), Not rechecked and New problems. Says plainly that nothing is compiled, built or tested. Temporal workflow or in-process on the lite profile.
+- Compare: every changed file side by side or inline (unchanged lines collapsed, word changes highlighted), and any two uploads of a project (added, changed, removed, moved).
+- Downloads: a patch for `git apply`, one commit for `git am`, a ZIP of only the changed files (with a manifest listing deleted files), the full project ZIP (unchanged files byte for byte; a list of files that were never stored) and a summary (JSON `crp-change-set-export/v1` with a schema, and Markdown). Each names the exact upload and hashes.
+- API: `/v1/projects/{id}/change-sets`, `/v1/change-sets/{id}` (file, file/delete, file/revert, fixes, issues, checks, export), `/v1/change-set-checks/{id}`, `/v1/snapshots/{id}/compare` and `/compare/file`. Migration `0009`; setting `CRP_CHANGE_SET_MAX_FILES` (500). Copies scanned by checks are hidden from upload lists, counts, Reviews and AI defaults and never change issues.
+- UI: project "Fix workspaces" tab, workspace page (Issues, Changes, Edit), "Open in workspace" on findings, "Compare" on uploads. The editor loads only on these pages.
+
 ## Unreleased — P06 GitHub reviews (1 October 2026)
 
 - GitHub through your own GitHub App (ADR 0015, docs/GITHUB.md): verified linking (the admin confirms on GitHub; forged installation ids are ignored), repositories per installation, one project per repository. Tokens are limited to one repository and to read, checks or fix permissions, and are never stored.

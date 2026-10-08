@@ -12,6 +12,31 @@ The market study behind phases P08–P11 is
 [research/MARKET_ANALYSIS_2026.md](research/MARKET_ANALYSIS_2026.md); the architecture
 specification is [ARCHITECTURE_INTELLIGENCE.md](ARCHITECTURE_INTELLIGENCE.md).
 
+## Owner requirements and where they are delivered
+
+Every owner requirement, the phase that delivers it, and how it is verified. "Secured" always means:
+- changes are made on copies; the original upload or commit is never modified;
+- every change carries its provenance (recipe, manual, AI);
+- silencing a check or weakening a test is flagged, never counted as fixed;
+- uploaded code runs only inside an isolated sandbox (P09);
+- AI is bounded, policy-gated, labelled and checked against the code;
+- results are bound to exact content hashes.
+
+| # | Requirement (owner) | Delivered in | Verified by |
+|---|---|---|---|
+| R1 | Fix issues in the portal **by hand** | P08 slice 2 (editor) | Edits saved to a change set; P05 policy flags; re-check shows fixed, still present or new |
+| R2 | Fix issues with **AI** | P08 slice 4 (AI candidates); P03 provider | Candidates labelled AI, policy-gated, validated like P05 fixes; live quality needs the owner's key |
+| R3 | Fix **one or many** issues (bulk, all occurrences of a rule) | P08 slice 3 | Conflicts detected; per-issue outcome after re-check |
+| R4 | **Export a patch** for the current project or repository | P08 slice 1 | Multi-file patch applies with `git apply` only on the exact base |
+| R5 | Export **only the changed files** for an IDE or repository | P08 slice 1 | ZIP holds exactly the changed files and paths, plus a manifest (deleted files listed) |
+| R6 | **Compile** in the portal where possible | P09 (Tier 0 now, Tiers 1–2 with paid sandboxes) | No project code runs outside a sandbox; malicious processors and scripts are not run |
+| R7 | **Compare** old and new versions, simplified Git-like view | P08 slice 2 | Side-by-side and inline diff per file, per change set and between two uploads or commits |
+| R8 | **Secured refactoring** of code | P05, P08, P09, P11 | The rules above, tested in every phase |
+| R9 | Understand the **whole architecture** | P10 slices 1–4 | Metrics checked against hand-computed fixtures; evidence classes |
+| R10 | Suggestions for **efficiency, scalability, performance** | P10 slices 3–7 | Catalogs with fixtures; "potential" versus runtime-confirmed; measured precision |
+| R11 | **Production-grade fixes** and help applying them | P11 (plus P08 and P09) | Smell gone, rules pass, metrics moved, compile and tests in the sandbox |
+| R12 | **World-class quality, efficient results** | All phases | Measured accuracy and performance in every report; no unmeasured claims |
+
 ## Phases, status and order
 
 | Order | Phase | Target | Depends on | Status (see PHASE_STATUS.md) |
@@ -23,7 +48,7 @@ specification is [ARCHITECTURE_INTELLIGENCE.md](ARCHITECTURE_INTELLIGENCE.md).
 | 5 | P04 Frameworks | SAP Commerce and Salesforce packs | P02 | COMPLETE (experimental) |
 | 6 | P05 Validated fixes | Deterministic fixes, validation ladder, patch | P03–P04 | IN_PROGRESS (tests/build need P09; AI patches need the key) |
 | 7 | P06 GitHub and incremental | GitHub App, branch and PR reviews, publication | P02, P05 | BLOCKED (owner's GitHub App for the live check) |
-| **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | NOT_STARTED |
+| **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | IN_PROGRESS (slices 1–3 done; AI candidates and PR next) |
 | **9** | **P09 Isolated build** | Tiered compile and build in the portal; completes P05 tests and build steps | P05, P08; paid compute (owner) | NOT_STARTED |
 | **10 (next phase focus)** | **P10 Architecture intelligence** | Architecture model, metrics, intended-architecture rules, smell, performance and scalability catalogs, Git-history hotspots, runtime import, recommendations, grounded AI architect | P02, P04, P06; P03 for AI | NOT_STARTED |
 | **11** | **P11 Architecture remediation** | Deterministic refactorings, what-if simulation, AI multi-file plans, verified migrations | P08, P09, P10 | NOT_STARTED |

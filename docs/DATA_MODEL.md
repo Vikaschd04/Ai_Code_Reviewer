@@ -55,6 +55,16 @@ Issue status is not changed by P05; `FIX_PROPOSED` stays reserved for Phase 6 pu
 
 Retention: deleting a project removes its connection, reviews, deliveries' review links (ids only), fix pull request records and captured snapshots; unlinking an installation removes its repositories and connections but keeps reviews. No GitHub tokens are stored.
 
+## Added in P08 (migration `0009`, ADR 0016)
+
+- `change_sets` (composite FK `(workspace_id, project_id, base_snapshot_id) → snapshots`, cascade; `base_scan_id` `SET NULL`): title, `content_sha256` (64-hex CHECK; digest of the changed files), `archived_at`, `created_by`, `updated_at`, optimistic `version`.
+- `change_set_files` (cascade; unique `(change_set_id, path)`): `action` (modify/add/delete, CHECK), `base_sha256` (none for added files), `sha256` (none for deleted files), size, lines, language, policy `flags` and provenance `sources` (JSON), `updated_by`, `updated_at`. Contents are content-addressed blobs in the artifact store.
+- `change_set_events` (cascade): append-only history — `source` (manual/recipe/ai/revert/export, CHECK), path, action, `finding_ids`, `recipe_id`, summary, flags, revision hash, workspace digest after the event, actor.
+- `change_set_checks` (cascade; snapshot and scans `SET NULL`): state (QUEUED/RUNNING/SUCCEEDED/PARTIAL/FAILED/CANCELED), the `content_sha256` and frozen `files` list it checks, derived snapshot, head and base scans, `result`, `workflow_id`, error, cancel and timestamps, requester.
+- `snapshots` add `derived_from` and `change_set_id` (indexed) for copies made by checks; `scans.mode` accepts `change_set` (never changes issues).
+
+Retention: deleting a workspace deletes its files, events, checks and derived copies (with their scans and findings); deleting the project or the upload deletes the workspace. Revision blobs are shared content-addressed objects (no separate GC yet, K-P01-03).
+
 ## Target model
 
 All domain records are workspace/project scoped. UUIDs are opaque identifiers, not authorization. Source identity works without Git.

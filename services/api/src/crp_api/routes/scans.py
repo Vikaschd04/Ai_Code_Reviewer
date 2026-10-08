@@ -223,7 +223,9 @@ async def list_scans(
             (
                 await session.execute(
                     select(Scan)
-                    .where(Scan.project_id == project.id)
+                    # Reviews of uploads and of the default branch; pull request, comparison and
+                    # workspace scans are reached from their code review or workspace.
+                    .where(Scan.project_id == project.id, Scan.mode == ScanMode.BASELINE.value)
                     .order_by(Scan.created_at.desc())
                     .limit(25)
                 )

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 
 import { describeError, type FileEntry } from "../api/client";
 import { fetchSnapshot, listFiles, startScan } from "../api/endpoints";
@@ -12,6 +12,10 @@ import { fileReason, languageLabel, plural } from "../lib/labels";
 import { navigate } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 import { ArchitectureView } from "./ArchitectureView";
+
+const CompareUploadsView = lazy(() =>
+  import("./CompareUploadsView").then((module) => ({ default: module.CompareUploadsView })),
+);
 
 interface Indicator {
   name: string;
@@ -236,10 +240,16 @@ export function SnapshotPage({ snapshotId, tab = "scope" }: { snapshotId: string
             label: "Architecture",
             href: `#/snapshots/${snapshotId}?tab=architecture`,
           },
+          { id: "compare", label: "Compare", href: `#/snapshots/${snapshotId}?tab=compare` },
         ]}
       />
       {tab === "architecture" ? <ArchitectureView snapshotId={snapshotId} /> : null}
-      {tab === "architecture" ? null : (
+      {tab === "compare" ? (
+        <Suspense fallback={<Loading />}>
+          <CompareUploadsView snapshotId={snapshotId} projectId={data.project_id} />
+        </Suspense>
+      ) : null}
+      {tab === "architecture" || tab === "compare" ? null : (
         <>
           {agents.length > 0 ? (
             <Alert tone="info">

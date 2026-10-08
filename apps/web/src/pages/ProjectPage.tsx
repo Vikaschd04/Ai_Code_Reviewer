@@ -36,6 +36,7 @@ import { FixesView } from "./FixesView";
 import { GitHubView } from "./GitHubView";
 import { ArchitectureView } from "./ArchitectureView";
 import { IssuesView } from "./IssuesView";
+import { WorkspacesView } from "./WorkspacesView";
 
 type UploadPhase = "idle" | "uploading" | "validating" | "done";
 
@@ -410,6 +411,7 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
           { id: "issues", label: "Issues", href: `${base}?tab=issues` },
           { id: "architecture", label: "Architecture", href: `${base}?tab=architecture` },
           { id: "ai", label: "AI review", href: `${base}?tab=ai` },
+          { id: "workspaces", label: "Fix workspaces", href: `${base}?tab=workspaces` },
           { id: "fixes", label: "Fixes", href: `${base}?tab=fixes` },
           { id: "github", label: "GitHub", href: `${base}?tab=github` },
           {
@@ -428,6 +430,9 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
       {tab === "issues" ? <IssuesView projectId={projectId} /> : null}
       {tab === "ai" ? <AiView projectId={projectId} snapshotId={snapshot?.id ?? null} /> : null}
       {tab === "fixes" ? <FixesView projectId={projectId} /> : null}
+      {tab === "workspaces" ? (
+        <WorkspacesView projectId={projectId} hasUpload={snapshot !== null} />
+      ) : null}
       {tab === "github" ? (
         <GitHubView projectId={projectId} workspaceId={project.workspace_id} />
       ) : null}

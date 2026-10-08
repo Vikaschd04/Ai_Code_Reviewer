@@ -72,6 +72,21 @@ The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in ligh
 - **Fix page**: **Open pull request** when allowed, then "Pull request #N on GitHub"; otherwise the plain reason (not allowed by an admin, fork, checks not passed).
 - The "Coming soon" sidebar list is gone (nothing planned remains). Checked in light, dark and mobile (390 px, no horizontal page scroll) by `apps/web/e2e/p06-github.spec.ts` screenshots `p06-*.png`.
 
+## Implemented in P08 (fix workspaces)
+
+- **Project → Fix workspaces tab:** what a workspace does in one sentence, **New workspace** (on the latest upload), and a list (title, "On shop.zip", files changed, last check, updated).
+- **Finding page → Fix in a workspace:** **Open in workspace** reuses the newest workspace on the finding's upload (or creates one) and opens the file at the finding's line.
+- **Workspace page** (`#/workspaces/:id`):
+  - **Header:** title, "Your fixes on top of shop.zip. The upload itself is never changed.", a status badge (Draft, Checking, Checked, Downloaded) and downloads: **Patch**, **Changed files**, **Full project**, **Summary**.
+  - **Issues tab:**
+    - **Check my changes** explains what is checked and that nothing is compiled, built or tested. Tiles: Fixed, Still present, **Hidden, not fixed** and New problems; new problems link into the editor. A notice says when results belong to an earlier version of the changes; **Stop** while checking.
+    - **Issues to fix:** search, severity, last result, "Automatic fix available". A table with checkboxes; **Fix N selected automatically**, **Select all with an automatic fix**, and per row **Edit** and **Fix all like this**. The result note says how many issues were fixed and, collapsed, why the others were skipped.
+  - **Changes tab:** changed files (Changed/Added/Deleted, file name first, a warning mark when a policy flag applies), **History** (collapsed), and a comparison of the selected file — **Side by side** (upload left) or **Inline** (default below 1,100 px). Unchanged lines are collapsed and word changes highlighted. Also **Edit** and **Undo changes to this file**.
+  - **Edit tab:** **Open a file** (search the upload, files changed here, **Add a new file**). The code editor has line numbers, search, Ctrl/⌘+S to save and colouring for Java/Apex, JavaScript/TypeScript, XML and JSON. Under it: **Save**, **Discard edits**, **Undo all changes to this file** and **Delete file**, plus warnings after saving ("Adds a marker that hides problems… counted as hidden, not fixed"). Beside it, **Issues in this file** jump to their line. Files that cannot be edited say why (binary, too large, not stored, not UTF-8). Leaving with unsaved changes asks first.
+  - **Technical details** (collapsed): upload and commit, content digest, dates, **Download as one commit** for `git am`, and how to apply the patch.
+- **Upload page → Compare tab:** choose another upload; counts (added, changed, removed, moved), the list of changed files, and each file side by side or inline.
+- The editor and grammars load only on these pages. Code is inert text. Checked in light, dark and mobile (390 px, no horizontal page scroll; on phones the issue table shows severity, result and **Edit** under the title) by `apps/web/e2e/p08-workspace.spec.ts`, screenshots `p08-*.png`.
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

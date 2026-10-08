@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** Hash routes: #/, #/projects, #/projects/:id, #/snapshots/:id, #/scans/:id, #/findings/:id,
- * #/ai-runs/:id, #/fixes/:id, #/reviews/:id, #/github, #/operations */
+ * #/ai-runs/:id, #/fixes/:id, #/reviews/:id, #/workspaces/:id, #/github, #/operations */
 export type Route =
   | { name: "dashboard" }
   | { name: "projects" }
@@ -12,6 +12,7 @@ export type Route =
   | { name: "ai-run"; id: string }
   | { name: "fix"; id: string }
   | { name: "review"; id: string }
+  | { name: "workspace"; id: string; tab: string; path: string | null; line: number | null }
   | { name: "github"; params: Record<string, string> }
   | { name: "operations" }
   | { name: "not-found" };
@@ -28,7 +29,7 @@ export function parseRoute(hash: string): Route {
   if (clean === "/operations") return { name: "operations" };
   if (clean === "/github") return { name: "github", params: Object.fromEntries(params) };
   const match = new RegExp(
-    `^/(projects|snapshots|scans|findings|ai-runs|fixes|reviews)/(${UUID})$`,
+    `^/(projects|snapshots|scans|findings|ai-runs|fixes|reviews|workspaces)/(${UUID})$`,
   ).exec(clean);
   if (match?.[2]) {
     const id = match[2];
@@ -45,6 +46,16 @@ export function parseRoute(hash: string): Route {
         return { name: "fix", id };
       case "reviews":
         return { name: "review", id };
+      case "workspaces": {
+        const line = Number(params.get("line"));
+        return {
+          name: "workspace",
+          id,
+          tab: tab || "issues",
+          path: params.get("path"),
+          line: Number.isInteger(line) && line > 0 ? line : null,
+        };
+      }
       default:
         return { name: "finding", id };
     }
@@ -68,4 +79,19 @@ export function useRoute(): Route {
 
 export function navigate(hash: string): void {
   window.location.hash = hash;
+}
+
+/** Link to a fix workspace tab, optionally opening one file at one line. */
+export function workspaceHref(
+  id: string,
+  tab = "issues",
+  path: string | null = null,
+  line: number | null = null,
+): string {
+  const params = new URLSearchParams();
+  if (tab !== "issues") params.set("tab", tab);
+  if (path) params.set("path", path);
+  if (line) params.set("line", String(line));
+  const query = params.toString();
+  return `#/workspaces/${id}${query ? `?${query}` : ""}`;
 }

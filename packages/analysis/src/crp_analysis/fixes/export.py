@@ -26,6 +26,18 @@ def fix_export_schema() -> dict[str, Any]:
     return schema
 
 
+@cache
+def change_set_export_schema() -> dict[str, Any]:
+    """Schema of a fix workspace summary (P08)."""
+    text = (
+        resources.files("crp_analysis.schemas")
+        .joinpath("crp-change-set-export-v1.schema.json")
+        .read_text(encoding="utf-8")
+    )
+    schema: dict[str, Any] = json.loads(text)
+    return schema
+
+
 def build_fix_export(
     proposal: dict[str, Any],
     *,

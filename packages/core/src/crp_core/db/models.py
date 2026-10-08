@@ -42,6 +42,9 @@ from crp_core.domain.states import (
     AnchorKind,
     CacheMode,
     CaptureStatus,
+    ChangeAction,
+    ChangeSetCheckState,
+    ChangeSource,
     CheckFailThreshold,
     CodeReviewKind,
     CodeReviewState,
@@ -229,6 +232,10 @@ class Snapshot(TimestampMixin, Base):
     git_repository: Mapped[str | None] = mapped_column(String(255))
     git_tree_sha: Mapped[str | None] = mapped_column(String(64))
     git_capture: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    # Fix workspaces (P08): a snapshot derived from ``derived_from`` by a change set's edits. Such
+    # snapshots are not uploads: lists, overviews and issue lifecycle ignore them.
+    derived_from: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    change_set_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
     frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     intake_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, unique=True)
     manifest_key: Mapped[str | None] = mapped_column(String(512))
@@ -1398,6 +1405,135 @@ class FixPullRequest(Base):
     number: Mapped[int] = mapped_column(Integer, nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ChangeSet(TimestampMixin, Base):
+    """A fix workspace: edits to many files of one upload, never applied to the upload itself.
+
+    ``content_sha256`` identifies the current set of file revisions; checks and exports record the
+    value they were made from.
+    """
+
+    __tablename__ = "change_sets"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id", "base_snapshot_id"],
+            ["snapshots.workspace_id", "snapshots.project_id", "snapshots.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["base_scan_id"], ["scans.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        CheckConstraint("content_sha256 ~ '^[0-9a-f]{64}$'", name="content_sha256_format"),
+        Index("ix_change_sets_project_id_created_at", "project_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    base_snapshot_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    base_scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - SQLAlchemy declarative API
+
+
+class ChangeSetFile(Base):
+    """The current revision of one file in a workspace (content in the artifact store)."""
+
+    __tablename__ = "change_set_files"
+    __table_args__ = (
+        ForeignKeyConstraint(["change_set_id"], ["change_sets.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["updated_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("change_set_id", "path"),
+        CheckConstraint(enum_check("action", ChangeAction), name="action_valid"),
+        CheckConstraint("(action = 'delete') = (sha256 IS NULL)", name="delete_has_no_content"),
+        CheckConstraint("(action = 'add') = (base_sha256 IS NULL)", name="add_has_no_base"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    change_set_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(String(8), nullable=False)
+    base_sha256: Mapped[str | None] = mapped_column(String(64))
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    line_count: Mapped[int | None] = mapped_column(Integer)
+    language: Mapped[str | None] = mapped_column(String(32))
+    flags: Mapped[list[str]] = mapped_column(JsonDocument, nullable=False)
+    sources: Mapped[list[str]] = mapped_column(JsonDocument, nullable=False)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ChangeSetEvent(Base):
+    """Append-only provenance: who changed which file how, for which findings (and exports)."""
+
+    __tablename__ = "change_set_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["change_set_id"], ["change_sets.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="SET NULL"),
+        CheckConstraint(enum_check("source", ChangeSource), name="source_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    change_set_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    path: Mapped[str | None] = mapped_column(Text)
+    action: Mapped[str | None] = mapped_column(String(8))
+    finding_ids: Mapped[list[str]] = mapped_column(JsonDocument, nullable=False)
+    recipe_id: Mapped[str | None] = mapped_column(String(64))
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    flags: Mapped[list[str]] = mapped_column(JsonDocument, nullable=False)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    content_sha256: Mapped[str | None] = mapped_column(String(64))
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ChangeSetCheck(Base):
+    """A re-check of a workspace: its edits applied to a derived snapshot, scanned, compared."""
+
+    __tablename__ = "change_set_checks"
+    __table_args__ = (
+        ForeignKeyConstraint(["change_set_id"], ["change_sets.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["snapshot_id"], ["snapshots.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["scan_id"], ["scans.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["base_scan_id"], ["scans.id"], ondelete="SET NULL"),
+        ForeignKeyConstraint(["requested_by"], ["users.id"], ondelete="SET NULL"),
+        CheckConstraint(enum_check("state", ChangeSetCheckState), name="state_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    change_set_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    files: Mapped[list[dict[str, object]]] = mapped_column(JsonDocument, nullable=False)
+    snapshot_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    base_scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    result: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    workflow_id: Mapped[str | None] = mapped_column(String(128))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

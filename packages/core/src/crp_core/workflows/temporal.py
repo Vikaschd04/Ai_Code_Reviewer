@@ -26,6 +26,7 @@ from temporalio.service import RPCError, RPCStatusCode
 from crp_core.config import Settings
 from crp_core.workflows.contracts import (
     AI_RUN_WORKFLOW_NAME,
+    CHANGE_SET_CHECK_WORKFLOW_NAME,
     DIAGNOSTIC_WORKFLOW_ID_PATTERN,
     DIAGNOSTIC_WORKFLOW_NAME,
     FIX_VALIDATION_WORKFLOW_NAME,
@@ -33,6 +34,7 @@ from crp_core.workflows.contracts import (
     INTAKE_WORKFLOW_NAME,
     SCAN_WORKFLOW_NAME,
     AiRunInput,
+    ChangeSetCheckInput,
     DiagnosticWorkflowInput,
     DiagnosticWorkflowResult,
     FixValidationInput,
@@ -40,6 +42,7 @@ from crp_core.workflows.contracts import (
     IntakeWorkflowInput,
     ScanWorkflowInput,
     ai_run_workflow_id,
+    change_set_check_workflow_id,
     diagnostic_workflow_id,
     fix_validation_workflow_id,
     git_review_workflow_id,
@@ -62,6 +65,7 @@ INTAKE_EXECUTION_TIMEOUT = timedelta(hours=1)
 AI_RUN_EXECUTION_TIMEOUT = timedelta(hours=2)
 FIX_VALIDATION_EXECUTION_TIMEOUT = timedelta(hours=1)
 GIT_REVIEW_EXECUTION_TIMEOUT = timedelta(hours=12)  # capture + up to two scans + publication
+CHANGE_SET_CHECK_EXECUTION_TIMEOUT = timedelta(hours=8)
 SCAN_EXECUTION_TIMEOUT = timedelta(hours=8)
 _RPC_TIMEOUT = timedelta(seconds=5)
 
@@ -338,6 +342,28 @@ class TemporalWorkflowGateway:
             self._reset_on_unavailable(exc)
             raise WorkflowUnavailableError(
                 f"could not cancel code review: {exc.status.name}"
+            ) from exc
+
+    async def start_change_set_check(self, check_id: UUID) -> str:
+        return await self._start_once(
+            CHANGE_SET_CHECK_WORKFLOW_NAME,
+            ChangeSetCheckInput(check_id=check_id),
+            change_set_check_workflow_id(check_id),
+            CHANGE_SET_CHECK_EXECUTION_TIMEOUT,
+        )
+
+    async def cancel_change_set_check(self, check_id: UUID) -> None:
+        client = await self._get_client()
+        try:
+            await client.get_workflow_handle(change_set_check_workflow_id(check_id)).cancel(
+                rpc_timeout=_RPC_TIMEOUT
+            )
+        except RPCError as exc:
+            if exc.status is RPCStatusCode.NOT_FOUND:
+                return
+            self._reset_on_unavailable(exc)
+            raise WorkflowUnavailableError(
+                f"could not cancel the check: {exc.status.name}"
             ) from exc
 
     async def close(self) -> None:

@@ -4,7 +4,7 @@ Evidence-based code review for Java, JavaScript/TypeScript, SAP Commerce and Sal
 
 (Internal package and setting names still use `crp` from the project's working name, "Code Review Platform"; see ADR 0011.)
 
-**Current state: Phases 0–2 and 4 passed their mandatory gates on macOS. Phase 3 (AI review) waits only for a live provider key. Phase 5 (fixes) delivers deterministic fixes with source-level checks. Phase 6 (GitHub) is implemented and verified against a test double; its live check waits for your GitHub App. See [phase status](docs/PHASE_STATUS.md).** You can:
+**Current state: Phases 0–2 and 4 passed their mandatory gates on macOS. Phase 3 (AI review) waits only for a live provider key. Phase 5 (fixes) delivers deterministic fixes with source-level checks. Phase 6 (GitHub) is implemented and verified against a test double; its live check waits for your GitHub App. Phase 8 (fix workspaces) delivers manual and bulk fixing, re-checks, comparison and downloads; AI candidates come next. See [phase status](docs/PHASE_STATUS.md).** You can:
 
 - upload a ZIP or capture a local folder, and review the frozen scope;
 - run real PMD, ESLint, Opengrep and Trivy scans (plus SAP Commerce and Salesforce checks);
@@ -12,6 +12,7 @@ Evidence-based code review for Java, JavaScript/TypeScript, SAP Commerce and Sal
 - explore an evidence-backed architecture graph;
 - ask an AI about the code when an operator sets up a provider and a project admin switches it on;
 - prepare, check and download fixes for selected findings;
+- fix many issues at once in a workspace (by hand in a code editor or automatically), re-check them, compare versions and download a patch, only the changed files or the full project;
 - connect GitHub repositories so pushes and pull requests are reviewed automatically.
 
 Analysis and fix checks are source-level: nothing is compiled, built, tested or deployed.
@@ -42,6 +43,12 @@ Analysis and fix checks are source-level: nothing is compiled, built, tested or 
   - It is checked on a copy: it applies, parses, the finding is gone and nothing new appears.
   - It downloads as a Git patch plus a JSON summary.
   - Project tests and builds are shown as "not run"; they are never executed.
+- **Fix workspaces:** many fixes on top of one upload, which is never changed ([ADR 0016](docs/adr/0016_FIX_WORKSPACES.md)).
+  - Fix selected issues or every issue of a rule automatically, or edit files by hand (add and delete files too).
+  - Markers that hide problems and skipped or weakened tests are flagged; a hidden problem is never counted as fixed.
+  - **Check my changes** re-reviews a copy and reports fixed, still present, hidden and new problems.
+  - Compare each file (side by side or inline) and any two uploads.
+  - Download a patch (`git apply`), one commit (`git am`), only the changed files, the full project or a summary.
 - **Modern UI:** dark-first "deep space" design with a light theme, overview, upload with progress, live review progress, charts and source viewer.
 - Loopback-only, token-authenticated local deployment: FastAPI API, Temporal worker, React UI, PostgreSQL 18, Temporal dev server.
 - Readiness that checks the real dependencies (database + schema revision, Temporal namespace, worker pollers, artifact-store write/read probe), shown in the UI and by `make doctor`.

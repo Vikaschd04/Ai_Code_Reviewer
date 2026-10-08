@@ -156,3 +156,32 @@ export function languageLabel(language: string | null | undefined): string {
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`;
 }
+
+/** Fix workspaces (P08): how a file changed, who changed it, and what the change policy noticed. */
+export const CHANGE_ACTIONS: Record<string, string> = {
+  modify: "Changed",
+  add: "Added",
+  delete: "Deleted",
+};
+
+export const CHANGE_SOURCES: Record<string, string> = {
+  manual: "By hand",
+  recipe: "Automatic fix",
+  ai: "AI suggestion",
+  revert: "Undone",
+  export: "Downloaded",
+};
+
+export const EDIT_FLAGS: Record<string, string> = {
+  suppression_added:
+    "Adds a marker that hides problems from the checks. Issues in this file that disappear are counted as hidden, not fixed.",
+  test_weakened: "Removes, skips or focuses tests.",
+  config_change: "Changes build or analyzer configuration.",
+  too_large: "A large change; review it carefully.",
+  out_of_scope: "Changes a file outside the fix.",
+  unsafe_path: "This path cannot be changed.",
+};
+
+export function editFlag(code: string): string {
+  return EDIT_FLAGS[code] ?? code;
+}

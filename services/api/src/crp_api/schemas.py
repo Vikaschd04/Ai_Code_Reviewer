@@ -1147,3 +1147,189 @@ class CodeReviewResponse(ApiModel):
 
 class CodeReviewPage(ApiModel):
     items: list[CodeReviewResponse]
+
+
+# -- fix workspaces (P08) ----------------------------------------------------------------------
+
+
+class ChangeSetCreate(ApiModel):
+    snapshot_id: UUID | None = Field(default=None, description="Default: the latest upload")
+    title: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+
+
+class ChangeSetFileSummary(ApiModel):
+    path: str
+    action: str
+    language: str | None
+    size_bytes: int | None
+    line_count: int | None
+    flags: list[str]
+    sources: list[str]
+    updated_at: datetime
+
+
+class ChangeSetEventResponse(ApiModel):
+    source: str
+    path: str | None
+    action: str | None
+    finding_ids: list[str]
+    recipe_id: str | None
+    summary: str
+    flags: list[str]
+    created_at: datetime
+
+
+class ChangeSetCheckResponse(ApiModel):
+    id: UUID
+    change_set_id: UUID
+    state: str
+    content_sha256: str
+    current: bool = Field(description="The workspace has not changed since this check")
+    snapshot_id: UUID | None
+    scan_id: UUID | None
+    base_scan_id: UUID | None
+    result: dict[str, object] | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class ChangeSetResponse(ApiModel):
+    state: Literal["draft", "checking", "ready", "exported"] = Field(
+        description="ready: checked as it is now; exported: downloaded as it is now"
+    )
+    id: UUID
+    project_id: UUID
+    title: str
+    base_snapshot_id: UUID
+    base_name: str
+    base_git_commit: str | None
+    base_scan_id: UUID | None
+    content_sha256: str
+    version: int
+    can_edit: bool
+    files: list[ChangeSetFileSummary]
+    latest_check: ChangeSetCheckResponse | None
+    events: list[ChangeSetEventResponse]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChangeSetListItem(ApiModel):
+    id: UUID
+    project_id: UUID
+    title: str
+    base_snapshot_id: UUID
+    base_name: str
+    files_changed: int
+    latest_check_state: str | None
+    updated_at: datetime
+
+
+class ChangeSetList(ApiModel):
+    items: list[ChangeSetListItem]
+
+
+class WorkspaceFileContent(ApiModel):
+    path: str
+    action: str | None = Field(description="None when the file is unchanged in the workspace")
+    editable: bool
+    reason: str | None = Field(description="Why the file cannot be edited (plain language)")
+    language: str | None
+    base_sha256: str | None
+    base_content: str | None
+    sha256: str | None
+    content: str | None
+    line_ending: Literal["lf", "crlf"]
+    flags: list[str]
+
+
+class WorkspaceFileSave(ApiModel):
+    version: int = Field(ge=1)
+    path: Annotated[str, StringConstraints(min_length=1, max_length=1024)]
+    content: str
+    finding_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+
+class WorkspaceFilePath(ApiModel):
+    version: int = Field(ge=1)
+    path: Annotated[str, StringConstraints(min_length=1, max_length=1024)]
+
+
+class WorkspaceSaveResult(ApiModel):
+    change_set: ChangeSetResponse
+    flags: list[str] = Field(description="Policy flags of this save (information, not refusal)")
+
+
+class WorkspaceFixRequest(ApiModel):
+    version: int = Field(ge=1)
+    finding_ids: list[UUID] = Field(default_factory=list, max_length=500)
+    engine: Annotated[str, StringConstraints(max_length=32)] | None = None
+    rule_id: Annotated[str, StringConstraints(max_length=128)] | None = Field(
+        default=None, description="With engine: every occurrence of this rule in the upload"
+    )
+
+
+class WorkspaceFixApplied(ApiModel):
+    finding_id: UUID
+    path: str
+    recipe_id: str
+    title: str
+
+
+class WorkspaceFixSkipped(ApiModel):
+    finding_id: UUID
+    path: str | None
+    reason: str
+
+
+class WorkspaceFixResult(ApiModel):
+    applied: list[WorkspaceFixApplied]
+    skipped: list[WorkspaceFixSkipped]
+    change_set: ChangeSetResponse
+
+
+class WorkspaceIssue(ApiModel):
+    finding_id: UUID
+    title: str
+    severity: str
+    category: str
+    engine: str
+    rule_id: str
+    path: str
+    line: int | None
+    recipe_available: bool
+    changed: bool = Field(description="The finding's file was changed in the workspace")
+    outcome: str | None = Field(description="From the latest check (see check `current`)")
+
+
+class WorkspaceIssuePage(ApiModel):
+    items: list[WorkspaceIssue]
+    total: int
+    next_cursor: str | None
+
+
+class SnapshotChange(ApiModel):
+    path: str
+    status: Literal["added", "modified", "removed", "renamed"]
+    previous_path: str | None
+
+
+class SnapshotComparisonResponse(ApiModel):
+    base_snapshot_id: UUID
+    snapshot_id: UUID
+    counts: dict[str, int]
+    changes: list[SnapshotChange]
+    truncated: bool
+
+
+class FileComparison(ApiModel):
+    path: str
+    previous_path: str | None
+    before: str | None
+    after: str | None
+    before_sha256: str | None
+    after_sha256: str | None
+    note: str | None = Field(description="Why a side is missing (binary, not stored, absent)")

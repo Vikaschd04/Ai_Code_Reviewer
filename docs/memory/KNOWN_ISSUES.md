@@ -1,6 +1,6 @@
 # Known issues and gaps
 
-Updated 1 October 2026 (P06 GitHub). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate; K-P05-01 and K-P05-02 keep P05 IN_PROGRESS; K-P06-01 blocks the P06 live gate.
+Updated 8 October 2026 (P08 fix workspaces). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate; K-P05-01 and K-P05-02 keep P05 IN_PROGRESS; K-P06-01 blocks the P06 live gate; K-P08-01 and K-P08-02 keep P08 IN_PROGRESS.
 
 | ID | Symptom / gap | Scope | Severity | Evidence | Workaround / next action |
 |---|---|---|---|---|---|
@@ -51,6 +51,12 @@ Updated 1 October 2026 (P06 GitHub). None of these block the P00–P02 or P04 ga
 | K-P06-05 | Free hosting runs one scan at a time: busy repositories queue reviews (newer pushes replace waiting ones) | free deployment | Medium | ADR 0010 | Paid plan or `deploy/render-standard.yaml` for teams |
 | K-P06-07 | On Render free the service sleeps; a webhook sent while it wakes (about a minute) can time out on GitHub's side, and GitHub does not resend it automatically | free deployment | Medium | DEPLOYMENT.md | Redeliver from the App's Advanced tab or press Review latest commit; a paid always-on plan avoids it |
 | K-P06-06 | The App's private key on the server can mint tokens for all its installations | security | Medium | ADR 0015 | Owner-only secret storage and the rotation runbook in docs/GITHUB.md |
+| K-P08-01 | AI fix candidates in workspaces not built yet (slice 4); bulk fixing is recipe-only and manual | P08 gate (AI) | High (gate) | P08_REPORT | Build slice 4 with the labelled fake model; live quality after K-P03-01 |
+| K-P08-02 | No change-set pull request yet (slice 5); GitHub users download the patch or `git am` commit | P08 gate (delivery) | Medium | P08_REPORT | Slice 5 reuses P06 fix pull requests with exact-head freshness |
+| K-P08-03 | Workspace checks are source-level: nothing is compiled, built or tested | fix workspaces | Medium | ADR 0016 | P09 sandboxed compile (Tier 0 now possible without paid compute) |
+| K-P08-04 | Non-UTF-8 text files (for example Latin-1 Java) cannot be edited in the browser; they download unchanged | editor | Low | test_encodings_unicode_and_limits | Edit locally, or P08-F3 |
+| K-P08-05 | A workspace stays on its upload; moving edits to a newer upload is per P05 fix only | workspaces | Low | ADR 0016 | P08-F1 three-way move |
+| K-P08-06 | Comparison has no ignore-whitespace option and no single all-files diff view | compare | Low | UI_SPEC | P08-F2 |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 
 Known planned limitations: no Git ingestion until P06; no AI provider required in P00/P01; no universal defect detection; SAP/Salesforce runtime checks depend on authorized platform environments; private runner execution is distinct from local snapshot upload.

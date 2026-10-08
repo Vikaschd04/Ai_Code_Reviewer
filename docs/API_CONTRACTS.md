@@ -141,6 +141,29 @@ Proposal states: PROPOSED, VALIDATING, VALIDATED (every step that could run pass
 
 Review states: QUEUED, CAPTURING, SCANNING, PUBLISHING, SUCCEEDED, PARTIAL, FAILED (`github_unavailable`, `installation_not_found`, `installation_suspended`, `capture_rejected`, `scan_failed`, `interrupted`, …), SUPERSEDED, SKIPPED (`already_reviewed`, `pull_request_closed`, `fork_not_reviewed`, `branch_not_found`), CANCELED. Scan `mode`: `baseline`, `pull_request`, `reference`.
 
+## Implemented in P08 (fix workspaces, ADR 0016)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| POST /v1/projects/{id}/change-sets | member | `{snapshot_id?, title?}` → 201 workspace on that upload (default: the latest ready upload). 404 `snapshot_not_found` (other project or a derived copy); 409 `no_snapshot` / `snapshot_not_ready` |
+| GET /v1/projects/{id}/change-sets | viewer | Open workspaces, newest change first: title, upload name, files changed, last check state |
+| GET /v1/change-sets/{id} | viewer | `state` (draft/checking/ready/exported), upload and review it is based on, `content_sha256`, `version`, `can_edit`, changed `files` (action, language, size, lines, policy `flags`, provenance `sources`), `latest_check` (with `current`), the 40 newest `events` |
+| DELETE /v1/change-sets/{id} | member | 204; removes its checks and the copies they scanned (the upload stays). 409 `check_running` |
+| GET /v1/change-sets/{id}/file?path= | viewer | Upload and current text (`base_content`, `content`), hashes, `action`, `editable` + plain `reason` (binary, too large, not stored, not UTF-8), `line_ending`. 404 `file_not_found`; 422 `invalid_path` |
+| PUT /v1/change-sets/{id}/file | member | `{version, path, content, finding_ids?}` → `{change_set, flags}`; adds or changes a file (CRLF kept; equal to the upload = change removed). Flags are information for manual edits (`config_change`, `suppression_added`, `test_weakened`). 409 `version_conflict` / `not_editable` / `workspace_full` / `workspace_archived`; 413 `file_too_large`; 422 `invalid_path` |
+| POST /v1/change-sets/{id}/file/delete | member | `{version, path}`; deleting an added file drops it. 404 `file_not_found`; 409 `not_editable` |
+| POST /v1/change-sets/{id}/file/revert | member | `{version, path}`; back to the uploaded content. 404 `file_not_changed` |
+| POST /v1/change-sets/{id}/fixes | member | `{version, finding_ids[]}` or `{version, engine, rule_id}` (every occurrence of a rule in the upload's review) → `{applied[{finding_id, path, recipe_id, title}], skipped[{finding_id, path, reason}], change_set}`. Recipes are computed on the upload and applied at the same lines or where those lines now are; otherwise skipped ("changed in this workspace"). Strict policy: suppressions, weakened tests and oversized changes are skipped. 409 `no_review`; 422 `nothing_selected` |
+| GET /v1/change-sets/{id}/issues | viewer | The upload's findings as a queue: severity, file and line, `recipe_available`, `changed`, `outcome` of the latest check (fixed / still_present / suppressed / not_rechecked). Filters `outcome` (incl. `unchecked`), `severity`, `q`, `fixable`; `limit` ≤ 500, cursor |
+| POST /v1/change-sets/{id}/checks | member | 202 QUEUED check of exactly the current files (digest stored). 422 `nothing_to_check`; 409 `check_running`; 503 `workflow_unavailable` (stored FAILED) |
+| GET /v1/change-set-checks/{id} | viewer | state, `content_sha256`, `current`, derived snapshot, scans, `result` (`counts` incl. `new`, per-finding `outcomes`, up to 50 `new_items`, incomplete checks, cache reuse, `compiled: false`, `not_verified`), error |
+| POST /v1/change-set-checks/{id}/cancel | member | idempotent |
+| GET /v1/change-sets/{id}/export?format= | viewer | `patch` (`text/x-diff`, `git apply -p1`), `mbox` (one commit for `git am`), `changed` (ZIP: changed files + `refactorx-changes.json` + `.diff`), `full` (ZIP: stored files byte for byte with the edits + `refactorx-not-included.txt`), `summary` (JSON `crp-change-set-export/v1`, schema `crp_analysis/schemas/crp-change-set-export-v1.schema.json`), `summary-md`. Every download names the upload and hashes and is recorded. 422 `nothing_to_export` |
+| GET /v1/snapshots/{id}/compare?base= | viewer | Two uploads of one project: `counts` and `changes` (added/modified/removed/renamed, stored text files; ≤ 2,000, `truncated`). 422 `different_projects` |
+| GET /v1/snapshots/{id}/compare/file?base=&path=&previous_path= | viewer | `before`/`after` text, hashes and a plain `note` (new, removed, not stored) |
+
+Derived copies scanned by checks are not listed as uploads, not counted in project overviews and not offered to AI by default; their `change_set` scans never change issues and are not listed under Reviews.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

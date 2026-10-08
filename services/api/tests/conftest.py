@@ -76,6 +76,12 @@ class UnavailableWorkflowGateway:
     async def cancel_git_review(self, review_id: UUID) -> None:
         raise WorkflowUnavailableError("Temporal service at 127.0.0.1:1 is unreachable")
 
+    async def start_change_set_check(self, check_id: UUID) -> str:
+        raise WorkflowUnavailableError("Temporal service at 127.0.0.1:1 is unreachable")
+
+    async def cancel_change_set_check(self, check_id: UUID) -> None:
+        raise WorkflowUnavailableError("Temporal service at 127.0.0.1:1 is unreachable")
+
     async def close(self) -> None:
         return None
 

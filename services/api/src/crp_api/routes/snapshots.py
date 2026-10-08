@@ -73,7 +73,7 @@ async def list_snapshots(
             await session.execute(
                 select(Snapshot, Source)
                 .join(Source, Source.id == Snapshot.source_id)
-                .where(Snapshot.project_id == project.id)
+                .where(Snapshot.project_id == project.id, Snapshot.change_set_id.is_(None))
                 .order_by(Snapshot.created_at.desc())
                 .limit(50)
             )

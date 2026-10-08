@@ -1,9 +1,15 @@
 import { useState } from "react";
 
 import { describeError, type FixProposal } from "../api/client";
-import { createFix, fetchFixOptions, listFixes } from "../api/endpoints";
+import {
+  createFix,
+  createWorkspace,
+  fetchFixOptions,
+  listFixes,
+  listWorkspaces,
+} from "../api/endpoints";
 import { formatRelative } from "../lib/format";
-import { navigate } from "../lib/router";
+import { navigate, workspaceHref } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 import { Alert } from "./Common";
 import { Icon } from "./Icon";
@@ -155,6 +161,65 @@ export function FixCard({ projectId, findingId }: { projectId: string; findingId
           ))}
         </ul>
       ) : null}
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </section>
+  );
+}
+
+/** Open the finding's file in a fix workspace on the same upload (reusing the newest one). */
+export function WorkspaceCard({
+  projectId,
+  snapshotId,
+  path,
+  line,
+}: {
+  projectId: string;
+  snapshotId: string;
+  path: string;
+  line: number | null;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <section className="card stack" aria-labelledby="ws-card-title" data-testid="workspace-card">
+      <div className="stack stack-xs">
+        <h2 id="ws-card-title" className="card-title">
+          <Icon name="code" size={16} /> Fix in a workspace
+        </h2>
+        <p className="card-sub">
+          Edit this file together with other fixes, check them all at once and download one patch or
+          only the changed files.
+        </p>
+      </div>
+      <div className="row">
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={busy}
+          data-testid="workspace-open"
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            listWorkspaces(projectId)
+              .then(async (items): Promise<string> => {
+                const existing = items.find((item) => item.base_snapshot_id === snapshotId);
+                if (existing) return existing.id;
+                return (await createWorkspace(projectId, { snapshot_id: snapshotId })).id;
+              })
+              .then(
+                (workspaceId) => {
+                  navigate(workspaceHref(workspaceId, "edit", path, line));
+                },
+                (caught: unknown) => {
+                  setError(describeError(caught));
+                  setBusy(false);
+                },
+              );
+          }}
+        >
+          <Icon name="code" size={15} /> {busy ? "Opening…" : "Open in workspace"}
+        </button>
+      </div>
       {error ? <Alert tone="bad">{error}</Alert> : null}
     </section>
   );

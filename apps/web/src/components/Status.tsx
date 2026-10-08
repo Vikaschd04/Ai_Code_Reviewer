@@ -48,6 +48,16 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   NOT_RECHECKED: { tone: "neutral", icon: "info", label: "Not rechecked" },
   UNKNOWN: { tone: "neutral", icon: "info", label: "Unknown" },
   RULE_OBSOLETE: { tone: "neutral", icon: "x", label: "Rule retired" },
+  // Outcome of a workspace check for one upload issue (P08). Hidden is never "fixed".
+  fixed: { tone: "ok", icon: "check", label: "Fixed" },
+  still_present: { tone: "warn", icon: "scan", label: "Still present" },
+  suppressed: { tone: "warn", icon: "alert", label: "Hidden, not fixed" },
+  not_rechecked: { tone: "neutral", icon: "info", label: "Not rechecked" },
+  unchecked: { tone: "neutral", icon: "clock", label: "Not checked yet" },
+  // Fix workspace as a whole (P08).
+  draft: { tone: "neutral", icon: "wrench", label: "Draft" },
+  checking: { tone: "live", icon: "pulse", label: "Checking" },
+  exported: { tone: "ok", icon: "download", label: "Downloaded" },
   // Graph edge classification.
   resolved: { tone: "ok", icon: "check", label: "Confirmed" },
   declared: { tone: "neutral", icon: "info", label: "Declared" },

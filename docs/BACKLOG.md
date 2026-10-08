@@ -23,10 +23,10 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P05-02 | Validation/export | Original-defect and regression evidence — **DONE source-level** (integrity/syntax/detector/regression, patch + `crp-fix-export/v1`); tests/build rungs need P05-F1 |
 | P06-01 | GitHub connector/webhooks | Scoped auth/idempotency — **DONE** (fake GitHub; live check needs the owner's App, K-P06-01) |
 | P06-02 | Incremental scopes/PRs | Merge-base/cache/freshness tests — **DONE** (P06_REPORT, ADR 0015) |
-| P08-01 | Change-set core and exports (patch, changed-files ZIP, full ZIP, summary) | Patch applies only to the exact base; changed-files ZIP exact; upload unchanged — **NEXT** |
-| P08-02 | Editor and simplified compare (per file, per change set, two uploads/commits) | Policy flags on save; inert rendering; light/dark/mobile |
-| P08-03 | Bulk recipe fixes, conflicts and change-set re-check | Fixed / still present / new reported correctly |
-| P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest |
+| P08-01 | Change-set core and exports (patch, changed-files ZIP, full ZIP, summary) | Patch applies only to the exact base; changed-files ZIP exact; upload unchanged — **DONE** (P08_REPORT, ADR 0016; plus a `git am` commit) |
+| P08-02 | Editor and simplified compare (per file, per change set, two uploads/commits) | Policy flags on save; inert rendering; light/dark/mobile — **DONE** (CodeMirror 6; ignore-whitespace is P08-F2) |
+| P08-03 | Bulk recipe fixes, conflicts and change-set re-check | Fixed / still present / new reported correctly — **DONE** (suppressed never fixed; Temporal and lite) |
+| P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest — **NEXT** (offline with the labelled fake model; live quality needs K-P03-01) |
 | P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules |
 | P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded |
 | P09-02 | Tier 1 safe compile in a sandbox (Java `-proc:none`, npm `--ignore-scripts`) | Malicious processor/script not executed; egress blocked |
@@ -88,3 +88,13 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P06-F3 | Similarity-based rename detection for changed-and-moved files (Git `-M`) | Lineage kept for edited renames |
 | P06-F4 | GitHub Enterprise Server and GitLab/Bitbucket adapters behind the same source-provider boundary | Adapter contract tests |
 | P06-F5 | Fix pull requests that move a stale fix automatically (rebase + revalidate in one step) | Stale fix → new validated PR without manual steps |
+
+## Follow-ups discovered in P08
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P08-F1 | Move a workspace to a newer upload (three-way: apply each file's change where the upload's lines still match; conflicts listed per file) | Clean moves keep provenance; conflicts never merged silently |
+| P08-F2 | Ignore-whitespace comparison and a per-change-set unified view (all files in one scroll) | Same counts as the per-file view; whitespace-only changes hidden on request |
+| P08-F3 | Edit non-UTF-8 text files (declared encoding, e.g. Latin-1 Java) without changing other bytes | Round-trip byte equality for untouched lines |
+| P08-F4 | Content-addressed blob garbage collection for workspace revisions (with P01-F2) | Unreferenced revisions removed; referenced ones kept |
+| P08-F5 | Workspace archive and multi-user presence (who is editing) | Archived workspaces read-only; edits by two users conflict visibly |

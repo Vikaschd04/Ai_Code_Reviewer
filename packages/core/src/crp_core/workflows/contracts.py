@@ -210,3 +210,33 @@ class GitReviewFinalize(_Contract):
 class GitReviewResult(_Contract):
     review_id: UUID
     state: str
+
+
+CHANGE_SET_CHECK_WORKFLOW_NAME = "ChangeSetCheckWorkflow"
+
+
+def change_set_check_workflow_id(check_id: UUID) -> str:
+    return f"crp-cscheck-{check_id.hex}"
+
+
+class ChangeSetCheckInput(_Contract):
+    check_id: UUID
+
+
+class ChangeSetCheckPlan(_Contract):
+    """Scans to run (the base reference scan if missing, then the workspace scan)."""
+
+    check_id: UUID
+    scan_ids: list[UUID] = Field(default_factory=list)
+    terminal: bool = False
+
+
+class ChangeSetCheckFinalize(_Contract):
+    check_id: UUID
+    canceled: bool = False
+    interrupted: bool = False
+
+
+class ChangeSetCheckResult(_Contract):
+    check_id: UUID
+    state: str

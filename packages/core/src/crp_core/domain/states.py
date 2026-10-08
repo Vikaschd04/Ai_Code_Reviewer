@@ -333,6 +333,7 @@ class ScanMode(StrEnum):
     BASELINE = "baseline"  # an upload, capture or the default branch's latest commit
     PULL_REQUEST = "pull_request"  # a pull request's head: compared, never changes issues
     REFERENCE = "reference"  # a merge base or earlier commit scanned only for comparison
+    CHANGE_SET = "change_set"  # a fix workspace's edits on top of an upload (P08)
 
 
 class GitProvider(StrEnum):
@@ -389,3 +390,43 @@ class CheckFailThreshold(StrEnum):
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
+
+
+class ChangeAction(StrEnum):
+    """What a fix workspace does to one file of its base upload (P08)."""
+
+    MODIFY = "modify"
+    ADD = "add"
+    DELETE = "delete"
+
+
+class ChangeSource(StrEnum):
+    """Where a workspace change came from; kept per change for provenance."""
+
+    MANUAL = "manual"
+    RECIPE = "recipe"
+    AI = "ai"
+    REVERT = "revert"
+    EXPORT = "export"  # audit only: an export of the workspace
+
+
+class ChangeSetCheckState(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    CANCELED = "CANCELED"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self not in {ChangeSetCheckState.QUEUED, ChangeSetCheckState.RUNNING}
+
+
+class IssueOutcome(StrEnum):
+    """A base finding after a workspace check."""
+
+    FIXED = "fixed"  # verified absent by a compatible re-check
+    STILL_PRESENT = "still_present"
+    SUPPRESSED = "suppressed"  # gone only because a suppression marker was added: not fixed
+    NOT_RECHECKED = "not_rechecked"  # file removed, check did not run, or rules changed

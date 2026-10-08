@@ -22,6 +22,7 @@ from crp_core.db.session import create_session_factory
 from crp_core.workflows.contracts import git_review_workflow_id
 from crp_core.workflows.temporal import TemporalWorkflowGateway
 from crp_worker.ai_run import AiRunActivities, AiRunWorkflow
+from crp_worker.change_set import ChangeSetCheckActivities, ChangeSetCheckWorkflow
 from crp_worker.diagnostics import DiagnosticActivities, DiagnosticWorkflow
 from crp_worker.fix_validation import FixActivities, FixValidationWorkflow
 from crp_worker.git_review import GitReviewActivities, GitReviewWorkflow, reconcile_due
@@ -62,6 +63,7 @@ def build_worker(
         await client.get_workflow_handle(git_review_workflow_id(review_id)).cancel()
 
     activities += GitReviewActivities(settings, store, sessions, cancel_review=cancel_review).all()
+    activities += ChangeSetCheckActivities(settings, store, sessions).all()
     return Worker(
         client,
         task_queue=settings.temporal_task_queue,
@@ -72,6 +74,7 @@ def build_worker(
             AiRunWorkflow,
             FixValidationWorkflow,
             GitReviewWorkflow,
+            ChangeSetCheckWorkflow,
         ],
         activities=activities,
         identity=name,

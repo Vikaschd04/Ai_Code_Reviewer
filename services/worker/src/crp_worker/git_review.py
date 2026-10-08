@@ -39,17 +39,12 @@ with workflow.unsafe.imports_passed_through():
     from sqlalchemy import and_, func, or_, select, update
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-    from sqlalchemy.orm import aliased
 
     from crp_analysis.inventory import build_inventory
-    from crp_analysis.lifecycle import Prior, RunView, classify_absence
-    from crp_analysis.manifest import blob_key
-    from crp_analysis.normalize import evidence_line
     from crp_analysis.sources import publication
     from crp_analysis.sources.capture import reconcile_with_tree
     from crp_analysis.sources.changes import (
         ChangeSet,
-        FindingRef,
         diff_findings,
         diff_manifests,
         impacted_files,
@@ -64,20 +59,14 @@ with workflow.unsafe.imports_passed_through():
         resolve_github,
     )
     from crp_analysis.zip_intake import GitArchiveOptions, IntakeRejectedError, process_zip
-    from crp_core.artifacts import ArtifactKey, ArtifactStore
+    from crp_core.artifacts import ArtifactStore
     from crp_core.config import Settings
     from crp_core.db.models import (
         CodeReview,
         EngineRun,
-        FileCoverage,
-        FileEntry,
-        Finding,
         GitConnection,
         GitInstallation,
         GitRepository,
-        GraphBuild,
-        GraphEdge,
-        GraphNode,
         Intake,
         Scan,
         Snapshot,
@@ -89,11 +78,9 @@ with workflow.unsafe.imports_passed_through():
         CodeReviewKind,
         CodeReviewState,
         CodeReviewTrigger,
-        FileDisposition,
         GitProvider,
         IntakeState,
         PublishState,
-        RecheckState,
         ScanMode,
         ScanState,
         SourceMode,
@@ -111,6 +98,7 @@ with workflow.unsafe.imports_passed_through():
         ScanWorkflowResult,
         scan_workflow_id,
     )
+    from crp_worker import comparison
     from crp_worker.intake import freeze_snapshot, limits_from
     from crp_worker.progress import heartbeat
 
@@ -865,31 +853,44 @@ class GitReviewActivities:
                     "message": head.error_message or f"The scan ended {head_state.value}.",
                     "scan_state": head_state.value,
                 }
-            head_files = await self._manifest(session, review.head_snapshot_id)
+            head_files = await comparison.manifest(session, review.head_snapshot_id)
             changes: ChangeSet | None = None
             impacted: set[str] = set()
             if review.base_snapshot_id is not None:
-                base_files = await self._manifest(session, review.base_snapshot_id)
+                base_files = await comparison.manifest(session, review.base_snapshot_id)
                 changes = diff_manifests(base_files, head_files)
                 impacted = impacted_files(
-                    changes.touched, await self._dependencies(session, review.head_snapshot_id)
+                    changes.touched, await comparison.dependencies(session, review.head_snapshot_id)
                 )
-            head_findings = await self._findings(session, head.id)
+            head_findings = await comparison.findings_of(session, head.id)
             base_ok = base is not None and ScanState(base.state) in {
                 ScanState.SUCCEEDED,
                 ScanState.PARTIAL,
             }
-            base_findings = await self._findings(session, base.id) if base_ok and base else []
+            base_findings = (
+                await comparison.findings_of(session, base.id) if base_ok and base else []
+            )
             renames = changes.renames if changes is not None else {}
             if renames:
-                head_findings = await self._with_text(
-                    session, head_findings, set(renames), review.head_snapshot_id
+                limit = self._settings.intake_max_text_file_bytes
+                head_findings = await comparison.with_text(
+                    session,
+                    self._store,
+                    limit,
+                    head_findings,
+                    set(renames),
+                    review.head_snapshot_id,
                 )
-                base_findings = await self._with_text(
-                    session, base_findings, set(renames.values()), review.base_snapshot_id
+                base_findings = await comparison.with_text(
+                    session,
+                    self._store,
+                    limit,
+                    base_findings,
+                    set(renames.values()),
+                    review.base_snapshot_id,
                 )
             diff = diff_findings(base_findings, head_findings, renames)
-            fixed, not_rechecked = await self._classify_absent(
+            fixed, not_rechecked = await comparison.classify_absent(
                 session, diff.absent, head, base, renames
             )
         partial = head_state is ScanState.PARTIAL or (
@@ -916,205 +917,13 @@ class GitReviewActivities:
             "fixed": len(fixed),
             "not_rechecked": not_rechecked,
             "by_severity": by_severity,
-            "new_items": [self._item(f) for f in new_sorted[:_NEW_ITEMS]],
-            "fixed_items": [self._item(f) for f in fixed[:_FIXED_ITEMS]],
+            "new_items": [comparison.item(f) for f in new_sorted[:_NEW_ITEMS]],
+            "fixed_items": [comparison.item(f) for f in fixed[:_FIXED_ITEMS]],
             "incomplete": incomplete,
             "base_missing": review.base_scan_id is not None and not base_ok,
             "cache": cache,
             "changes": changes.as_dict(impacted) if changes is not None else None,
         }
-
-    @staticmethod
-    def _item(finding: FindingRef) -> dict[str, Any]:
-        return {
-            "finding_id": finding.id,
-            "severity": finding.severity,
-            "title": finding.title,
-            "path": finding.path,
-            "line": finding.start_line,
-            "engine": finding.engine,
-            "rule_id": finding.rule_id,
-        }
-
-    @staticmethod
-    async def _manifest(session: AsyncSession, snapshot_id: UUID | None) -> dict[str, str]:
-        rows = await session.execute(
-            select(FileEntry.path, FileEntry.blob_sha256).where(
-                FileEntry.snapshot_id == snapshot_id,
-                FileEntry.disposition == FileDisposition.ANALYZABLE.value,
-            )
-        )
-        return {path: sha for path, sha in rows.all() if sha}
-
-    @staticmethod
-    async def _dependencies(
-        session: AsyncSession, snapshot_id: UUID | None
-    ) -> list[tuple[str, str]]:
-        source_node, target_node = aliased(GraphNode), aliased(GraphNode)
-        source_file, target_file = aliased(FileEntry), aliased(FileEntry)
-        rows = await session.execute(
-            select(source_file.path, target_file.path)
-            .select_from(GraphEdge)
-            .join(
-                GraphBuild,
-                and_(GraphBuild.id == GraphEdge.build_id, GraphBuild.is_current.is_(True)),
-            )
-            .join(source_node, source_node.id == GraphEdge.source_node_id)
-            .join(target_node, target_node.id == GraphEdge.target_node_id)
-            .join(source_file, source_file.id == source_node.file_entry_id)
-            .join(target_file, target_file.id == target_node.file_entry_id)
-            .where(GraphEdge.snapshot_id == snapshot_id, source_file.path != target_file.path)
-            .distinct()
-            .limit(50_000)
-        )
-        return [(a, b) for a, b in rows.all()]
-
-    @staticmethod
-    async def _findings(session: AsyncSession, scan_id: UUID) -> list[FindingRef]:
-        rows = await session.execute(
-            select(Finding, FileEntry.path)
-            .join(FileEntry, FileEntry.id == Finding.file_entry_id)
-            .where(Finding.scan_id == scan_id)
-        )
-        return [
-            FindingRef(
-                str(f.id),
-                f.fingerprint,
-                f.engine,
-                f.rule_id,
-                path,
-                f.start_line,
-                f.severity,
-                f.title,
-            )
-            for f, path in rows.all()
-        ]
-
-    async def _with_text(
-        self,
-        session: AsyncSession,
-        findings: list[FindingRef],
-        paths: set[str],
-        snapshot_id: UUID | None,
-    ) -> list[FindingRef]:
-        """Add evidence-line text to findings in renamed files (for rename-aware matching)."""
-        wanted = sorted({f.path for f in findings if f.path in paths and f.start_line})[
-            :_RENAME_TEXT_FILES
-        ]
-        if not wanted:
-            return findings
-        blobs = dict(
-            (
-                await session.execute(
-                    select(FileEntry.path, FileEntry.blob_sha256).where(
-                        FileEntry.snapshot_id == snapshot_id, FileEntry.path.in_(wanted)
-                    )
-                )
-            ).all()
-        )
-        texts: dict[str, str] = {}
-        for path, sha in blobs.items():
-            if sha:
-                data = await asyncio.to_thread(
-                    self._store.read_bytes,
-                    ArtifactKey(blob_key(sha)),
-                    max_bytes=self._settings.intake_max_text_file_bytes,
-                )
-                texts[path] = data.decode("utf-8", errors="replace")
-        return [
-            FindingRef(
-                f.id,
-                f.fingerprint,
-                f.engine,
-                f.rule_id,
-                f.path,
-                f.start_line,
-                f.severity,
-                f.title,
-                evidence_line(texts[f.path], f.start_line)
-                if f.path in texts and f.start_line
-                else None,
-            )
-            for f in findings
-        ]
-
-    @staticmethod
-    async def _classify_absent(
-        session: AsyncSession,
-        absent: tuple[FindingRef, ...],
-        head: Scan,
-        base: Scan | None,
-        renames: dict[str, str],
-    ) -> tuple[list[FindingRef], int]:
-        if not absent or base is None:
-            return [], len(absent)
-        head_runs = {
-            r.engine: r
-            for r in (
-                await session.execute(select(EngineRun).where(EngineRun.scan_id == head.id))
-            ).scalars()
-        }
-        base_runs = {
-            r.engine: r
-            for r in (
-                await session.execute(select(EngineRun).where(EngineRun.scan_id == base.id))
-            ).scalars()
-        }
-        entries = dict(
-            (
-                await session.execute(
-                    select(FileEntry.path, FileEntry.id).where(
-                        FileEntry.snapshot_id == head.snapshot_id,
-                        FileEntry.disposition == FileDisposition.ANALYZABLE.value,
-                    )
-                )
-            ).all()
-        )
-        coverage = {
-            (run_id, entry_id): outcome
-            for run_id, entry_id, outcome in (
-                await session.execute(
-                    select(
-                        FileCoverage.engine_run_id, FileCoverage.file_entry_id, FileCoverage.outcome
-                    ).where(FileCoverage.engine_run_id.in_([r.id for r in head_runs.values()]))
-                )
-            ).all()
-        }
-        moved_to = {old: new for new, old in renames.items()}
-        fixed: list[FindingRef] = []
-        for finding in absent:
-            path = moved_to.get(finding.path, finding.path)
-            run = head_runs.get(finding.engine)
-            prior_run = base_runs.get(finding.engine)
-            entry_id = entries.get(path)
-            view = (
-                RunView(
-                    finding.engine,
-                    run.state,
-                    run.engine_version,
-                    run.ruleset_sha256,
-                    frozenset(run.enabled_rules) if run.enabled_rules is not None else None,
-                )
-                if run is not None
-                else None
-            )
-            verdict = classify_absence(
-                Prior(
-                    finding.engine,
-                    finding.rule_id,
-                    path,
-                    prior_run.engine_version if prior_run else None,
-                    prior_run.ruleset_sha256 if prior_run else None,
-                ),
-                view,
-                file_present=entry_id is not None,
-                file_outcome=coverage.get((run.id, entry_id))
-                if run is not None and entry_id
-                else None,
-            )
-            if verdict.state is RecheckState.VERIFIED_ABSENT:
-                fixed.append(finding)
-        return fixed, len(absent) - len(fixed)
 
     # -- publish --------------------------------------------------------------------------------
 

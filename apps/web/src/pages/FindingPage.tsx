@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { Finding } from "../api/client";
 import { fetchFinding } from "../api/endpoints";
 import { AiFindingCheck } from "../components/Ai";
-import { FixCard } from "../components/Fixes";
+import { FixCard, WorkspaceCard } from "../components/Fixes";
 import { CodeView } from "../components/CodeView";
 import { Alert, Disclosure, Loading, PageHeader } from "../components/Common";
 import { Icon } from "../components/Icon";
@@ -182,6 +182,12 @@ export function FindingPage({ findingId }: { findingId: string }) {
             />
           ) : null}
           <FixCard projectId={detail.data.project_id} findingId={finding.id} />
+          <WorkspaceCard
+            projectId={detail.data.project_id}
+            snapshotId={finding.snapshot_id}
+            path={finding.path}
+            line={finding.start_line}
+          />
           <AiFindingCheck projectId={detail.data.project_id} findingId={finding.id} />
           <Disclosure testId="finding-technical">
             <dl className="kv">

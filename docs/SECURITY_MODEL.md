@@ -141,6 +141,21 @@ Residual risk: masking is heuristic, so a secret the redactor misses would reach
 
 Residual risk: the ladder is source-level. A fix that passes it may still fail to compile against the rest of the project or change behaviour where the "What to watch" note warns; reviewers build and test the patch in their own environment.
 
+### Fix workspaces (P08, ADR 0016)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Upload is never modified | Revisions are new content-addressed blobs; the upload's file rows and blobs are only read; checks scan a derived snapshot | test_edit_files_with_flags_conflicts_and_line_endings (blob digests unchanged), test_workspace_check_on_the_temporal_worker / _lite_profile (folder digest, upload list, issues unchanged) |
+| No project code is executed | Checks run the platform's trusted engines on the derived snapshot exactly like a review; nothing is built, installed or tested ("not compiled") | change_set.py; test_p08_workspace.py (`compiled: false`) |
+| Path and content safety | Canonical relative paths, `.git/` and directories refused; binary, oversized, excluded and non-UTF-8 files not editable (strict decoding, no replacement characters written); size and file-count limits; files added as `.env`-like secrets are excluded in checks exactly as at upload | test_edit_files_…, test_encodings_unicode_and_limits, test_derived_manifest_applies_revisions_over_the_base |
+| Hiding is never fixing | Policy flags on every save; recipes refuse suppressions, weakened, skipped or focused tests and oversized changes; a finding that vanishes from a file that gained a suppression is `suppressed`, never `fixed` | test_manual_flags_are_information_and_recipe_flags_are_strict, test_policy_refuses_changes_that_hide_problems, test_p08_workspace.py |
+| Results and downloads bound to content | Workspace digest on every check, event and download; patches name upload and hashes and fail on changed code; the full ZIP copies unchanged files byte for byte | test_exports_apply_only_to_the_exact_upload, test_git_am_commit_and_workspace_states |
+| Conflicts are never merged | Optimistic versions (409); recipes that no longer match exactly are skipped with the reason | test_bulk_recipe_fixes_issue_queue_and_conflicts |
+| Isolation | Workspaces, files, checks, exports and comparisons are workspace-scoped (404 for others); members edit, viewers read; derived copies hidden from lists and AI defaults; `change_set` scans never change issues | test_other_workspaces_see_nothing |
+| Supply chain | CodeMirror packages MIT, exact pins plus overrides on releases public ≥ 2 weeks at adoption; loaded only on workspace/compare pages | ADR 0016, pnpm-workspace.yaml |
+
+Residual risk: checks are source-level; an edited project can still fail to compile or behave differently (P09 adds sandboxed compilation). Exported ZIPs and patches contain the customer's code — they are served only to authorized users with `Cache-Control: no-store` and temporary files are removed after sending.
+
 ### GitHub (P06, ADR 0015)
 
 | Control | Implementation | Evidence |

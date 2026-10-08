@@ -203,6 +203,9 @@ class Settings(BaseSettings):
     # Default days between full reviews (per-file results re-run instead of reused).
     git_reconcile_days: Annotated[int, Field(ge=1, le=90)] = 7
 
+    # Fix workspaces (P08): files one workspace may change.
+    change_set_max_files: Annotated[int, Field(ge=1, le=10_000)] = 500
+
     log_level: str = "INFO"
     log_format: str = "json"
 

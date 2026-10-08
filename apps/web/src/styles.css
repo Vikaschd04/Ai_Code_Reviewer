@@ -98,6 +98,14 @@
   --meter-failed: #d03b3b;
   --meter-skipped: #4b5160;
 
+  /* Syntax colours in the code editor (WCAG AA on --surface-2 and the active line). */
+  --code-keyword: #c4b5fd;
+  --code-string: #86efac;
+  --code-comment: #8b93a3;
+  --code-number: #fdba74;
+  --code-type: #7dd3fc;
+  --code-function: #93c5fd;
+
   /* Futuristic backdrop: aurora glows, a fading grid and frosted surfaces. */
   --aurora-1: rgba(99, 102, 241, 0.42);
   --aurora-2: rgba(34, 211, 238, 0.2);
@@ -118,6 +126,12 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
+    --code-keyword: #6d28d9;
+    --code-string: #047857;
+    --code-comment: #5b6270;
+    --code-number: #a34a0a;
+    --code-type: #0369a1;
+    --code-function: #1d4ed8;
     --bg: #f7f8fa;
     --bg-sidebar: #ffffff;
     --surface: #ffffff;
@@ -165,6 +179,12 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
+  --code-keyword: #6d28d9;
+  --code-string: #047857;
+  --code-comment: #5b6270;
+  --code-number: #a34a0a;
+  --code-type: #0369a1;
+  --code-function: #1d4ed8;
   --bg: #f7f8fa;
   --bg-sidebar: #ffffff;
   --surface: #ffffff;
@@ -2759,6 +2779,58 @@ button.tile[aria-pressed="true"] {
   gap: var(--space-2);
 }
 
+/* ---- fix workspaces -------------------------------------------------------------------------- */
+
+/* The editor and comparison views are CodeMirror; their colours come from the tokens above. */
+.code-editor .cm-editor {
+  height: min(64vh, 720px);
+}
+
+.compare {
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.compare .cm-mergeView {
+  max-height: min(64vh, 720px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.compare .cm-mergeView .cm-editor {
+  border: 0;
+  border-radius: 0;
+}
+
+.compare .cm-mergeViewEditor + .cm-mergeViewEditor {
+  border-left: 1px solid var(--border);
+}
+
+.compare-inline .cm-editor {
+  max-height: min(64vh, 720px);
+}
+
+.split-files {
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+}
+
+.result-item[aria-current="true"] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* Table columns that move into the first cell on narrow screens. */
+.only-narrow {
+  display: none;
+}
+
+.btn-group .btn[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-color: var(--accent-border);
+}
+
 /* ---- responsive ------------------------------------------------------------------------------- */
 
 @media (max-width: 1100px) {
@@ -2772,7 +2844,8 @@ button.tile[aria-pressed="true"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .split {
+  .split,
+  .split-files {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -2885,6 +2958,14 @@ button.tile[aria-pressed="true"] {
 
   .findings-table .location {
     max-width: 160px;
+  }
+
+  .data-table .only-wide {
+    display: none;
+  }
+
+  .data-table .only-narrow {
+    display: flex;
   }
 
   .barlist-row {
