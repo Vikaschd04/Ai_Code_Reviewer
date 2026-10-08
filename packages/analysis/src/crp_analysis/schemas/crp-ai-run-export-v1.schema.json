@@ -113,7 +113,8 @@
           "enum": [
             "question",
             "file_review",
-            "finding_review"
+            "finding_review",
+            "fix"
           ]
         },
         "state": {
@@ -286,6 +287,17 @@
     "notice": {
       "type": "string",
       "minLength": 1
+    },
+    "fix": {
+      "description": "Fix runs (P08): candidate fixes for one finding, each checked like an automatic fix",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object"
+        }
+      ]
     }
   },
   "$defs": {

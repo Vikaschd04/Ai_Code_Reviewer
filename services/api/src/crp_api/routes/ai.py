@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crp_analysis.ai.config import resolve
+from crp_analysis.ai.config import AiSetup, resolve
 from crp_analysis.ai.export import build_ai_export, build_ai_sarif
 from crp_analysis.ai.prompts import PROMPT_VERSION
 from crp_api import __version__
@@ -21,6 +21,8 @@ from crp_api.schemas import (
     AiAnchorResponse,
     AiAnswerResponse,
     AiFindingResponse,
+    AiFixCandidateResponse,
+    AiFixResult,
     AiLimits,
     AiMonthUsage,
     AiRunCreate,
@@ -46,7 +48,13 @@ from crp_core.db.models import (
     Snapshot,
 )
 from crp_core.db.session import transaction
-from crp_core.domain.states import AiRunState, CaptureStatus, FileDisposition, MembershipRole
+from crp_core.domain.states import (
+    AiRunKind,
+    AiRunState,
+    CaptureStatus,
+    FileDisposition,
+    MembershipRole,
+)
 from crp_core.workflows.contracts import ai_run_workflow_id
 from crp_core.workflows.gateway import WorkflowUnavailableError
 
@@ -182,7 +190,26 @@ async def update_ai_policy(
 # -- runs --------------------------------------------------------------------------------------
 
 
-def _run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
+_CANDIDATE_FIELDS = set(AiFixCandidateResponse.model_fields)
+_FIX_FIELDS = set(AiFixResult.model_fields) - {"candidates"}
+
+
+def _fix_result(answer: dict[str, object]) -> AiFixResult:
+    """The stored fix answer as the API shows it (edits and hashes stay internal)."""
+    candidates = answer.get("candidates")
+    return AiFixResult.model_validate(
+        {
+            **{key: value for key, value in answer.items() if key in _FIX_FIELDS},
+            "candidates": [
+                {key: value for key, value in c.items() if key in _CANDIDATE_FIELDS}
+                for c in (candidates if isinstance(candidates, list) else [])
+                if isinstance(c, dict)
+            ],
+        }
+    )
+
+
+def run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
     return AiRunResponse(
         id=run.id,
         project_id=run.project_id,
@@ -203,7 +230,13 @@ def _run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
         error_code=run.error_code,
         error_message=run.error_message,
         usage=AiUsageResponse.model_validate(run.usage) if run.usage else None,
-        answer=AiAnswerResponse.model_validate(run.answer) if run.answer else None,
+        answer=(
+            AiAnswerResponse.model_validate(run.answer)
+            if run.answer and run.kind != AiRunKind.FIX.value
+            else None
+        ),
+        change_set_id=run.change_set_id,
+        fix=_fix_result(run.answer) if run.answer and run.kind == AiRunKind.FIX.value else None,
         steps=[AiStepResponse.model_validate(step) for step in run.steps or []],
         limitations=list(run.limitations or []),
         findings=[
@@ -226,6 +259,40 @@ def _run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
             for f in findings
         ],
     )
+
+
+async def ai_gate(session: AsyncSession, setup: AiSetup, project_id: uuid.UUID) -> ProjectAiPolicy:
+    """Refuse an AI run unless the project allows it, the server is set up and budget is left."""
+    policy = await session.get(ProjectAiPolicy, project_id)
+    if policy is None or not policy.enabled:
+        raise ApiError(
+            409,
+            "ai_policy_disabled",
+            "AI review is switched off for this project. A workspace admin can switch it on.",
+        )
+    if not setup.available or setup.model is None:
+        raise ApiError(409, "ai_unavailable", setup.reason or "AI review is not set up")
+    usage = await month_usage(session)
+    if setup.monthly_token_limit and usage.total_tokens >= setup.monthly_token_limit:
+        raise ApiError(429, "ai_monthly_limit", "This month's AI token limit is used up")
+    if (
+        setup.monthly_cost_limit_usd is not None
+        and usage.cost_usd is not None
+        and usage.cost_usd >= setup.monthly_cost_limit_usd
+    ):
+        raise ApiError(429, "ai_monthly_limit", "This month's AI cost limit is used up")
+    return policy
+
+
+def run_limits(setup: AiSetup, policy: ProjectAiPolicy) -> dict[str, object]:
+    return {
+        "max_model_calls": setup.limits.max_model_calls,
+        "max_tool_calls": setup.limits.max_tool_calls,
+        "max_tokens": setup.limits.max_tokens,
+        "timeout_seconds": setup.limits.timeout_seconds,
+        "max_cost_usd": setup.limits.max_cost_usd,
+        "max_excerpt_lines": policy.max_excerpt_lines,
+    }
 
 
 async def _target(
@@ -301,24 +368,7 @@ async def create_ai_run(
             not_found="project_not_found",
             required=MembershipRole.MEMBER,
         )
-        policy = await session.get(ProjectAiPolicy, project.id)
-        if policy is None or not policy.enabled:
-            raise ApiError(
-                409,
-                "ai_policy_disabled",
-                "AI review is switched off for this project. A workspace admin can switch it on.",
-            )
-        if not setup.available or setup.model is None:
-            raise ApiError(409, "ai_unavailable", setup.reason or "AI review is not set up")
-        usage = await month_usage(session)
-        if setup.monthly_token_limit and usage.total_tokens >= setup.monthly_token_limit:
-            raise ApiError(429, "ai_monthly_limit", "This month's AI token limit is used up")
-        if (
-            setup.monthly_cost_limit_usd is not None
-            and usage.cost_usd is not None
-            and usage.cost_usd >= setup.monthly_cost_limit_usd
-        ):
-            raise ApiError(429, "ai_monthly_limit", "This month's AI cost limit is used up")
+        policy = await ai_gate(session, setup, project.id)
         snapshot_id, scan_id = await _target(session, project, body)
         paths: list[str] | None = None
         if body.kind == "file_review" and body.paths:
@@ -356,21 +406,14 @@ async def create_ai_run(
             model=setup.model,
             prompt_version=PROMPT_VERSION,
             requested_by=principal.user_id,
-            limits={
-                "max_model_calls": setup.limits.max_model_calls,
-                "max_tool_calls": setup.limits.max_tool_calls,
-                "max_tokens": setup.limits.max_tokens,
-                "timeout_seconds": setup.limits.timeout_seconds,
-                "max_cost_usd": setup.limits.max_cost_usd,
-                "max_excerpt_lines": policy.max_excerpt_lines,
-            },
+            limits=run_limits(setup, policy),
         )
         session.add(run)
         await session.flush()
         run.workflow_id = ai_run_workflow_id(run.id)
         await session.refresh(run)
         run_id = run.id
-        response = _run_response(run, [])
+        response = run_response(run, [])
     try:
         await container.workflows.start_ai_run(run_id)
     except WorkflowUnavailableError as exc:
@@ -401,7 +444,7 @@ async def list_ai_runs(
         if finding_id is not None:
             query = query.where(AiRun.finding_id == finding_id)
         runs = (await session.scalars(query.order_by(AiRun.created_at.desc()).limit(limit))).all()
-        return AiRunPage(items=[_run_response(run, []) for run in runs])
+        return AiRunPage(items=[run_response(run, []) for run in runs])
 
 
 @router.get("/ai-runs/{run_id}", response_model=AiRunResponse, responses=_ERRORS)
@@ -415,7 +458,7 @@ async def get_ai_run(
                 select(AiFinding).where(AiFinding.run_id == run.id).order_by(AiFinding.sequence)
             )
         ).all()
-        return _run_response(run, list(findings))
+        return run_response(run, list(findings))
 
 
 @router.get(
@@ -443,7 +486,7 @@ async def export_ai_run(
         ).all()
         project = await session.get(Project, run.project_id)
         snapshot = await session.get(Snapshot, run.snapshot_id)
-        response = _run_response(run, list(findings))
+        response = run_response(run, list(findings))
     export = build_ai_export(
         response.model_dump(mode="json"),
         project={"id": str(run.project_id), "name": project.name if project else ""},
@@ -484,7 +527,7 @@ async def cancel_ai_run(
             run.cancel_requested_at = datetime.now(UTC)
         await session.flush()
         await session.refresh(run)
-        response = _run_response(run, [])
+        response = run_response(run, [])
         terminal = AiRunState(run.state).is_terminal
     if not terminal:
         try:

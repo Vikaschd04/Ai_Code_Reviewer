@@ -230,6 +230,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/change-sets/{change_set_id}/ai-fixes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ai Fixes
+         * @description AI fix suggestions requested in this workspace, newest first (optionally one file).
+         */
+        get: operations["list_ai_fixes_v1_change_sets__change_set_id__ai_fixes_get"];
+        put?: never;
+        /**
+         * Request Ai Fix
+         * @description Ask AI for candidate fixes of one finding, made for the file as it is in the workspace.
+         *
+         *     Only when the project allows AI and the server has a provider with budget left. Candidates
+         *     are checked like automatic fixes before anyone can apply them; nothing changes until then.
+         */
+        post: operations["request_ai_fix_v1_change_sets__change_set_id__ai_fixes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/change-sets/{change_set_id}/ai-fixes/{run_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Ai Fix
+         * @description Apply one checked AI candidate to the workspace (recorded as an AI change).
+         */
+        post: operations["apply_ai_fix_v1_change_sets__change_set_id__ai_fixes__run_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/change-sets/{change_set_id}/checks": {
         parameters: {
             query?: never;
@@ -1702,6 +1749,86 @@ export interface components {
             /** Validation Needed */
             validation_needed: string | null;
         };
+        /** AiFixCandidateResponse */
+        AiFixCandidateResponse: {
+            /**
+             * Applicable
+             * @description Exact lines, policy, parse and original check passed
+             */
+            applicable: boolean;
+            /** Applied At */
+            applied_at: string | null;
+            /** Behaviour Note */
+            behaviour_note: string;
+            /** Changed Lines */
+            changed_lines: number;
+            /** Confidence */
+            confidence: string;
+            /** Explanation */
+            explanation: string;
+            /** Index */
+            index: number;
+            /**
+             * Label
+             * @description Always shown with the candidate (AI provenance, not verified)
+             */
+            label: string;
+            /** Passed */
+            passed: boolean;
+            /**
+             * Patch
+             * @description Unified diff against the file as it was requested
+             */
+            patch: string | null;
+            /** Problems */
+            problems: string[];
+            /**
+             * Reason
+             * @description Why it cannot be applied (plain language)
+             */
+            reason: string | null;
+            /**
+             * Steps
+             * @description The P05 checks run on a copy
+             */
+            steps: components["schemas"]["AiFixStepResponse"][];
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+        };
+        /** AiFixResult */
+        AiFixResult: {
+            /** Abstained */
+            abstained: boolean;
+            /**
+             * Base Sha256
+             * @description The file text the candidates were made for
+             */
+            base_sha256: string;
+            /** Candidates */
+            candidates: components["schemas"]["AiFixCandidateResponse"][];
+            /** Path */
+            path: string;
+            /** Text */
+            text: string;
+            /** Uncertainty */
+            uncertainty: string;
+        };
+        /** AiFixStepResponse */
+        AiFixStepResponse: {
+            /** Detail */
+            detail: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "passed" | "failed" | "not_run";
+        };
         /** AiLimits */
         AiLimits: {
             /** Max Cost Usd */
@@ -1769,6 +1896,11 @@ export interface components {
             /** Cancel Requested At */
             cancel_requested_at: string | null;
             /**
+             * Change Set Id
+             * @description Fix runs: their workspace
+             */
+            change_set_id?: string | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -1783,6 +1915,8 @@ export interface components {
             findings: components["schemas"]["AiFindingResponse"][];
             /** Finished At */
             finished_at: string | null;
+            /** @description Fix runs: checked candidates */
+            fix?: components["schemas"]["AiFixResult"] | null;
             /**
              * Id
              * Format: uuid
@@ -2084,6 +2218,7 @@ export interface components {
         };
         /** ChangeSetResponse */
         ChangeSetResponse: {
+            ai: components["schemas"]["WorkspaceAiStatus"];
             /** Base Git Commit */
             base_git_commit: string | null;
             /** Base Name */
@@ -4117,6 +4252,34 @@ export interface components {
          * @enum {string}
          */
         WorkflowRunStatus: "RUNNING" | "COMPLETED" | "FAILED" | "CANCELED" | "TERMINATED" | "TIMED_OUT" | "UNKNOWN";
+        /** WorkspaceAiFixApply */
+        WorkspaceAiFixApply: {
+            /** Candidate */
+            candidate: number;
+            /** Version */
+            version: number;
+        };
+        /** WorkspaceAiFixRequest */
+        WorkspaceAiFixRequest: {
+            /**
+             * Finding Id
+             * Format: uuid
+             */
+            finding_id: string;
+        };
+        /** WorkspaceAiStatus */
+        WorkspaceAiStatus: {
+            /**
+             * Available
+             * @description AI fix suggestions can be requested in this workspace
+             */
+            available: boolean;
+            /**
+             * Reason
+             * @description Why not (plain language)
+             */
+            reason: string | null;
+        };
         /** WorkspaceFileContent */
         WorkspaceFileContent: {
             /**
@@ -4962,6 +5125,237 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_ai_fixes_v1_change_sets__change_set_id__ai_fixes_get: {
+        parameters: {
+            query?: {
+                path?: string | null;
+                finding_id?: string | null;
+            };
+            header?: never;
+            path: {
+                change_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunPage"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_ai_fix_v1_change_sets__change_set_id__ai_fixes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                change_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceAiFixRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    apply_ai_fix_v1_change_sets__change_set_id__ai_fixes__run_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                change_set_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceAiFixApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSaveResult"];
+                };
             };
             /** @description Unauthorized */
             401: {

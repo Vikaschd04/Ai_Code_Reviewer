@@ -96,6 +96,10 @@ export function runTitle(run: AiRun): string {
       ? `Review of ${paths[0].split("/").pop() ?? paths[0]}`
       : `Review of ${plural(paths.length, "file")}`;
   }
+  if (run.kind === "fix") {
+    const path = run.target_paths?.[0] ?? "";
+    return `Fix suggestions for ${path.split("/").pop() ?? path}`;
+  }
   return "Second opinion on a finding";
 }
 

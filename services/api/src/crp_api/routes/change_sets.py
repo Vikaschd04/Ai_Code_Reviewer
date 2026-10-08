@@ -6,6 +6,7 @@ upload they apply to.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import tempfile
@@ -25,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.background import BackgroundTask
 
+from crp_analysis.ai.config import resolve
+from crp_analysis.ai.prompts import FIX_PROMPT_VERSION
 from crp_analysis.fixes import recipes
 from crp_analysis.fixes.changeset import (
     EXPORT_FORMAT,
@@ -33,14 +36,17 @@ from crp_analysis.fixes.changeset import (
     edit_flags,
     file_patch,
 )
-from crp_analysis.fixes.patching import PatchError
+from crp_analysis.fixes.patching import Edit, PatchError, apply_edits
 from crp_analysis.manifest import blob_key
 from crp_analysis.sources.changes import diff_manifests
 from crp_api import __version__
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.auth.principal import Principal
 from crp_api.errors import ApiError, ErrorResponse
+from crp_api.routes.ai import ai_gate, run_limits, run_response
 from crp_api.schemas import (
+    AiRunPage,
+    AiRunResponse,
     ChangeSetCheckResponse,
     ChangeSetCreate,
     ChangeSetEventResponse,
@@ -51,6 +57,9 @@ from crp_api.schemas import (
     FileComparison,
     SnapshotChange,
     SnapshotComparisonResponse,
+    WorkspaceAiFixApply,
+    WorkspaceAiFixRequest,
+    WorkspaceAiStatus,
     WorkspaceFileContent,
     WorkspaceFilePath,
     WorkspaceFileSave,
@@ -67,6 +76,7 @@ from crp_api.services.scope import decode_offset, encode_offset, get_scoped
 from crp_api.services.snapshot_files import read_blob_text, sfdx_reader
 from crp_core.artifacts import ArtifactKey
 from crp_core.db.models import (
+    AiRun,
     ChangeSet,
     ChangeSetCheck,
     ChangeSetEvent,
@@ -74,12 +84,15 @@ from crp_core.db.models import (
     FileEntry,
     Finding,
     Project,
+    ProjectAiPolicy,
     Scan,
     Snapshot,
     Source,
 )
 from crp_core.db.session import transaction
 from crp_core.domain.states import (
+    AiRunKind,
+    AiRunState,
     CaptureStatus,
     ChangeAction,
     ChangeSetCheckState,
@@ -88,7 +101,7 @@ from crp_core.domain.states import (
     MembershipRole,
     ScanState,
 )
-from crp_core.workflows.contracts import change_set_check_workflow_id
+from crp_core.workflows.contracts import ai_run_workflow_id, change_set_check_workflow_id
 from crp_core.workflows.gateway import WorkflowUnavailableError
 
 router = APIRouter(tags=["fix workspaces"], responses={401: {"model": ErrorResponse}})
@@ -175,8 +188,24 @@ def _state(
     return "draft"
 
 
+async def _ai_status(
+    session: AsyncSession, container: Any, change_set: ChangeSet
+) -> WorkspaceAiStatus:
+    policy = await session.get(ProjectAiPolicy, change_set.project_id)
+    if policy is None or not policy.enabled:
+        return WorkspaceAiStatus(
+            available=False,
+            reason="AI is switched off for this project. A workspace admin can switch it on in "
+            "the project's AI review tab.",
+        )
+    setup = resolve(container.settings)
+    if not setup.available:
+        return WorkspaceAiStatus(available=False, reason=setup.reason)
+    return WorkspaceAiStatus(available=True, reason=None)
+
+
 async def _response(
-    session: AsyncSession, change_set: ChangeSet, can_edit: bool
+    session: AsyncSession, container: Any, change_set: ChangeSet, can_edit: bool
 ) -> ChangeSetResponse:
     base = await session.get(Snapshot, change_set.base_snapshot_id)
     source = await session.get(Source, base.source_id) if base else None
@@ -204,6 +233,7 @@ async def _response(
         content_sha256=change_set.content_sha256,
         version=change_set.version,
         can_edit=can_edit,
+        ai=await _ai_status(session, container, change_set),
         files=[
             ChangeSetFileSummary(
                 path=f.path,
@@ -324,7 +354,7 @@ async def create_change_set(
         session.add(change_set)
         await session.flush()
         await session.refresh(change_set)
-        return await _response(session, change_set, can_edit=True)
+        return await _response(session, container, change_set, can_edit=True)
 
 
 @router.get("/projects/{project_id}/change-sets", response_model=ChangeSetList, responses=_ERRORS)
@@ -376,7 +406,7 @@ async def get_change_set(
         change_set = await get_scoped(
             session, principal, ChangeSet, change_set_id, not_found="workspace_not_found"
         )
-        return await _response(session, change_set, _can_edit(principal, change_set))
+        return await _response(session, container, change_set, _can_edit(principal, change_set))
 
 
 @router.delete("/change-sets/{change_set_id}", status_code=204, responses=_ERRORS)
@@ -479,7 +509,7 @@ async def save_file(
             await session.flush()
             await session.refresh(change_set)
             return WorkspaceSaveResult(
-                change_set=await _response(session, change_set, True), flags=flags
+                change_set=await _response(session, container, change_set, True), flags=flags
             )
     except StaleDataError as exc:
         raise ApiError(409, "version_conflict", "The workspace changed meanwhile; reload") from exc
@@ -505,7 +535,7 @@ async def delete_file(
         )
         await session.flush()
         await session.refresh(change_set)
-        return await _response(session, change_set, True)
+        return await _response(session, container, change_set, True)
 
 
 @router.post(
@@ -524,7 +554,7 @@ async def revert_file(
         )
         await session.flush()
         await session.refresh(change_set)
-        return await _response(session, change_set, True)
+        return await _response(session, container, change_set, True)
 
 
 # -- bulk fixes and the issue queue ----------------------------------------------------------------
@@ -680,7 +710,9 @@ async def apply_fixes(
         await session.flush()
         await session.refresh(change_set)
         return WorkspaceFixResult(
-            applied=applied, skipped=skipped, change_set=await _response(session, change_set, True)
+            applied=applied,
+            skipped=skipped,
+            change_set=await _response(session, container, change_set, True),
         )
 
 
@@ -770,6 +802,206 @@ async def list_issues(
             total=len(items),
             next_cursor=encode_offset(following) if following < len(items) else None,
         )
+
+
+# -- AI fix suggestions ----------------------------------------------------------------------------
+
+_AI_ACTIVE = (AiRunState.QUEUED.value, AiRunState.RUNNING.value)
+_AI_DONE = (AiRunState.SUCCEEDED.value, AiRunState.PARTIAL.value)
+
+
+@router.post(
+    "/change-sets/{change_set_id}/ai-fixes",
+    status_code=202,
+    response_model=AiRunResponse,
+    responses={**_ERRORS, 429: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+async def request_ai_fix(
+    change_set_id: uuid.UUID,
+    body: WorkspaceAiFixRequest,
+    principal: CurrentPrincipal,
+    container: Container,
+) -> AiRunResponse:
+    """Ask AI for candidate fixes of one finding, made for the file as it is in the workspace.
+
+    Only when the project allows AI and the server has a provider with budget left. Candidates
+    are checked like automatic fixes before anyone can apply them; nothing changes until then.
+    """
+    setup = resolve(container.settings)
+    async with transaction(container.session_factory) as session:
+        change_set = await _editable(session, principal, change_set_id, None)
+        policy = await ai_gate(session, setup, change_set.project_id)
+        base_scan = await _base_scan(session, change_set)
+        row = (
+            await session.execute(
+                select(Finding, FileEntry)
+                .join(FileEntry, FileEntry.id == Finding.file_entry_id)
+                .where(Finding.id == body.finding_id, Finding.scan_id == base_scan)
+            )
+        ).first()
+        if row is None or base_scan is None:
+            raise ApiError(404, "finding_not_found", "Not a finding of this upload's review")
+        finding, entry = row
+        if finding.start_line is None:
+            raise ApiError(422, "no_location", "AI fixes need a finding with a line in a file")
+        if entry.disposition != FileDisposition.ANALYZABLE.value:
+            raise ApiError(409, "not_editable", workspace.NOT_EDITABLE.get(entry.disposition, ""))
+        _, current, _, _ = await workspace.current_text(session, container, change_set, entry.path)
+        if current is None:
+            raise ApiError(409, "file_deleted", "The file is deleted in this workspace")
+        running = await session.scalar(
+            select(AiRun.id).where(
+                AiRun.change_set_id == change_set.id,
+                AiRun.finding_id == finding.id,
+                AiRun.state.in_(_AI_ACTIVE),
+            )
+        )
+        if running is not None:
+            raise ApiError(409, "ai_fix_running", "AI is already preparing fixes for this issue")
+        run = AiRun(
+            workspace_id=change_set.workspace_id,
+            project_id=change_set.project_id,
+            snapshot_id=change_set.base_snapshot_id,
+            scan_id=base_scan,
+            finding_id=finding.id,
+            kind=AiRunKind.FIX.value,
+            state=AiRunState.QUEUED.value,
+            target_paths=[entry.path],
+            change_set_id=change_set.id,
+            target_sha256=hashlib.sha256(current.encode("utf-8")).hexdigest(),
+            provider=setup.provider.value,
+            model=setup.model or "",
+            prompt_version=FIX_PROMPT_VERSION,
+            requested_by=principal.user_id,
+            limits=run_limits(setup, policy),
+        )
+        session.add(run)
+        await session.flush()
+        run.workflow_id = ai_run_workflow_id(run.id)
+        await session.refresh(run)
+        run_id = run.id
+        response = run_response(run, [])
+    try:
+        await container.workflows.start_ai_run(run_id)
+    except WorkflowUnavailableError as exc:
+        async with transaction(container.session_factory) as session:
+            stored = await session.get(AiRun, run_id, with_for_update=True)
+            if stored is not None and stored.state == AiRunState.QUEUED.value:
+                stored.state = AiRunState.FAILED.value
+                stored.error_code = "workflow_unavailable"
+                stored.error_message = "The AI service is not running; nothing was sent."
+        raise ApiError(503, "workflow_unavailable", f"{exc}; try again shortly") from exc
+    return response
+
+
+@router.get("/change-sets/{change_set_id}/ai-fixes", response_model=AiRunPage, responses=_ERRORS)
+async def list_ai_fixes(
+    change_set_id: uuid.UUID,
+    principal: CurrentPrincipal,
+    container: Container,
+    path: Annotated[str | None, Query(max_length=1024)] = None,
+    finding_id: uuid.UUID | None = None,
+) -> AiRunPage:
+    """AI fix suggestions requested in this workspace, newest first (optionally one file)."""
+    async with transaction(container.session_factory) as session:
+        change_set = await get_scoped(
+            session, principal, ChangeSet, change_set_id, not_found="workspace_not_found"
+        )
+        query = select(AiRun).where(AiRun.change_set_id == change_set.id)
+        if finding_id is not None:
+            query = query.where(AiRun.finding_id == finding_id)
+        runs = list(
+            (await session.execute(query.order_by(AiRun.created_at.desc()).limit(50))).scalars()
+        )
+    items = [run_response(run, []) for run in runs if path is None or run.target_paths == [path]]
+    return AiRunPage(items=items[:20])
+
+
+@router.post(
+    "/change-sets/{change_set_id}/ai-fixes/{run_id}/apply",
+    response_model=WorkspaceSaveResult,
+    responses=_ERRORS,
+)
+async def apply_ai_fix(
+    change_set_id: uuid.UUID,
+    run_id: uuid.UUID,
+    body: WorkspaceAiFixApply,
+    principal: CurrentPrincipal,
+    container: Container,
+) -> WorkspaceSaveResult:
+    """Apply one checked AI candidate to the workspace (recorded as an AI change)."""
+    try:
+        async with transaction(container.session_factory) as session:
+            change_set = await _editable(session, principal, change_set_id, body.version)
+            run = await session.get(AiRun, run_id, with_for_update=True)
+            if run is None or run.change_set_id != change_set.id or run.kind != AiRunKind.FIX:
+                raise ApiError(404, "ai_fix_not_found", "AI suggestion not found in this workspace")
+            if run.state not in _AI_DONE or not run.answer or not run.target_paths:
+                raise ApiError(409, "ai_fix_not_ready", "These suggestions are not ready")
+            stored = run.answer.get("candidates")
+            candidates: list[dict[str, Any]] = (
+                [c for c in stored if isinstance(c, dict)] if isinstance(stored, list) else []
+            )
+            chosen = next((c for c in candidates if c.get("index") == body.candidate), None)
+            if chosen is None:
+                raise ApiError(404, "candidate_not_found", "This suggestion does not exist")
+            if not chosen.get("applicable"):
+                raise ApiError(
+                    409,
+                    "candidate_not_applicable",
+                    str(chosen.get("reason") or "This suggestion did not pass the checks"),
+                )
+            if chosen.get("applied_at"):
+                raise ApiError(409, "candidate_applied", "This suggestion is already applied")
+            path = run.target_paths[0]
+            _, current, _, _ = await workspace.current_text(session, container, change_set, path)
+            if current is None:
+                raise ApiError(409, "file_deleted", "The file is deleted in this workspace")
+            edits = [Edit.from_json(e) for e in chosen.get("edits") or []]
+            exact = hashlib.sha256(current.encode("utf-8")).hexdigest() == run.target_sha256
+            try:
+                updated = apply_edits(current, edits) if exact else apply_on_current(current, edits)
+            except PatchError as exc:
+                raise ApiError(
+                    409,
+                    "ai_fix_stale",
+                    "The file changed since the suggestion was made; ask AI again",
+                ) from exc
+            blocking = set(edit_flags(path, current, updated, strict=True)) & _BLOCKING_FOR_RECIPES
+            if blocking:
+                raise ApiError(
+                    422,
+                    "fix_not_allowed",
+                    "The change policy refuses this change: " + ", ".join(sorted(blocking)),
+                )
+            flags = await workspace.save_text(
+                session,
+                container,
+                change_set,
+                path=path,
+                text=updated,
+                source=ChangeSource.AI,
+                actor=principal.user_id,
+                summary=f"AI suggestion: {chosen.get('title') or 'fix'}",
+                finding_ids=[run.finding_id] if run.finding_id else [],
+                strict=True,
+            )
+            run.answer = {
+                **run.answer,
+                "candidates": [
+                    {**c, "applied_at": datetime.now(UTC).isoformat()}
+                    if c.get("index") == body.candidate
+                    else c
+                    for c in candidates
+                ],
+            }
+            await session.flush()
+            await session.refresh(change_set)
+            return WorkspaceSaveResult(
+                change_set=await _response(session, container, change_set, True), flags=flags
+            )
+    except StaleDataError as exc:
+        raise ApiError(409, "version_conflict", "The workspace changed meanwhile; reload") from exc
 
 
 # -- checks ----------------------------------------------------------------------------------------

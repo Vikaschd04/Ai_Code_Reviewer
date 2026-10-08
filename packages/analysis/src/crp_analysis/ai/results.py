@@ -68,6 +68,39 @@ class SubmittedReview(BaseModel):
     not_reviewed: Annotated[str, Field(max_length=2000)] = ""
 
 
+class SubmittedEdit(BaseModel):
+    """Replace lines ``start_line``..``end_line`` (whose exact text is ``original``) of the file.
+
+    ``end_line = start_line - 1`` with no original lines inserts before ``start_line``.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    start_line: Annotated[int, Field(ge=1)]
+    end_line: Annotated[int, Field(ge=0)]
+    original: Annotated[list[Annotated[str, Field(max_length=2000)]], Field(max_length=60)]
+    replacement: Annotated[list[Annotated[str, Field(max_length=2000)]], Field(max_length=60)]
+
+
+class SubmittedFixCandidate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    title: Annotated[str, Field(min_length=3, max_length=200)]
+    explanation: Annotated[str, Field(min_length=1, max_length=2000)]
+    behaviour_note: Annotated[str, Field(max_length=1000)] = ""
+    confidence: AiConfidence
+    edits: Annotated[list[SubmittedEdit], Field(min_length=1, max_length=10)]
+
+
+class SubmittedFixes(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    summary: Annotated[str, Field(min_length=1, max_length=2000)]
+    candidates: Annotated[list[SubmittedFixCandidate], Field(max_length=5)] = []
+    abstained: bool = False
+    uncertainty: Annotated[str, Field(max_length=2000)] = ""
+
+
 _ANCHOR_SCHEMA = {
     "type": "object",
     "properties": {
@@ -159,5 +192,56 @@ SUBMIT_REVIEW = ToolSpec(
             "not_reviewed": {"type": "string", "description": "Scope you could not review"},
         },
         "required": ["summary", "findings", "reviewed_paths"],
+    },
+)
+
+_LINES = {"type": "array", "items": {"type": "string"}, "maxItems": 60}
+
+SUBMIT_FIXES = ToolSpec(
+    "submit_fixes",
+    "Submit candidate fixes for the finding in the file shown. Each edit replaces whole lines: "
+    "copy the original lines exactly as shown (without line numbers) and give the replacement "
+    "lines. Never hide the problem (no suppression comments, no disabled or skipped tests, no "
+    "rule configuration changes) and change only that file. Abstain when no safe fix exists.",
+    {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string"},
+            "candidates": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Short imperative title"},
+                        "explanation": {"type": "string", "description": "Why this fixes it"},
+                        "behaviour_note": {
+                            "type": "string",
+                            "description": "What could behave differently after the change",
+                        },
+                        "confidence": {"type": "string", "enum": [c.value for c in AiConfidence]},
+                        "edits": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "start_line": {"type": "integer", "minimum": 1},
+                                    "end_line": {"type": "integer", "minimum": 0},
+                                    "original": _LINES,
+                                    "replacement": _LINES,
+                                },
+                                "required": ["start_line", "end_line", "original", "replacement"],
+                            },
+                        },
+                    },
+                    "required": ["title", "explanation", "confidence", "edits"],
+                },
+            },
+            "abstained": {"type": "boolean"},
+            "uncertainty": {"type": "string"},
+        },
+        "required": ["summary", "candidates", "abstained"],
     },
 )

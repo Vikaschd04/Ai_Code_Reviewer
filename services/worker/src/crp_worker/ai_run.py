@@ -13,7 +13,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
+import tempfile
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -30,17 +34,29 @@ with workflow.unsafe.imports_passed_through():
     from crp_analysis.ai.config import AiSetup, resolve
     from crp_analysis.ai.orchestrator import CallRecord, InvestigationResult, investigate
     from crp_analysis.ai.prompts import (
-        PROMPT_VERSION,
         Task,
         files_task,
         finding_task,
+        fix_task,
         question_task,
     )
-    from crp_analysis.ai.results import Anchor
-    from crp_analysis.ai.snapshot import FileInfo, FindingSummary, Relation, SearchHit, SymbolInfo
+    from crp_analysis.ai.results import Anchor, SubmittedFixes
+    from crp_analysis.ai.snapshot import (
+        FileInfo,
+        FindingSummary,
+        OverlaySnapshot,
+        Relation,
+        SearchHit,
+        SnapshotReader,
+        SymbolInfo,
+    )
     from crp_analysis.ai.tools import ToolExecutor
     from crp_analysis.ai.verify import AnchorCheck, check_anchors, evidence_class
     from crp_analysis.catalog import lookup
+    from crp_analysis.engines.base import CancelToken, EngineAdapter
+    from crp_analysis.fixes.ai_candidates import CheckedCandidate, check_candidates, locate_line
+    from crp_analysis.fixes.validation import TargetFinding
+    from crp_analysis.manifest import blob_key
     from crp_core.artifacts import ArtifactKey, ArtifactStore
     from crp_core.config import Settings
     from crp_core.db.ai_usage import month_usage
@@ -66,6 +82,7 @@ with workflow.unsafe.imports_passed_through():
         AiRunPlan,
         AiRunResult,
     )
+    from crp_worker.fix_validation import platform_of
     from crp_worker.progress import heartbeat
 
 logger = logging.getLogger(__name__)
@@ -287,6 +304,28 @@ def _anchor_payload(anchor: Anchor, check: AnchorCheck) -> dict[str, Any]:
     }
 
 
+@dataclass(frozen=True, slots=True)
+class FixContext:
+    """What a fix run works on: the finding and the exact workspace text of its file."""
+
+    summary: FindingSummary
+    guidance: str
+    path: str
+    language: str | None
+    text: str
+    sha256: str
+    target: TargetFinding
+    platform: str | None
+
+
+def _guidance(finding: Finding) -> str:
+    stored = finding.guidance or {}
+    info = lookup(finding.engine, finding.rule_id, finding.engine_severity, finding.rule_url)
+    explanation = str(stored.get("explanation") or info.explanation)
+    recommendation = str(stored.get("recommendation") or info.recommendation)
+    return f"Why it matters: {explanation}\nHow to fix: {recommendation}"
+
+
 class AiRunActivities:
     def __init__(
         self,
@@ -295,11 +334,13 @@ class AiRunActivities:
         sessions: async_sessionmaker[AsyncSession],
         *,
         transport: httpx.AsyncBaseTransport | None = None,
+        adapters: dict[str, EngineAdapter] | None = None,
     ) -> None:
         self._settings = settings
         self._store = store
         self._sessions = sessions
         self._transport = transport  # tests only: an in-process provider double
+        self._adapters = adapters or {}  # trusted engines that check fix candidates
 
     def setup(self) -> AiSetup:
         return resolve(self._settings)
@@ -401,11 +442,7 @@ class AiRunActivities:
         if row is None:
             raise LookupError("the finding to review no longer exists")
         finding, path = row
-        stored = finding.guidance or {}
-        info = lookup(finding.engine, finding.rule_id, finding.engine_severity, finding.rule_url)
-        explanation = str(stored.get("explanation") or info.explanation)
-        recommendation = str(stored.get("recommendation") or info.recommendation)
-        guidance = f"Why it matters: {explanation}\nHow to fix: {recommendation}"
+        guidance = _guidance(finding)
         summary = FindingSummary(
             str(finding.id),
             finding.title,
@@ -419,6 +456,114 @@ class AiRunActivities:
             finding.message,
         )
         return await finding_task(reader, summary, guidance)
+
+    async def _read_text(self, sha256: str, *, strict: bool) -> str:
+        data = await asyncio.to_thread(
+            self._store.read_bytes,
+            ArtifactKey(blob_key(sha256)),
+            max_bytes=self._settings.intake_max_text_file_bytes,
+        )
+        return data.decode("utf-8") if strict else data.decode("utf-8", errors="replace")
+
+    async def _fix_context(self, run: AiRun) -> FixContext:
+        """The finding and the exact text the candidates are made for (frozen at the request)."""
+        missing = LookupError("the finding or workspace for this fix no longer exists")
+        if run.change_set_id is None or not run.target_paths or not run.target_sha256:
+            raise missing
+        async with transaction(self._sessions) as session:
+            row = (
+                await session.execute(
+                    select(Finding, FileEntry)
+                    .join(FileEntry, FileEntry.id == Finding.file_entry_id)
+                    .where(Finding.id == run.finding_id)
+                )
+            ).first()
+            if row is None:
+                raise missing
+            finding, entry = row
+            sap = (
+                await session.scalar(
+                    select(FileEntry.id)
+                    .where(
+                        FileEntry.snapshot_id == run.snapshot_id,
+                        FileEntry.path.like("%extensioninfo.xml"),
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
+        path = run.target_paths[0]
+        try:
+            text = await self._read_text(run.target_sha256, strict=True)
+        except UnicodeDecodeError as exc:
+            raise LookupError("the file is not UTF-8 text") from exc
+        base = await self._read_text(entry.blob_sha256, strict=False) if entry.blob_sha256 else None
+        line = locate_line(base, text, finding.start_line)
+        span = (finding.end_line or finding.start_line or 0) - (finding.start_line or 0)
+        summary = FindingSummary(
+            str(finding.id),
+            finding.title,
+            finding.severity,
+            finding.category,
+            finding.engine,
+            finding.rule_id,
+            path,
+            line,
+            (line + span) if line is not None else None,
+            finding.message,
+        )
+        return FixContext(
+            summary,
+            _guidance(finding),
+            path,
+            entry.language,
+            text,
+            run.target_sha256,
+            TargetFinding(finding.engine, finding.rule_id, line),
+            platform_of(path, entry.language, sap),
+        )
+
+    async def _check_candidates(
+        self, run_id: UUID, fix: FixContext, submitted: SubmittedFixes
+    ) -> list[CheckedCandidate]:
+        """Check every candidate like a P05 fix, on copies, with the trusted engines."""
+        cancel = CancelToken()
+        root = self._settings.work_root
+        root.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="crp-aifix-", dir=root))
+        job = asyncio.ensure_future(
+            asyncio.to_thread(
+                lambda: check_candidates(
+                    path=fix.path,
+                    language=fix.language,
+                    current=fix.text,
+                    submitted=submitted,
+                    finding=fix.target,
+                    adapters=self._adapters,
+                    work=work,
+                    cancel=cancel,
+                    platform=fix.platform,
+                    max_candidates=self._settings.ai_fix_max_candidates,
+                )
+            )
+        )
+        try:
+            while not job.done():
+                heartbeat("checking AI fix candidates")
+                async with transaction(self._sessions) as session:
+                    requested = await session.scalar(
+                        select(AiRun.cancel_requested_at).where(AiRun.id == run_id)
+                    )
+                if requested is not None:
+                    cancel.cancel()
+                await asyncio.wait({job}, timeout=1)
+        except asyncio.CancelledError:
+            cancel.cancel()
+            await asyncio.shield(asyncio.wait({job}, timeout=30))
+            raise
+        finally:
+            await asyncio.to_thread(shutil.rmtree, work, True)
+        return job.result()
 
     @activity.defn(name="ai.execute")
     async def execute(self, payload: AiRunInput) -> AiRunResult:
@@ -437,8 +582,22 @@ class AiRunActivities:
             run.scan_id,
             self._settings.intake_max_text_file_bytes,
         )
+        fix: FixContext | None = None
+        source: SnapshotReader = reader
         try:
-            task = await self._task(run, reader)
+            if AiRunKind(run.kind) is AiRunKind.FIX:
+                fix = await self._fix_context(run)
+                source = OverlaySnapshot(reader, fix.path, fix.text, fix.sha256)
+                task = await fix_task(
+                    source,
+                    fix.summary,
+                    fix.guidance,
+                    fix.text,
+                    fix.sha256,
+                    max_candidates=self._settings.ai_fix_max_candidates,
+                )
+            else:
+                task = await self._task(run, reader)
         except LookupError as exc:
             await self._fail(payload.run_id, AiRunState.FAILED, "target_missing", str(exc))
             return AiRunResult(run_id=payload.run_id, state=AiRunState.FAILED.value)
@@ -447,7 +606,7 @@ class AiRunActivities:
             if setup.monthly_token_limit
             else None
         )
-        tools = ToolExecutor(reader, max_excerpt_lines=policy.max_excerpt_lines if policy else 120)
+        tools = ToolExecutor(source, max_excerpt_lines=policy.max_excerpt_lines if policy else 120)
         client = setup.client(self._transport)
 
         async def cancelled() -> bool:
@@ -492,16 +651,24 @@ class AiRunActivities:
             on_call=record,
             keep_transcript=setup.keep_transcripts,
         )
-        state = await self._store_result(payload.run_id, run, reader, result, setup)
+        candidates: list[CheckedCandidate] = []
+        if fix is not None and result.fixes is not None and result.fixes.candidates:
+            candidates = await self._check_candidates(payload.run_id, fix, result.fixes)
+        state = await self._store_result(
+            payload.run_id, run, source, result, setup, fix=fix, candidates=candidates
+        )
         return AiRunResult(run_id=payload.run_id, state=state.value)
 
     async def _store_result(
         self,
         run_id: UUID,
         run: AiRun,
-        reader: DbSnapshotReader,
+        reader: SnapshotReader,
         result: InvestigationResult,
         setup: AiSetup,
+        *,
+        fix: FixContext | None = None,
+        candidates: list[CheckedCandidate] | None = None,
     ) -> AiRunState:
         answer: dict[str, Any] | None = None
         findings: list[AiFinding] = []
@@ -529,6 +696,20 @@ class AiRunActivities:
                 limitations.append(
                     "None of the answer's citations matched the code; treat it as unverified."
                 )
+        if result.fixes is not None and fix is not None:
+            answer = {
+                "type": "fix",
+                "text": result.fixes.summary,
+                "abstained": result.fixes.abstained or not candidates,
+                "uncertainty": result.fixes.uncertainty,
+                "path": fix.path,
+                "base_sha256": fix.sha256,
+                "candidates": [c.to_json() for c in candidates or []],
+            }
+            limitations.append(
+                "Each suggestion was checked like an automatic fix (exact lines, change policy, "
+                "parse and the original check) on a copy; it was not compiled, built or tested."
+            )
         if result.review is not None:
             review = result.review
             answer = {
@@ -607,7 +788,7 @@ class AiRunActivities:
         if setup.keep_transcripts and result.transcript:
             key = ArtifactKey(f"ai-runs/{run_id.hex}/transcript.json")
             data = json.dumps(
-                {"prompt_version": PROMPT_VERSION, "messages": result.transcript}
+                {"prompt_version": run.prompt_version, "messages": result.transcript}
             ).encode()
             try:
                 await asyncio.to_thread(self._store.put_bytes, key, data, overwrite=True)

@@ -23,6 +23,7 @@ from crp_analysis.fixes.export import change_set_export_schema
 from crp_analysis.manifest import blob_key
 from crp_core.artifacts import ArtifactKey, create_artifact_store
 from crp_core.db.models import (
+    AiRun,
     ChangeSetCheck,
     EngineRun,
     FileEntry,
@@ -845,3 +846,223 @@ async def test_git_am_commit_and_workspace_states(api_factory: ApiFactory, tmp_p
     ws = (await api.client.get(f"/v1/change-sets/{ws['id']}", headers=api.auth)).json()
     ws = (await _save(api, ws, WIN, "const a = 3;\n"))["change_set"]
     assert ws["state"] == "draft"
+
+
+AI_KEY = "sk-ant-test-0123456789abcdef0123456789"
+
+
+async def _finish_run(api: ApiHarness, run_id: str, candidates: list[dict[str, Any]]) -> None:
+    """Store a finished fix run as the worker would (the worker itself is tested separately)."""
+    engine = create_engine_from_settings(api.settings)
+    try:
+        async with transaction(create_session_factory(engine)) as session:
+            run = await session.get(AiRun, uuid.UUID(run_id))
+            assert run is not None and run.target_paths and run.target_sha256
+            run.state = "SUCCEEDED"
+            run.answer = {
+                "type": "fix",
+                "text": "test",
+                "abstained": False,
+                "uncertainty": "",
+                "path": run.target_paths[0],
+                "base_sha256": run.target_sha256,
+                "candidates": candidates,
+            }
+    finally:
+        await engine.dispose()
+
+
+def _ai_candidate(index: int, edits: list[dict[str, Any]], *, applicable: bool) -> dict[str, Any]:
+    return {
+        "index": index,
+        "title": f"Candidate {index}",
+        "explanation": "x",
+        "behaviour_note": "",
+        "confidence": "low",
+        "edits": edits,
+        "patch": "",
+        "result_sha256": None,
+        "patch_sha256": None,
+        "changed_lines": 1,
+        "problems": [],
+        "steps": [],
+        "passed": applicable,
+        "summary": "",
+        "applicable": applicable,
+        "reason": None if applicable else "Checks no longer report the problem: still reported",
+        "label": "AI suggestion",
+        "applied_at": None,
+    }
+
+
+async def test_ai_fix_requests_are_gated_and_applied_only_when_checked(
+    api_factory: ApiFactory,
+) -> None:
+    gateway = RecordingGateway()
+    api = await api_factory(
+        gateway=gateway, ai_provider="anthropic", ai_api_key=AI_KEY, demo_enabled=True
+    )
+    project = await _project(api)
+    upload = await _upload(api, project, {**FILES, LATIN1: LATIN1_BYTES})
+    paid, opened, gone, legacy = await _review(
+        api,
+        upload,
+        [
+            (JAVA, "pmd", "UseEqualsToCompareStrings", 3),
+            (JAVA, "pmd", "UseEqualsToCompareStrings", 6),
+            (GONE, "eslint", "no-unused-vars", 1),
+            (LATIN1, "pmd", "SystemPrintln", 1),
+        ],
+    )
+    ws = await _workspace(api, project)
+    assert ws["ai"]["available"] is False and "switched off" in ws["ai"]["reason"]
+    path = f"/v1/change-sets/{ws['id']}/ai-fixes"
+    off = await api.client.post(path, json={"finding_id": paid}, headers=api.auth)
+    assert off.status_code == 409 and off.json()["code"] == "ai_policy_disabled"
+    await api.client.put(
+        f"/v1/projects/{project}/ai-policy", json={"enabled": True}, headers=api.auth
+    )
+    ws = (await api.client.get(f"/v1/change-sets/{ws['id']}", headers=api.auth)).json()
+    assert ws["ai"] == {"available": True, "reason": None}
+
+    stranger = await api.client.post(path, json={"finding_id": str(uuid.uuid4())}, headers=api.auth)
+    assert stranger.status_code == 404
+    latin = await api.client.post(path, json={"finding_id": legacy}, headers=api.auth)
+    assert latin.status_code == 409 and latin.json()["code"] == "not_editable"
+    ws = (
+        await api.client.post(
+            f"/v1/change-sets/{ws['id']}/file/delete",
+            json={"version": ws["version"], "path": GONE},
+            headers=api.auth,
+        )
+    ).json()
+    deleted = await api.client.post(path, json={"finding_id": gone}, headers=api.auth)
+    assert deleted.status_code == 409 and deleted.json()["code"] == "file_deleted"
+
+    first = await api.client.post(path, json={"finding_id": paid}, headers=api.auth)
+    assert first.status_code == 202, first.text
+    run = first.json()
+    assert run["kind"] == "fix" and run["state"] == "QUEUED" and run["fix"] is None
+    assert gateway.ai_runs == [uuid.UUID(run["id"])]
+    twice = await api.client.post(path, json={"finding_id": paid}, headers=api.auth)
+    assert twice.status_code == 409 and twice.json()["code"] == "ai_fix_running"
+    not_ready = await api.client.post(
+        f"{path}/{run['id']}/apply",
+        json={"version": ws["version"], "candidate": 0},
+        headers=api.auth,
+    )
+    assert not_ready.status_code == 409 and not_ready.json()["code"] == "ai_fix_not_ready"
+
+    line = '        return status == "PAID";'
+    fixed = '        return "PAID".equals(status);'
+    await _finish_run(
+        api,
+        run["id"],
+        [
+            _ai_candidate(
+                0,
+                [
+                    {
+                        "path": JAVA,
+                        "start_line": 3,
+                        "end_line": 3,
+                        "original": [line],
+                        "replacement": [fixed],
+                    }
+                ],
+                applicable=True,
+            ),
+            _ai_candidate(
+                1,
+                [
+                    {
+                        "path": JAVA,
+                        "start_line": 3,
+                        "end_line": 3,
+                        "original": [line],
+                        "replacement": [line + " // NOPMD"],
+                    }
+                ],
+                applicable=False,
+            ),
+        ],
+    )
+    shown = (await api.client.get(f"/v1/ai-runs/{run['id']}", headers=api.auth)).json()
+    assert [c["applicable"] for c in shown["fix"]["candidates"]] == [True, False]
+    assert "edits" not in shown["fix"]["candidates"][0]  # internal detail, not shown
+    refused = await api.client.post(
+        f"{path}/{run['id']}/apply",
+        json={"version": ws["version"], "candidate": 1},
+        headers=api.auth,
+    )
+    assert refused.status_code == 409 and refused.json()["code"] == "candidate_not_applicable"
+    # The file changed elsewhere since the request: the suggestion still applies where its
+    # lines are now.
+    ws = (await _save(api, ws, JAVA, "// header\n" + JAVA_TEXT))["change_set"]
+    applied = await api.client.post(
+        f"{path}/{run['id']}/apply",
+        json={"version": ws["version"], "candidate": 0},
+        headers=api.auth,
+    )
+    assert applied.status_code == 200, applied.text
+    ws = applied.json()["change_set"]
+    java = next(f for f in ws["files"] if f["path"] == JAVA)
+    assert java["sources"] == ["ai", "manual"]
+    text = (
+        await api.client.get(
+            f"/v1/change-sets/{ws['id']}/file", params={"path": JAVA}, headers=api.auth
+        )
+    ).json()["content"]
+    assert text.startswith("// header\n") and fixed in text
+
+    # A suggestion whose lines are gone is stale, never merged.
+    second = (await api.client.post(path, json={"finding_id": opened}, headers=api.auth)).json()
+    await _finish_run(
+        api,
+        second["id"],
+        [
+            _ai_candidate(
+                0,
+                [
+                    {
+                        "path": JAVA,
+                        "start_line": 7,
+                        "end_line": 7,
+                        "original": ['        return status == "OPEN";'],
+                        "replacement": ['        return "OPEN".equals(status);'],
+                    }
+                ],
+                applicable=True,
+            )
+        ],
+    )
+    ws = (await _save(api, ws, JAVA, "class Order {}\n"))["change_set"]
+    stale = await api.client.post(
+        f"{path}/{second['id']}/apply",
+        json={"version": ws["version"], "candidate": 0},
+        headers=api.auth,
+    )
+    assert stale.status_code == 409 and stale.json()["code"] == "ai_fix_stale"
+    listed = (await api.client.get(path, params={"path": JAVA}, headers=api.auth)).json()
+    assert [r["id"] for r in listed["items"]] == [second["id"], run["id"]]
+
+    # Other workspaces see nothing.
+    await api.client.post("/v1/auth/demo-session", headers=ORIGIN)
+    for method, url in (("GET", path), ("POST", f"{path}/{run['id']}/apply")):
+        hidden = await api.client.request(
+            method,
+            url,
+            headers=ORIGIN,
+            json={"version": 1, "candidate": 0} if method == "POST" else None,
+        )
+        assert hidden.status_code == 404, (method, url, hidden.text)
+
+
+async def test_ai_fixes_without_a_provider_say_why(api: ApiHarness) -> None:
+    project = await _project(api)
+    await _upload(api, project, FILES)
+    await api.client.put(
+        f"/v1/projects/{project}/ai-policy", json={"enabled": True}, headers=api.auth
+    )
+    ws = await _workspace(api, project)
+    assert ws["ai"]["available"] is False and ws["ai"]["reason"]

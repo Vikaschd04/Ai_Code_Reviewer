@@ -266,6 +266,7 @@ class AiRunKind(StrEnum):
     QUESTION = "question"  # a repository question answered with citations
     FINDING_REVIEW = "finding_review"  # explain and check one deterministic finding
     FILE_REVIEW = "file_review"  # review selected files for additional problems
+    FIX = "fix"  # candidate fixes for one finding in a fix workspace (P08)
 
 
 class AiRunState(StrEnum):

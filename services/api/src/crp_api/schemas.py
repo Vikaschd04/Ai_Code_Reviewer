@@ -850,6 +850,40 @@ class AiStepResponse(ApiModel):
     at: str
 
 
+class AiFixStepResponse(ApiModel):
+    id: str
+    label: str
+    state: Literal["passed", "failed", "not_run"]
+    detail: str
+
+
+class AiFixCandidateResponse(ApiModel):
+    index: int
+    title: str
+    explanation: str
+    behaviour_note: str
+    confidence: str
+    label: str = Field(description="Always shown with the candidate (AI provenance, not verified)")
+    patch: str | None = Field(description="Unified diff against the file as it was requested")
+    changed_lines: int
+    problems: list[str]
+    steps: list[AiFixStepResponse] = Field(description="The P05 checks run on a copy")
+    passed: bool
+    summary: str
+    applicable: bool = Field(description="Exact lines, policy, parse and original check passed")
+    reason: str | None = Field(description="Why it cannot be applied (plain language)")
+    applied_at: datetime | None
+
+
+class AiFixResult(ApiModel):
+    text: str
+    abstained: bool
+    uncertainty: str
+    path: str
+    base_sha256: str = Field(description="The file text the candidates were made for")
+    candidates: list[AiFixCandidateResponse]
+
+
 class AiRunResponse(ApiModel):
     id: UUID
     project_id: UUID
@@ -871,6 +905,8 @@ class AiRunResponse(ApiModel):
     error_message: str | None
     usage: AiUsageResponse | None
     answer: AiAnswerResponse | None
+    change_set_id: UUID | None = Field(default=None, description="Fix runs: their workspace")
+    fix: AiFixResult | None = Field(default=None, description="Fix runs: checked candidates")
     steps: list[AiStepResponse]
     limitations: list[str]
     findings: list[AiFindingResponse]
@@ -1210,11 +1246,26 @@ class ChangeSetResponse(ApiModel):
     content_sha256: str
     version: int
     can_edit: bool
+    ai: WorkspaceAiStatus
     files: list[ChangeSetFileSummary]
     latest_check: ChangeSetCheckResponse | None
     events: list[ChangeSetEventResponse]
     created_at: datetime
     updated_at: datetime
+
+
+class WorkspaceAiStatus(ApiModel):
+    available: bool = Field(description="AI fix suggestions can be requested in this workspace")
+    reason: str | None = Field(description="Why not (plain language)")
+
+
+class WorkspaceAiFixRequest(ApiModel):
+    finding_id: UUID
+
+
+class WorkspaceAiFixApply(ApiModel):
+    version: int = Field(ge=1)
+    candidate: int = Field(ge=0, le=4)
 
 
 class ChangeSetListItem(ApiModel):

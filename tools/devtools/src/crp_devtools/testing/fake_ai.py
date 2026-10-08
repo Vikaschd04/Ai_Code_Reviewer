@@ -137,13 +137,100 @@ def _file_review(first: str, results: list[str]) -> dict[str, Any]:
     )
 
 
+_RAW_LINE = re.compile(r"^\s*(?P<line>\d+) \| (?P<text>.*)$")
+_JAVA_EQ = re.compile(r'(?P<left>[A-Za-z_][\w.]*(?:\(\))?)\s*==\s*(?P<lit>"[^"\n]*")')
+_NAN = re.compile(r"(?P<left>[A-Za-z_][\w.\[\]]*)\s*!?===?\s*NaN")
+_LOOSE = re.compile(r"(?<![=!<>])([=!])=(?!=)")
+
+
+def _fixed(text: str, path: str) -> tuple[str, str] | None:
+    """(title, replacement) for a few well-known single-line problems; None otherwise."""
+    if text.strip() == "debugger;":
+        return "Remove the debugger statement", ""
+    if (match := _NAN.search(text)) is not None:
+        negated = "!==" in match.group(0) or "!=" in match.group(0)
+        call = f"{'!' if negated else ''}Number.isNaN({match['left']})"
+        return "Use Number.isNaN", text[: match.start()] + call + text[match.end() :]
+    java = path.endswith((".java", ".cls", ".trigger"))
+    if java and (match := _JAVA_EQ.search(text)) is not None:
+        call = f"{match['lit']}.equals({match['left']})"
+        return "Compare the text with equals()", text[: match.start()] + call + text[match.end() :]
+    if not java and _LOOSE.search(text):
+        return "Use strict equality", _LOOSE.sub(lambda m: f"{m.group(1)}==", text)
+    if text.lstrip().startswith("var "):
+        return "Declare the variable with let", text.replace("var ", "let ", 1)
+    return None
+
+
+def _fix(first: str) -> dict[str, Any]:
+    location = _LOCATION.search(first)
+    lines = {int(m["line"]): m["text"] for m in map(_RAW_LINE.match, first.splitlines()) if m}
+    wanted = int(location["line"]) if location else 0
+    text = lines.get(wanted)
+    path = location["path"] if location else ""
+    fixed = _fixed(text, path) if text is not None else None
+    if text is None or fixed is None:
+        return _tool_call(
+            "submit_fixes",
+            {
+                "summary": f"{LABEL} The test provider knows no fix for this line.",
+                "candidates": [],
+                "abstained": True,
+                "uncertainty": "The test provider only fixes a few well-known patterns.",
+            },
+        )
+    title, replacement = fixed
+    indent = text[: len(text) - len(text.lstrip())]
+    marker = (
+        f"{indent}// NOPMD" if path.endswith(".java") else f"{indent}// eslint-disable-next-line"
+    )
+    return _tool_call(
+        "submit_fixes",
+        {
+            "summary": f"{LABEL} Synthetic fix candidates used to test the pipeline.",
+            "candidates": [
+                {
+                    "title": f"{LABEL} {title}",
+                    "explanation": f"{LABEL} A fixed rewrite of the flagged line.",
+                    "behaviour_note": "Synthetic: check the change before relying on it.",
+                    "confidence": "low",
+                    "edits": [
+                        {
+                            "start_line": wanted,
+                            "end_line": wanted,
+                            "original": [text],
+                            "replacement": [replacement] if replacement else [],
+                        }
+                    ],
+                },
+                {
+                    "title": f"{LABEL} Hide the warning (the policy must refuse this)",
+                    "explanation": f"{LABEL} Deliberately hides the problem to test the policy.",
+                    "confidence": "low",
+                    "edits": [
+                        {
+                            "start_line": wanted,
+                            "end_line": wanted - 1,
+                            "original": [],
+                            "replacement": [marker],
+                        }
+                    ],
+                },
+            ],
+            "abstained": False,
+        },
+    )
+
+
 def respond(body: dict[str, Any]) -> dict[str, Any]:
     """The next chat completion for a request (pure function; the tests drive it via HTTP)."""
     messages = body.get("messages") or []
     tools = {t["function"]["name"] for t in body.get("tools") or []}
     first = _first_user_text(messages)
     results = [str(m.get("content") or "") for m in messages if m.get("role") == "tool"]
-    if "submit_answer" in tools:
+    if "submit_fixes" in tools:
+        call = _fix(first)
+    elif "submit_answer" in tools:
         call = _question(first, results)
     elif "Review this finding" in first:
         call = _finding_review(first)

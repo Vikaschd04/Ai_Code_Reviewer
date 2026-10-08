@@ -205,6 +205,8 @@ class Settings(BaseSettings):
 
     # Fix workspaces (P08): files one workspace may change.
     change_set_max_files: Annotated[int, Field(ge=1, le=10_000)] = 500
+    # AI fix suggestions per request in a fix workspace (P08); each is checked like a P05 fix.
+    ai_fix_max_candidates: Annotated[int, Field(ge=1, le=5)] = 3
 
     log_level: str = "INFO"
     log_format: str = "json"

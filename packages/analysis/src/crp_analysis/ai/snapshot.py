@@ -158,3 +158,43 @@ class InMemorySnapshot:
 
     async def findings(self, path: str | None, *, limit: int) -> list[FindingSummary]:
         return [f for f in self.finding_list if path is None or f.path == path][:limit]
+
+
+class OverlaySnapshot:
+    """A snapshot reader where one file reads as its current workspace text (fix runs, P08).
+
+    Every other file, search hit, symbol and finding still comes from the upload.
+    """
+
+    def __init__(self, base: SnapshotReader, path: str, text: str, sha256: str) -> None:
+        self._base = base
+        self._path = path
+        self._lines = text.splitlines()
+        self._sha256 = sha256
+        self.snapshot_id = base.snapshot_id
+
+    async def files(self) -> dict[str, FileInfo]:
+        files = dict(await self._base.files())
+        known = files.get(self._path)
+        files[self._path] = FileInfo(
+            self._path,
+            self._sha256,
+            known.language if known else None,
+            len(self._lines),
+        )
+        return files
+
+    async def lines(self, path: str) -> list[str]:
+        return list(self._lines) if path == self._path else await self._base.lines(path)
+
+    async def search(self, query: str, *, path_prefix: str | None, limit: int) -> list[SearchHit]:
+        return await self._base.search(query, path_prefix=path_prefix, limit=limit)
+
+    async def symbols(self, path: str, *, limit: int) -> list[SymbolInfo]:
+        return await self._base.symbols(path, limit=limit)
+
+    async def neighbors(self, path: str, *, limit: int) -> list[Relation]:
+        return await self._base.neighbors(path, limit=limit)
+
+    async def findings(self, path: str | None, *, limit: int) -> list[FindingSummary]:
+        return await self._base.findings(path, limit=limit)

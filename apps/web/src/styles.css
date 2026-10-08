@@ -3045,3 +3045,11 @@ button.tile[aria-pressed="true"] {
 .input-narrow {
   width: calc(var(--space-12) * 2);
 }
+
+/* AI fix suggestions in the workspace (P08): each candidate in its own frame. */
+.ai-candidate {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}

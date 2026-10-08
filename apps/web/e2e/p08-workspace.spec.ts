@@ -22,6 +22,16 @@ async function showCode(page: Page) {
   );
 }
 
+/** Replace the editor's selection the way a paste does (multi-line text arrives in one piece). */
+async function paste(page: Page, text: string) {
+  await page.evaluate(`(() => {
+    const target = document.querySelector('[data-testid="code-editor"] .cm-content');
+    const data = new DataTransfer();
+    data.setData("text/plain", ${JSON.stringify(text)});
+    target.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  })()`);
+}
+
 function noOverflow(page: Page): Promise<unknown> {
   return page.evaluate(
     "document.documentElement.scrollWidth - document.documentElement.clientWidth",
@@ -59,14 +69,41 @@ test("fix in bulk and by hand, re-check, compare and download", async ({ page })
     /Fixed \d+ issues? automatically/,
   );
 
+  // AI suggestions (labelled test provider): off until a project admin switches AI on; each
+  // suggestion is checked like an automatic fix and only checked ones can be applied.
+  await page.goto(`/#/projects/${project}?tab=ai`);
+  await page.getByLabel(/I am allowed to share this project's code/).check();
+  await page.getByRole("button", { name: "Switch on AI review" }).click();
+  await expect(page.getByTestId("ai-policy")).toHaveAttribute("data-enabled", "true");
+  await page.goto(`/#/workspaces/${workspace}?tab=edit&path=web/src/app.js&line=10`);
+  await page
+    .getByTestId("workspace-file-issues")
+    .locator("li", { hasText: "debugger" })
+    .getByTestId("workspace-ask-ai")
+    .click();
+  const candidates = page.getByTestId("workspace-ai").getByTestId("ai-candidate");
+  await expect(candidates).toHaveCount(2, { timeout: 120_000 });
+  await expect(candidates.nth(0)).toHaveAttribute("data-applicable", "true");
+  await expect(candidates.nth(1)).toHaveAttribute("data-applicable", "false");
+  await expect(candidates.nth(1)).toContainText("suppression");
+  await page.getByTestId("workspace-ai").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/screens/p08-ai.png", fullPage: true });
+  await candidates.nth(0).getByTestId("ai-candidate-apply").click();
+  await expect(page.getByTestId("workspace-ai")).toContainText("Applied");
+  await expect(page.getByTestId("code-editor").locator(".cm-content")).not.toContainText(
+    "debugger",
+  );
+
   // Edit a file by hand: the line with the issue is selected; the hiding marker is flagged.
   await page.goto(`/#/workspaces/${workspace}?tab=edit&path=web/src/cart.ts&line=11`);
   const editor = page.getByTestId("code-editor").locator(".cm-content");
   await expect(editor).toContainText("item.price === NaN");
   await editor.focus();
-  await page.keyboard.insertText(
+  await paste(
+    page,
     "    // eslint-disable-next-line no-dupe-keys\n    if (Number.isNaN(item.price)) {",
   );
+  await expect(editor).toContainText("Number.isNaN(item.price)");
   await page.getByTestId("workspace-save").click();
   await expect(page.getByTestId("workspace-editor")).toContainText("hides problems");
   await expect(page.getByTestId("workspace-file-issues")).toBeVisible();

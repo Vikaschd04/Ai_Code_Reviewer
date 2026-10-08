@@ -26,8 +26,8 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P08-01 | Change-set core and exports (patch, changed-files ZIP, full ZIP, summary) | Patch applies only to the exact base; changed-files ZIP exact; upload unchanged — **DONE** (P08_REPORT, ADR 0016; plus a `git am` commit) |
 | P08-02 | Editor and simplified compare (per file, per change set, two uploads/commits) | Policy flags on save; inert rendering; light/dark/mobile — **DONE** (CodeMirror 6; ignore-whitespace is P08-F2) |
 | P08-03 | Bulk recipe fixes, conflicts and change-set re-check | Fixed / still present / new reported correctly — **DONE** (suppressed never fixed; Temporal and lite) |
-| P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest — **NEXT** (offline with the labelled fake model; live quality needs K-P03-01) |
-| P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules |
+| P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest — **DONE offline** (labelled test model; live quality needs K-P03-01) |
+| P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules — **NEXT** |
 | P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded |
 | P09-02 | Tier 1 safe compile in a sandbox (Java `-proc:none`, npm `--ignore-scripts`) | Malicious processor/script not executed; egress blocked |
 | P09-03 | Tier 2 builds/tests in microVMs, bring-your-own CI, Salesforce/SAP profiles | Containment tests; results bound to hashes |
@@ -98,3 +98,4 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P08-F3 | Edit non-UTF-8 text files (declared encoding, e.g. Latin-1 Java) without changing other bytes | Round-trip byte equality for untouched lines |
 | P08-F4 | Content-addressed blob garbage collection for workspace revisions (with P01-F2) | Unreferenced revisions removed; referenced ones kept |
 | P08-F5 | Workspace archive and multi-user presence (who is editing) | Archived workspaces read-only; edits by two users conflict visibly |
+| P08-F6 | Share the original-copy engine runs between AI candidates (the ladder runs each engine on the unchanged file once per candidate today) | Same results; fewer engine runs per request |

@@ -75,6 +75,7 @@ def build_ai_export(
         },
         "usage": run["usage"],
         "answer": run["answer"],
+        "fix": run.get("fix"),
         "findings": run["findings"],
         "limitations": run["limitations"],
         "notice": NOTICE,

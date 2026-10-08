@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — P08 AI fix suggestions (9 October 2026)
+
+- **Ask AI** on an issue in a fix workspace (ADR 0016). It works only when a project admin switched AI on and the server has a provider with budget left. The AI sees the file as it is in the workspace and suggests up to three fixes.
+- Every suggestion is checked before anyone can use it, exactly like an automatic fix: its lines must match the file, the change policy must allow it (no hiding markers, no skipped or weakened tests, no configuration changes, one file), and on a copy the file must still parse, the check must stop reporting the problem and nothing new may appear. The suggestion shows its diff, the checks, what to watch and the label "AI suggestion: review it before applying. Not compiled, built or tested."
+- Only checked suggestions can be applied, once, by a person; they are recorded as AI changes in the workspace history and downloads. A suggestion whose lines changed since is stale and never merged. Runs stop honestly at their budget; usage is accounted even if the workspace is deleted.
+- API: `/v1/change-sets/{id}/ai-fixes` (request, list) and `/ai-fixes/{run}/apply`; AI runs of kind `fix`; workspace `ai` status. Migration `0010`; setting `CRP_AI_FIX_MAX_CANDIDATES` (3). The labelled test model now proposes fixes (and a deliberately hiding one) so tests show both outcomes.
+
 ## Unreleased — P08 fix workspaces (8 October 2026)
 
 - Fix workspaces (ADR 0016): fix many issues on top of one upload — the upload is never changed. Each change keeps where it came from (by hand, automatic fix, undone, downloaded), and one content digest binds checks and downloads to exactly these changes.

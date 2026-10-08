@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   describeError,
+  type AiFixCandidate,
+  type AiRun,
   type Workspace,
   type WorkspaceCheck,
   type WorkspaceFileContent,
@@ -14,13 +16,17 @@ import {
   type WorkspaceIssuePage,
 } from "../api/client";
 import {
+  applyAiFix,
   applyWorkspaceFixes,
+  cancelAiRun,
   cancelWorkspaceCheck,
   deleteWorkspaceFile,
   fetchWorkspace,
   fetchWorkspaceFile,
+  listAiFixes,
   listFiles,
   listWorkspaceIssues,
+  requestAiFix,
   revertWorkspaceFile,
   saveWorkspaceFile,
   startWorkspaceCheck,
@@ -30,6 +36,7 @@ import {
 import { CodeEditor, CompareView } from "../components/CodeEditor";
 import { Alert, Disclosure, Empty, Loading, PageHeader, Tabs } from "../components/Common";
 import { FileLocation } from "../components/FileLocation";
+import { DiffView } from "../components/Fixes";
 import { Icon } from "../components/Icon";
 import { SeverityChip } from "../components/Severity";
 import { StatusBadge } from "../components/Status";
@@ -538,6 +545,27 @@ function IssueQueue({ workspace, onChange }: { workspace: Workspace; onChange: S
                           Fix all like this
                         </button>
                       ) : null}
+                      {workspace.ai.available && workspace.can_edit && item.line ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={busy}
+                          onClick={() => {
+                            setError(null);
+                            requestAiFix(workspace.id, item.finding_id).then(
+                              () => {
+                                navigate(workspaceHref(workspace.id, "edit", item.path, item.line));
+                              },
+                              (caught: unknown) => {
+                                setError(describeError(caught));
+                              },
+                            );
+                          }}
+                          data-testid="workspace-row-ask-ai"
+                        >
+                          <Icon name="sparkles" size={14} /> Ask AI
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -885,22 +913,19 @@ function FilePicker({ workspace }: { workspace: Workspace }) {
 
 function FileIssues({
   workspace,
-  path,
+  items,
   onLine,
+  onAsk,
+  asking,
 }: {
   workspace: Workspace;
-  path: string;
+  items: WorkspaceIssue[];
   onLine: (line: number) => void;
+  onAsk: (issue: WorkspaceIssue) => void;
+  asking: string | null;
 }) {
-  const issues = useAsync(
-    (signal) =>
-      workspace.base_scan_id
-        ? listWorkspaceIssues(workspace.id, { q: path }, signal)
-        : Promise.resolve(null),
-    [workspace.id, path, workspace.latest_check?.id],
-  );
-  const mine = (issues.data?.items ?? []).filter((item) => item.path === path);
-  if (mine.length === 0) return null;
+  if (items.length === 0) return null;
+  const ai = workspace.ai.available && workspace.can_edit;
   return (
     <section
       className="card stack"
@@ -911,7 +936,7 @@ function FileIssues({
         <Icon name="bug" size={16} /> Issues in this file
       </h2>
       <ul className="stack stack-sm plain-list">
-        {mine.map((item) => (
+        {items.map((item) => (
           <li key={item.finding_id} className="stack stack-xs">
             <button
               type="button"
@@ -926,10 +951,249 @@ function FileIssues({
             <span className="row">
               <SeverityChip severity={item.severity} />
               <StatusBadge state={item.outcome ?? "unchecked"} />
+              {ai && item.line ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={asking !== null}
+                  onClick={() => {
+                    onAsk(item);
+                  }}
+                  data-testid="workspace-ask-ai"
+                >
+                  <Icon name="sparkles" size={14} />{" "}
+                  {asking === item.finding_id ? "Asking…" : "Ask AI"}
+                </button>
+              ) : null}
             </span>
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+const CHECK_STEP: Record<string, { tone: string; icon: "check" | "x" | "info"; label: string }> = {
+  passed: { tone: "ok", icon: "check", label: "Passed" },
+  failed: { tone: "bad", icon: "x", label: "Failed" },
+  not_run: { tone: "neutral", icon: "info", label: "Not run" },
+};
+
+const AI_ACTIVE = new Set(["QUEUED", "RUNNING"]);
+
+function AiCandidateCard({
+  workspace,
+  run,
+  candidate,
+  dirty,
+  onApplied,
+}: {
+  workspace: Workspace;
+  run: AiRun;
+  candidate: AiFixCandidate;
+  dirty: boolean;
+  onApplied: (next: Workspace) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const path = run.target_paths?.[0] ?? "";
+  return (
+    <li
+      className="stack stack-sm ai-candidate"
+      data-testid="ai-candidate"
+      data-applicable={String(candidate.applicable)}
+    >
+      <div className="row">
+        <span className="badge badge-live">
+          <Icon name="sparkles" size={13} /> AI suggestion
+        </span>
+        <strong className="small">{candidate.title}</strong>
+        <span className="small muted">{candidate.confidence} confidence</span>
+      </div>
+      <p className="small secondary">{candidate.explanation}</p>
+      {candidate.behaviour_note ? (
+        <p className="small">
+          <strong>What to watch:</strong> {candidate.behaviour_note}
+        </p>
+      ) : null}
+      {candidate.patch ? <DiffView patch={candidate.patch} path={path} /> : null}
+      {candidate.steps.length > 0 ? (
+        <ul className="stack stack-xs plain-list" aria-label="Checks of this suggestion">
+          {candidate.steps.map((step) => {
+            const known = CHECK_STEP[step.state] ?? CHECK_STEP.not_run;
+            if (!known) return null;
+            return (
+              <li
+                key={step.id}
+                className="fix-step small"
+                data-step={step.id}
+                data-state={step.state}
+              >
+                <span className={`status-icon status-${known.tone}`}>
+                  <Icon name={known.icon} size={13} />
+                  <span className="visually-hidden">{known.label}</span>
+                </span>
+                <span>{step.label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {candidate.applied_at ? (
+        <StatusBadge state="SUCCEEDED" label="Applied" />
+      ) : candidate.applicable ? (
+        workspace.can_edit ? (
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy || dirty}
+              onClick={() => {
+                setBusy(true);
+                setError(null);
+                applyAiFix(workspace, run.id, candidate.index).then(
+                  (result) => {
+                    onApplied(result.change_set);
+                  },
+                  (caught: unknown) => {
+                    setError(describeError(caught));
+                    setBusy(false);
+                  },
+                );
+              }}
+              data-testid="ai-candidate-apply"
+            >
+              {busy ? "Applying…" : "Apply to this file"}
+            </button>
+            {dirty ? <span className="small muted">Save or discard your edits first.</span> : null}
+          </div>
+        ) : null
+      ) : (
+        <Alert tone="warn">Not applied: {candidate.reason ?? candidate.summary}</Alert>
+      )}
+      <p className="hint">{candidate.label}</p>
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </li>
+  );
+}
+
+function AiSuggestions({
+  workspace,
+  path,
+  issues,
+  generation,
+  dirty,
+  onApplied,
+}: {
+  workspace: Workspace;
+  path: string;
+  issues: WorkspaceIssue[];
+  generation: number;
+  dirty: boolean;
+  onApplied: (next: Workspace) => void;
+}) {
+  const [runs, setRuns] = useState<AiRun[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const active = (runs ?? []).some((run) => AI_ACTIVE.has(run.state));
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer = 0;
+    const load = () => {
+      listAiFixes(workspace.id, path, controller.signal).then(
+        (next) => {
+          setRuns(next);
+          if (next.some((run) => AI_ACTIVE.has(run.state))) timer = window.setTimeout(load, 2000);
+        },
+        (caught: unknown) => {
+          if (!controller.signal.aborted) setError(describeError(caught));
+        },
+      );
+    };
+    load();
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [workspace.id, path, generation, active]);
+
+  if (error) return <Alert tone="bad">{error}</Alert>;
+  if (!runs || runs.length === 0) {
+    return workspace.ai.available || issues.length === 0 ? null : (
+      <p className="small muted" data-testid="workspace-ai-off">
+        AI suggestions: {workspace.ai.reason}
+      </p>
+    );
+  }
+  const titles = new Map(issues.map((issue) => [issue.finding_id, issue.title]));
+  return (
+    <section className="card stack" aria-labelledby="ws-ai-title" data-testid="workspace-ai">
+      <h2 id="ws-ai-title" className="card-title">
+        <Icon name="sparkles" size={16} /> AI suggestions
+      </h2>
+      <p className="card-sub">
+        Each suggestion was checked like an automatic fix: it must match this file, pass the change
+        policy, still parse and make the check stop reporting the problem. Review it before
+        applying.
+      </p>
+      {runs.slice(0, 5).map((run) => (
+        <div
+          key={run.id}
+          className="stack stack-sm"
+          data-testid="ai-fix-run"
+          data-state={run.state}
+        >
+          <div className="row">
+            <strong className="small">
+              For: {(run.finding_id && titles.get(run.finding_id)) ?? "an issue in this file"}
+            </strong>
+            <StatusBadge
+              state={run.state}
+              {...(AI_ACTIVE.has(run.state) ? { label: "Preparing suggestions" } : {})}
+            />
+            {AI_ACTIVE.has(run.state) ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  cancelAiRun(run.id).then(
+                    () => listAiFixes(workspace.id, path).then(setRuns),
+                    (caught: unknown) => {
+                      setError(describeError(caught));
+                    },
+                  );
+                }}
+              >
+                <Icon name="x" size={14} /> Stop
+              </button>
+            ) : null}
+          </div>
+          {run.error_message && !AI_ACTIVE.has(run.state) ? (
+            <Alert tone={run.state === "CANCELED" ? "info" : "warn"}>{run.error_message}</Alert>
+          ) : null}
+          {run.state === "BUDGET_EXHAUSTED" && !run.fix ? (
+            <Alert tone="warn">The AI reached its limit before suggesting a fix.</Alert>
+          ) : null}
+          {run.fix ? (
+            run.fix.candidates.length === 0 ? (
+              <p className="small muted">No suggestion: {run.fix.uncertainty || run.fix.text}</p>
+            ) : (
+              <ul className="stack plain-list">
+                {run.fix.candidates.map((candidate) => (
+                  <AiCandidateCard
+                    key={candidate.index}
+                    workspace={workspace}
+                    run={run}
+                    candidate={candidate}
+                    dirty={dirty}
+                    onApplied={onApplied}
+                  />
+                ))}
+              </ul>
+            )
+          ) : null}
+        </div>
+      ))}
     </section>
   );
 }
@@ -968,6 +1232,16 @@ function FileEditor({
   const [jump, setJump] = useState<{ line: number; key: number } | null>(
     line ? { line, key: 0 } : null,
   );
+  const [asking, setAsking] = useState<string | null>(null);
+  const [aiGeneration, setAiGeneration] = useState(0);
+  const fileIssues = useAsync(
+    (signal) =>
+      workspace.base_scan_id
+        ? listWorkspaceIssues(workspace.id, { q: file.path }, signal)
+        : Promise.resolve(null),
+    [workspace.id, file.path, workspace.latest_check?.id],
+  );
+  const issues = (fileIssues.data?.items ?? []).filter((item) => item.path === file.path);
   const row = workspace.files.find((item) => item.path === file.path) ?? null;
   const dirty = draft !== saved;
   const isNew = row === null && file.base_content === null;
@@ -1120,9 +1394,35 @@ function FileEditor({
       <div className="stack">
         <FileIssues
           workspace={workspace}
-          path={file.path}
+          items={issues}
+          asking={asking}
           onLine={(target) => {
             setJump({ line: target, key: (jump?.key ?? 0) + 1 });
+          }}
+          onAsk={(issue) => {
+            setAsking(issue.finding_id);
+            setError(null);
+            requestAiFix(workspace.id, issue.finding_id).then(
+              () => {
+                setAsking(null);
+                setAiGeneration((value) => value + 1);
+              },
+              (caught: unknown) => {
+                setAsking(null);
+                setError(describeError(caught));
+              },
+            );
+          }}
+        />
+        <AiSuggestions
+          workspace={workspace}
+          path={file.path}
+          issues={issues}
+          generation={aiGeneration}
+          dirty={dirty}
+          onApplied={(next) => {
+            onChange(next);
+            onReload();
           }}
         />
         <Disclosure testId="workspace-file-technical">

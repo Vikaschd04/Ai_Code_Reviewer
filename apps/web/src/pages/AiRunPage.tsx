@@ -16,6 +16,7 @@ import { SeverityChip } from "../components/Severity";
 import { StatusBadge } from "../components/Status";
 import { formatDate, formatNumber } from "../lib/format";
 import { categoryLabel, plural } from "../lib/labels";
+import { workspaceHref } from "../lib/router";
 
 const STEP_LABELS: Record<string, string> = {
   plan: "Prepared the request",
@@ -28,6 +29,7 @@ const KIND_SUB: Record<string, string> = {
   question: "Question about this project's code",
   file_review: "AI review of selected files",
   finding_review: "AI second opinion on a finding",
+  fix: "AI fix suggestions in a fix workspace",
 };
 
 function Paragraphs({ text }: { text: string }) {
@@ -354,6 +356,15 @@ export function AiRunPage({ runId }: { runId: string }) {
             <Alert tone="warn">
               The AI reached its limit for one run before finishing. Ask a narrower question or
               choose fewer files.
+            </Alert>
+          ) : null}
+          {run.kind === "fix" && run.change_set_id ? (
+            <Alert tone="info">
+              These suggestions belong to a fix workspace.{" "}
+              <a href={workspaceHref(run.change_set_id, "edit", run.target_paths?.[0] ?? null)}>
+                Open them in the workspace
+              </a>{" "}
+              to compare and apply them.
             </Alert>
           ) : null}
           <Answer run={run} />

@@ -260,6 +260,200 @@
         "title": "AiFindingResponse",
         "type": "object"
       },
+      "AiFixCandidateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "applicable": {
+            "description": "Exact lines, policy, parse and original check passed",
+            "title": "Applicable",
+            "type": "boolean"
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "behaviour_note": {
+            "title": "Behaviour Note",
+            "type": "string"
+          },
+          "changed_lines": {
+            "title": "Changed Lines",
+            "type": "integer"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "explanation": {
+            "title": "Explanation",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "label": {
+            "description": "Always shown with the candidate (AI provenance, not verified)",
+            "title": "Label",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unified diff against the file as it was requested",
+            "title": "Patch"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot be applied (plain language)",
+            "title": "Reason"
+          },
+          "steps": {
+            "description": "The P05 checks run on a copy",
+            "items": {
+              "$ref": "#/components/schemas/AiFixStepResponse"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "title",
+          "explanation",
+          "behaviour_note",
+          "confidence",
+          "label",
+          "patch",
+          "changed_lines",
+          "problems",
+          "steps",
+          "passed",
+          "summary",
+          "applicable",
+          "reason",
+          "applied_at"
+        ],
+        "title": "AiFixCandidateResponse",
+        "type": "object"
+      },
+      "AiFixResult": {
+        "additionalProperties": false,
+        "properties": {
+          "abstained": {
+            "title": "Abstained",
+            "type": "boolean"
+          },
+          "base_sha256": {
+            "description": "The file text the candidates were made for",
+            "title": "Base Sha256",
+            "type": "string"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/AiFixCandidateResponse"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "uncertainty": {
+            "title": "Uncertainty",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "abstained",
+          "uncertainty",
+          "path",
+          "base_sha256",
+          "candidates"
+        ],
+        "title": "AiFixResult",
+        "type": "object"
+      },
+      "AiFixStepResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "passed",
+              "failed",
+              "not_run"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "state",
+          "detail"
+        ],
+        "title": "AiFixStepResponse",
+        "type": "object"
+      },
       "AiLimits": {
         "additionalProperties": false,
         "properties": {
@@ -474,6 +668,19 @@
             ],
             "title": "Cancel Requested At"
           },
+          "change_set_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fix runs: their workspace",
+            "title": "Change Set Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -531,6 +738,17 @@
               }
             ],
             "title": "Finished At"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiFixResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fix runs: checked candidates"
           },
           "id": {
             "format": "uuid",
@@ -1357,6 +1575,9 @@
       "ChangeSetResponse": {
         "additionalProperties": false,
         "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/WorkspaceAiStatus"
+          },
           "base_git_commit": {
             "anyOf": [
               {
@@ -1473,6 +1694,7 @@
           "content_sha256",
           "version",
           "can_edit",
+          "ai",
           "files",
           "latest_check",
           "events",
@@ -7233,6 +7455,71 @@
         "title": "WorkflowRunStatus",
         "type": "string"
       },
+      "WorkspaceAiFixApply": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate": {
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Candidate",
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "candidate"
+        ],
+        "title": "WorkspaceAiFixApply",
+        "type": "object"
+      },
+      "WorkspaceAiFixRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "finding_id": {
+            "format": "uuid",
+            "title": "Finding Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_id"
+        ],
+        "title": "WorkspaceAiFixRequest",
+        "type": "object"
+      },
+      "WorkspaceAiStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "description": "AI fix suggestions can be requested in this workspace",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why not (plain language)",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "WorkspaceAiStatus",
+        "type": "object"
+      },
       "WorkspaceFileContent": {
         "additionalProperties": false,
         "properties": {
@@ -8581,6 +8868,340 @@
           }
         },
         "summary": "Get Change Set",
+        "tags": [
+          "fix workspaces"
+        ]
+      }
+    },
+    "/v1/change-sets/{change_set_id}/ai-fixes": {
+      "get": {
+        "description": "AI fix suggestions requested in this workspace, newest first (optionally one file).",
+        "operationId": "list_ai_fixes_v1_change_sets__change_set_id__ai_fixes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_set_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Change Set Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Path"
+            }
+          },
+          {
+            "in": "query",
+            "name": "finding_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiRunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "List Ai Fixes",
+        "tags": [
+          "fix workspaces"
+        ]
+      },
+      "post": {
+        "description": "Ask AI for candidate fixes of one finding, made for the file as it is in the workspace.\n\nOnly when the project allows AI and the server has a provider with budget left. Candidates\nare checked like automatic fixes before anyone can apply them; nothing changes until then.",
+        "operationId": "request_ai_fix_v1_change_sets__change_set_id__ai_fixes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_set_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Change Set Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceAiFixRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Request Ai Fix",
+        "tags": [
+          "fix workspaces"
+        ]
+      }
+    },
+    "/v1/change-sets/{change_set_id}/ai-fixes/{run_id}/apply": {
+      "post": {
+        "description": "Apply one checked AI candidate to the workspace (recorded as an AI change).",
+        "operationId": "apply_ai_fix_v1_change_sets__change_set_id__ai_fixes__run_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_set_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Change Set Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceAiFixApply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSaveResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Apply Ai Fix",
         "tags": [
           "fix workspaces"
         ]

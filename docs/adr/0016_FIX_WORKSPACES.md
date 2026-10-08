@@ -1,8 +1,10 @@
 # ADR 0016 — Fix workspaces: change sets, re-checks, comparison and exports
 
-Status: accepted. Slices 1–3 are implemented and verified: change sets, editor and comparison,
-bulk fixes, re-check and exports. Slice 4 (AI candidates) waits for the owner's AI key. Slice 5
-(change-set pull request) is planned. Date: 8 October 2026. Owner: repository owner (requirements of
+Status: accepted. Slices 1–4 are implemented and verified:
+- change sets, editor and comparison, bulk fixes, re-check and exports;
+- AI candidates, verified with the labelled test model; live quality needs the owner's AI key.
+
+Slice 5 (change-set pull request) is planned. Date: 8 October 2026. Owner: repository owner (requirements of
 8 October 2026; prompts/P08_FIX_WORKSPACE.md). Implemented by the development agent.
 
 Context and constraints:
@@ -132,6 +134,26 @@ Decision:
      `pnpm-workspace.yaml` overrides to releases that were public for at least two weeks when
      adopted. Two packages published the day before adoption were deliberately not taken.
 
+10. **AI candidates (slice 4) are suggestions, never changes.**
+    - A person asks for them per issue. The request is refused unless:
+      - the project's AI switch is on;
+      - the server has a provider with monthly budget left;
+      - the finding has a line;
+      - its file is editable UTF-8 text in the workspace.
+    - The run (`ai_runs.kind = fix`) records the workspace and the SHA-256 of the exact text the
+      candidates are made for. The workspace link is `SET NULL`, so usage accounting survives
+      deletion.
+    - The model sees the current file and submits whole-line edits for that file only.
+    - Every candidate is checked like a recipe fix: exact lines, strict policy, and the P05
+      ladder with the trusted engines.
+    - Hiding candidates, invented lines, ones that keep the problem and ones that add a new
+      one are shown with the reason but cannot be applied.
+    - Applying re-checks the policy. It applies at the same lines or where they moved, and
+      records an `ai` change with the finding.
+    - A suggestion is applied at most once; one that no longer matches is stale.
+    - Budgets stop honestly (`BUDGET_EXHAUSTED`, nothing invented). Source text, including
+      instruction files, stays fenced, labelled data.
+
 Consequences:
 
 - Users can fix, check, compare and take away many fixes without Git. GitHub stays optional
@@ -146,7 +168,7 @@ Consequences:
   - ignore-whitespace comparison;
   - three-way merges with a newer upload;
   - non-UTF-8 editing;
-  - AI candidates (slice 4, needs the key).
+  - measured AI candidate quality (needs the owner's key).
 
 Alternatives considered:
 

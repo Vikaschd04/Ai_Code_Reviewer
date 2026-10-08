@@ -32,7 +32,14 @@ from crp_analysis.ai.models import (
 )
 from crp_analysis.ai.prompts import Task
 from crp_analysis.ai.providers import ModelClient
-from crp_analysis.ai.results import SUBMIT_ANSWER, SUBMIT_REVIEW, SubmittedAnswer, SubmittedReview
+from crp_analysis.ai.results import (
+    SUBMIT_ANSWER,
+    SUBMIT_FIXES,
+    SUBMIT_REVIEW,
+    SubmittedAnswer,
+    SubmittedFixes,
+    SubmittedReview,
+)
 from crp_analysis.ai.tools import READ_TOOLS, ToolExecutor
 
 StopKind = Literal[
@@ -61,6 +68,7 @@ class InvestigationResult:
     stop: StopKind
     answer: SubmittedAnswer | None = None
     review: SubmittedReview | None = None
+    fixes: SubmittedFixes | None = None
     calls: list[CallRecord] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
     excerpts: list[dict[str, Any]] = field(default_factory=list)
@@ -129,7 +137,11 @@ async def investigate(
     on_call: Callable[[CallRecord], Awaitable[None]] | None = None,
     keep_transcript: bool = True,
 ) -> InvestigationResult:
-    final = SUBMIT_ANSWER if task.final_tool == "submit_answer" else SUBMIT_REVIEW
+    final = {
+        SUBMIT_ANSWER.name: SUBMIT_ANSWER,
+        SUBMIT_REVIEW.name: SUBMIT_REVIEW,
+        SUBMIT_FIXES.name: SUBMIT_FIXES,
+    }[task.final_tool]
     specs = (*READ_TOOLS, final)
     max_tokens = (
         min(limits.max_tokens, token_allowance)
@@ -302,6 +314,8 @@ async def investigate(
                 try:
                     if final is SUBMIT_ANSWER:
                         result.answer = SubmittedAnswer.model_validate(call.input)
+                    elif final is SUBMIT_FIXES:
+                        result.fixes = SubmittedFixes.model_validate(call.input)
                     else:
                         result.review = SubmittedReview.model_validate(call.input)
                     submitted = True

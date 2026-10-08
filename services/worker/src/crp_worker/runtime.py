@@ -53,7 +53,13 @@ def build_worker(
         *DiagnosticActivities(store, engine, name).all(),
         *IntakeActivities(settings, store, sessions).all(),
         *ScanActivities(settings, store, sessions, adapters).all(),
-        *AiRunActivities(settings, store, sessions, transport=ai_transport).all(),
+        *AiRunActivities(
+            settings,
+            store,
+            sessions,
+            transport=ai_transport,
+            adapters={**default_adapters(settings), **(adapters or {})},
+        ).all(),
         *FixActivities(
             settings, store, sessions, {**default_adapters(settings), **(adapters or {})}
         ).all(),

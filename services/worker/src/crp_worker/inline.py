@@ -130,7 +130,13 @@ class InlineWorkflowGateway:
             settings, store, sessions, {**default_adapters(settings), **(adapters or {})}
         )
         self._diagnostics = DiagnosticActivities(store, engine, self._identity)
-        self._ai = AiRunActivities(settings, store, sessions, transport=ai_transport)
+        self._ai = AiRunActivities(
+            settings,
+            store,
+            sessions,
+            transport=ai_transport,
+            adapters={**default_adapters(settings), **(adapters or {})},
+        )
         self._git = GitReviewActivities(
             settings, store, sessions, cancel_review=self.cancel_git_review
         )

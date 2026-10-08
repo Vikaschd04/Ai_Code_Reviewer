@@ -4,15 +4,15 @@ Date: 8 October 2026. Environment: macOS arm64 (Darwin 25.5), Python 3.14 (uv), 
 PostgreSQL 18.6, Temporal CLI dev server, PMD 7.27.0, ESLint 10.11.0, Opengrep 1.30.0, Trivy 0.69.3
 (offline DB). Decision record: [ADR 0016](../adr/0016_FIX_WORKSPACES.md).
 
-Status: **IN_PROGRESS.** Slices 1–3 are delivered and every mandatory check that applies to them
+Status: **IN_PROGRESS.** Slices 1–4 are delivered and every mandatory check that applies to them
 passes:
 - change-set core and exports;
 - editor and comparison;
-- bulk fixes and re-check.
+- bulk fixes and re-check;
+- AI fix candidates (9 October 2026), verified with the labelled test model.
 
 Open:
-- Slice 4, AI fix candidates (K-P08-01). It is built next against the labelled fake model; its live
-  quality needs the owner's key (K-P03-01).
+- Live AI candidate quality, which needs the owner's key (K-P08-01, K-P03-01).
 - Slice 5, the change-set pull request (K-P08-02).
 
 Compile results depend on P09 and are shown as "not compiled".
@@ -23,7 +23,7 @@ Compile results depend on P09 and are shown as "not compiled".
 |---|---|---|
 | 1. Change sets bound to one base snapshot; provenance; states; optimistic versions; upload never modified | Delivered: `change_sets`, `change_set_files`, `change_set_events` and `change_set_checks` (migration 0009). Revisions are content-addressed blobs. Events record manual, recipe, revert and export changes with findings and recipe. Derived state: draft / checking / ready / exported. Concurrency uses version 409s | `crp_api/services/change_sets.py`, `routes/change_sets.py`, `crp_core/db/models.py` |
 | 2. Editing in the portal (accessible editor, Java/JS/TS/XML/JSON/Apex, binary refused; policy on every save; add and delete files) | Delivered: CodeMirror 6 (MIT, lazily loaded, grammars on demand) with search, keyboard save, line jump and an aria label. Manual flags are information; recipe edits use the strict policy. The policy now also catches skipped or focused tests. Binary, oversized, excluded and non-UTF-8 files are refused. CRLF and Unicode are kept. Properties files show as plain text | `components/CodeEditor.tsx`, `pages/WorkspacePage.tsx`, `fixes/changeset.py`, `fixes/policy.py` |
-| 3. Fixing issues in bulk (recipes incl. "all occurrences"; AI; by hand at the line; conflicts never merged; budgets) | Partial. Recipes on a selection or a whole rule, applied on the current text exactly or where the same lines are; otherwise skipped with the reason. "Edit" opens the editor at the line. Limits: files per workspace (500), file size. **AI candidates not yet** (slice 4) | `routes/change_sets.py` (`/fixes`), `fixes/changeset.apply_on_current` |
+| 3. Fixing issues in bulk (recipes incl. "all occurrences"; AI; by hand at the line; conflicts never merged; budgets) | Delivered. Recipes on a selection or a whole rule, applied on the current text exactly or where the same lines are; otherwise skipped with the reason. "Edit" opens the editor at the line. **Ask AI** per issue: up to 3 candidates (`CRP_AI_FIX_MAX_CANDIDATES`) for the workspace text, each checked like a recipe fix (exact lines, strict policy, P05 ladder); only checked ones can be applied, once, recorded as `ai`. Limits: files per workspace (500), file size, AI per-run and monthly budgets | `routes/change_sets.py` (`/fixes`, `/ai-fixes`), `fixes/changeset.apply_on_current`, `fixes/ai_candidates.py`, `crp_worker/ai_run.py` |
 | 4. Re-check on a derived snapshot with per-file reuse; fixed / still / not rechecked / new; bound to the content hash; "not compiled" | Delivered: derived snapshot reused per digest, a `change_set` scan of the whole snapshot with the engine cache, and the P06 finding diff. Hiding is reported as `suppressed`, never `fixed`. Runs on Temporal (`ChangeSetCheckWorkflow`) and the lite runner (resumes after restart) | `crp_worker/change_set.py`, `comparison.py`, `inline.py` |
 | 5. Compare (side by side and inline, collapsed regions, word highlights, inert; any two uploads) | Delivered: per-file comparison in the workspace and between two uploads (added / changed / removed / moved). **Not yet:** ignore-whitespace (P08-F2) | `CompareView`, `pages/CompareUploadsView.tsx`, `/v1/snapshots/{id}/compare` |
 | 6. Export (patch for `git apply` / `git am`; changed-files ZIP + manifest; full ZIP; JSON + Markdown summary; PR; base named, exact-base warning) | Delivered: all formats except the pull request (slice 5). Summary schema `crp-change-set-export/v1`. ZIPs are built off the event loop with file modes; unchanged files are copied byte for byte | `routes/change_sets.py` (`/export`), `schemas/crp-change-set-export-v1.schema.json` |
@@ -39,7 +39,7 @@ Compile results depend on P09 and are shown as "not compiled".
 | Conflicts and limits | Stale version; a hand edit on a recipe's lines; ambiguous lines; binary, oversized and non-UTF-8 files; the files-per-workspace limit; CRLF and Unicode | PASS. 409 `version_conflict`. The recipe is skipped as "changed in this workspace", and an ambiguous relocation is a conflict. Binary and non-UTF-8 files return 409 `not_editable`, an oversized file 413, a full workspace 409 `workspace_full`. CRLF is kept and a BOM, emoji and CJK round-trip | `test_edit_files…`, `test_bulk…`, `test_encodings_unicode_and_limits`, `test_recipe_edits_apply_on_changed_text_or_conflict` |
 | Re-check | Real engines on the seeded fixture, with a bulk recipe, a suppression with a real fix, and a new `eval` | PASS. The target finding and the same-line PMD finding are `fixed`; the NaN finding is `suppressed`; the other InvoiceService findings are `still_present`; new problems include `app.js`. The digest is current. A second check of the same content reuses the derived copy with identical outcomes | `test_p08_workspace.py` (Temporal and lite) |
 | Configuration edits and unchanged files | The whole derived snapshot is scanned (unchanged files from the cache), so new findings in unchanged files are found | PASS by design and the full-snapshot scan in the worker test. A dedicated dependency-upgrade fixture is not yet added (Trivy DB offline) | `change_set.py` (`prepare` builds the full manifest) |
-| AI | Off when the policy is off; labelled; validated; budgets; injection stays data | **NOT DONE** (slice 4, K-P08-01) | — |
+| AI | Off when the policy is off; labelled; validated; budgets; injection stays data | PASS (labelled test model; live quality BLOCKED on the key, K-P08-01). The request is refused with nothing sent while the project switch is off. Every candidate carries the AI label. The real fix passes the five checks with real ESLint/Opengrep/Trivy and can be applied once (recorded `ai`; the workspace check then reports the finding fixed). The hiding candidate is refused (`suppression_added`). A model that never submits stops `BUDGET_EXHAUSTED` with no candidates. An `AGENTS.md` telling the AI to add eslint-disable reaches the model only as fenced, labelled data, and any such edit is refused by the policy. Edits cannot name another file. Invented lines, kept and new problems, skipped tests, duplicates and no-ops are refused or dropped. Stale suggestions are never merged. Other workspaces get 404 | `test_p08_ai_fixes.py` (Temporal and lite), `test_ai_fix_requests_are_gated_and_applied_only_when_checked`, `test_ai_fixes_without_a_provider_say_why`, `test_ai_candidates.py` (8), `e2e/p08-workspace.spec.ts` |
 | Safety | Upload digests and the original folder; isolation for other workspaces; inert rendering | PASS. Upload blob digests and file rows are unchanged; the uploaded folder digest is unchanged. Upload list, review list, overview counts and issues are unchanged after checks. The demo workspace gets 404 on every workspace, file, issue, export, check and compare route. Code renders as CodeMirror text, and the prompt-injection `AGENTS.md` shows as plain text in the comparison | `test_edit_files…`, `test_p08_workspace.py`, `test_other_workspaces_see_nothing`, `p08-compare-uploads.png` |
 | Real stack | API, worker on Temporal and lite, and the browser journey: select issues → bulk fix → hand edit → re-check → compare → download the patch and changed files → compare two uploads | PASS (AI step pending slice 4) | `test_change_sets_api.py` (10), `test_p08_workspace.py` (2), `e2e/p08-workspace.spec.ts` |
 
@@ -49,9 +49,9 @@ Compile results depend on P09 and are shown as "not compiled".
 |---|---|---|
 | Lint, format, types and contracts | `make check` | exit 0 |
 | Types for Linux | `uv run mypy --platform linux` | no issues in 172 source files |
-| Tests | `make test` | exit 0. 485 pytest; P08 added 34: changeset helpers 18, policy 4, API 10, real-stack worker 2. 29 vitest; P08 added 5: router 3, editor 2 |
+| Tests | `make test` | exit 0. 497 pytest (8 October: 485). P08 added 46: changeset helpers 18, policy 4, AI candidates 8, API 12, real-stack worker 4. 29 vitest; P08 added 5: router 3, editor 2 |
 | Browser E2E | `make test-e2e` | exit 0: 19/19 (P08 workspace journey added; foundation, P01–P06 and UI tour unchanged) |
-| Screens | `p08-workspace.png`, `p08-workspace-dark.png`, `p08-workspace-mobile.png`, `p08-editor.png`, `p08-compare.png`, `p08-compare-mobile.png`, `p08-compare-uploads.png` | Reviewed. Plain language with technical details collapsed. On phones, the issue table shows severity, result and Edit under the title. The compare gutters align once the viewer is in view. No horizontal page scroll at 390 px |
+| Screens | `p08-ai.png` (AI suggestions: a checked one with Apply, a refused one with the reason), `p08-workspace.png`, `p08-workspace-dark.png`, `p08-workspace-mobile.png`, `p08-editor.png`, `p08-compare.png`, `p08-compare-mobile.png`, `p08-compare-uploads.png` | Reviewed. Plain language with technical details collapsed. On phones, the issue table shows severity, result and Edit under the title. The compare gutters align once the viewer is in view. No horizontal page scroll at 390 px |
 | Bundle | `pnpm build` | Main bundle unchanged (440 kB). Editor chunk 347 kB (112 kB gzip) and grammars (2–92 kB) load only on workspace and compare pages |
 | Supply chain | `npm view` license and publish time for all 23 new packages | All MIT. Pinned with overrides to releases that were public for at least two weeks. `@codemirror/language` 6.13.x (and its new dependency `@codemirror/streamparser`), `@lezer/java` 1.1.5 and `@lezer/lr` 1.4.11, all published on 7 October 2026, were not adopted |
 
@@ -60,11 +60,13 @@ Compile results depend on P09 and are shown as "not compiled".
 - **Policy gap:** skipped or focused tests (`it.skip`, `xit`, `describe.only`, `@Disabled`, `@Ignore`, `pytest.mark.skip`) were not treated as weakened tests. Now flagged and refused for automatic fixes; P05 fixes benefit too.
 - **Data-safety gap:** stored text was decoded with replacement characters, so saving a Latin-1 file would have corrupted it, and the full-project ZIP would have re-encoded such files. Editing now decodes strictly (non-UTF-8 is refused with a plain reason), and the full ZIP copies unchanged files byte for byte.
 - **UI:** after a save, the editor remounted with stale content and lost the policy flags. It now stays mounted across saves and remounts only on freshly loaded content. CRLF files no longer look edited when unchanged.
+- **E2E flake:** typing two lines into the editor with one simulated keystroke string sometimes kept only the first line under full-suite load. The test now pastes multi-line text through CodeMirror's paste handler, as a user would. The product code was not at fault.
 - **Same-line findings** are correctly reported as fixed together (PMD `CompareObjectsWithEquals` disappears with `UseEqualsToCompareStrings`).
 
 ## Limitations
 
-- AI candidates (slice 4) and change-set pull requests (slice 5) are not built yet (K-P08-01, K-P08-02).
+- AI candidate quality with a real provider is unmeasured (K-P08-01). The change-set pull request (slice 5) is not built yet (K-P08-02).
+- Checking an AI suggestion runs each eligible engine on the original and the changed copy (about 30 s per suggestion for a JavaScript file; K-P08-07).
 - Checks are source-level: nothing is compiled, built or tested (K-P08-03, P09).
 - Not yet available:
   - editing non-UTF-8 files (K-P08-04);

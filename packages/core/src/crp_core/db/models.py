@@ -898,7 +898,13 @@ class AiRun(TimestampMixin, Base):
         ForeignKeyConstraint(["scan_id"], ["scans.id"], ondelete="SET NULL"),
         ForeignKeyConstraint(["finding_id"], ["findings.id"], ondelete="SET NULL"),
         ForeignKeyConstraint(["requested_by"], ["users.id"], ondelete="SET NULL"),
+        # SET NULL, not CASCADE: deleting a workspace must not erase AI usage accounting.
+        ForeignKeyConstraint(["change_set_id"], ["change_sets.id"], ondelete="SET NULL"),
         CheckConstraint(enum_check("kind", AiRunKind), name="kind_valid"),
+        CheckConstraint(
+            "target_sha256 IS NULL OR target_sha256 ~ '^[0-9a-f]{64}$'",
+            name="target_sha256_format",
+        ),
         CheckConstraint(enum_check("state", AiRunState), name="state_valid"),
         CheckConstraint(
             "kind <> 'question' OR length(btrim(coalesce(question, ''))) > 0",
@@ -921,6 +927,9 @@ class AiRun(TimestampMixin, Base):
     state: Mapped[str] = mapped_column(String(24), nullable=False)
     question: Mapped[str | None] = mapped_column(Text)
     target_paths: Mapped[list[str] | None] = mapped_column(JsonDocument)
+    # Fix runs (P08): the workspace and the exact text of the file the candidates are made for.
+    change_set_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    target_sha256: Mapped[str | None] = mapped_column(String(64))
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)

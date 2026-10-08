@@ -1031,3 +1031,42 @@ export async function compareSnapshotFile(
   if (data) return data;
   throw toApiError(response, error);
 }
+
+/** Ask AI for candidate fixes of one finding, made for the file as it is in the workspace. */
+export async function requestAiFix(workspaceId: string, findingId: string): Promise<AiRun> {
+  const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/ai-fixes", {
+    params: { path: { change_set_id: workspaceId } },
+    body: { finding_id: findingId },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export async function listAiFixes(
+  workspaceId: string,
+  path: string,
+  signal?: Sig,
+): Promise<AiRun[]> {
+  const { data, error, response } = await api.GET("/v1/change-sets/{change_set_id}/ai-fixes", {
+    params: { path: { change_set_id: workspaceId }, query: { path } },
+    signal: signal ?? null,
+  });
+  if (data) return data.items;
+  throw toApiError(response, error);
+}
+
+export async function applyAiFix(
+  workspace: Workspace,
+  runId: string,
+  candidate: number,
+): Promise<WorkspaceSaveResult> {
+  const { data, error, response } = await api.POST(
+    "/v1/change-sets/{change_set_id}/ai-fixes/{run_id}/apply",
+    {
+      params: { path: { change_set_id: workspace.id, run_id: runId } },
+      body: { version: workspace.version, candidate },
+    },
+  );
+  if (data) return data;
+  throw toApiError(response, error);
+}

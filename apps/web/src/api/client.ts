@@ -63,6 +63,7 @@ export type GitConnectionUpdate = Schemas["GitConnectionUpdate"];
 export type CodeReview = Schemas["CodeReviewResponse"];
 export type CodeReviewCreate = Schemas["CodeReviewCreate"];
 export type Workspace = Schemas["ChangeSetResponse"];
+export type AiFixCandidate = Schemas["AiFixCandidateResponse"];
 export type WorkspaceListItem = Schemas["ChangeSetListItem"];
 export type WorkspaceFile = Schemas["ChangeSetFileSummary"];
 export type WorkspaceCheck = Schemas["ChangeSetCheckResponse"];

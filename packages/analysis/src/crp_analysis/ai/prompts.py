@@ -9,6 +9,7 @@ from crp_analysis.ai.tools import fence, neutralize
 from crp_analysis.redaction import redact_line
 
 PROMPT_VERSION = "rx-ai-v1"
+FIX_PROMPT_VERSION = "rx-ai-fix-v1"
 _WORD = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 
 SYSTEM = """You are the code review assistant of refactorX. You investigate one frozen \
@@ -168,3 +169,56 @@ async def files_task(reader: SnapshotReader, paths: list[str]) -> Task:
         "actually read in reviewed_paths."
     )
     return Task("file_review", "submit_review", SYSTEM.format(final_tool="submit_review"), message)
+
+
+FIX_RULES = """
+
+Fix rules:
+8. Propose the smallest change that removes the cause of the finding in the file shown. Keep \
+behaviour the same except for the fix, and say in behaviour_note what could change.
+9. Never hide the problem: no suppression comments or annotations (eslint-disable, NOPMD, \
+@SuppressWarnings, nosemgrep, noqa, ...), no skipped, focused, removed or weakened tests, no \
+changes to analyzer or build configuration. Such candidates are rejected automatically.
+10. Change only the file shown. Copy the original lines exactly as shown (without the line \
+numbers); edits that do not match the file are rejected.
+11. Offer up to {max_candidates} different candidates (for example a minimal fix and a more \
+thorough one), or abstain when no safe fix exists."""
+
+
+async def fix_task(
+    reader: SnapshotReader,
+    finding: FindingSummary,
+    guidance: str,
+    text: str,
+    sha256: str,
+    *,
+    max_candidates: int,
+    context_lines: int = 60,
+) -> Task:
+    """First message of a fix run: the finding and its file as it is now in the workspace."""
+    lines = text.splitlines()
+    anchor = finding.start_line or 1
+    start = max(1, anchor - context_lines)
+    end = min(len(lines), (finding.end_line or anchor) + context_lines)
+    if len(lines) <= 2 * context_lines + 40:
+        start, end = 1, len(lines)
+    body = "\n".join(
+        f"{n:>5} | {neutralize(redact_line(lines[n - 1][:500])[0])}" for n in range(start, end + 1)
+    )
+    excerpt = fence(finding.path, start, end, sha256, body) if lines else "(the file is empty)"
+    message = (
+        "Propose fixes for this finding reported by a deterministic check. The file below is "
+        "the reviewer's current version in their fix workspace; line numbers refer to it. Read "
+        "more of it or of other files with the tools only if you need to.\n\n"
+        f"Finding id: {finding.id}\nTitle: {neutralize(finding.title)}\n"
+        f"Check: {finding.engine} rule {finding.rule_id}\nSeverity: {finding.severity}\n"
+        f"Location: {neutralize(finding.path)}"
+        + (f":{finding.start_line}" if finding.start_line else "")
+        + f"\nMessage: {neutralize(finding.message)}\n\nRule guidance:\n{neutralize(guidance)}"
+        f"\n\nFile ({len(lines)} lines):\n{excerpt}\n\n"
+        "Call submit_fixes with your candidates."
+    )
+    system = SYSTEM.format(final_tool="submit_fixes") + FIX_RULES.format(
+        max_candidates=max_candidates
+    )
+    return Task("fix", "submit_fixes", system, message)

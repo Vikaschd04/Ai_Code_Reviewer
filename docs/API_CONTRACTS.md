@@ -162,6 +162,12 @@ Review states: QUEUED, CAPTURING, SCANNING, PUBLISHING, SUCCEEDED, PARTIAL, FAIL
 | GET /v1/snapshots/{id}/compare?base= | viewer | Two uploads of one project: `counts` and `changes` (added/modified/removed/renamed, stored text files; ≤ 2,000, `truncated`). 422 `different_projects` |
 | GET /v1/snapshots/{id}/compare/file?base=&path=&previous_path= | viewer | `before`/`after` text, hashes and a plain `note` (new, removed, not stored) |
 
+| POST /v1/change-sets/{id}/ai-fixes | member | `{finding_id}` → 202 AI run of kind `fix` for the file as it is in the workspace (target hash stored). 409 `ai_policy_disabled` / `ai_unavailable` / `not_editable` (incl. not UTF-8) / `file_deleted` / `ai_fix_running`; 422 `no_location`; 404 `finding_not_found` (not in the upload's review); 429 `ai_monthly_limit`; 503 `workflow_unavailable` |
+| GET /v1/change-sets/{id}/ai-fixes?path=&finding_id= | viewer | Newest first (≤ 20): AI runs with `fix` = `{text, abstained, uncertainty, path, base_sha256, candidates[{index, title, explanation, behaviour_note, confidence, label, patch, changed_lines, problems, steps (P05 checks), passed, summary, applicable, reason, applied_at}]}` |
+| POST /v1/change-sets/{id}/ai-fixes/{run}/apply | member | `{version, candidate}` → `{change_set, flags}`; recorded as an `ai` change with the finding. 409 `ai_fix_not_ready` / `candidate_not_applicable` (reason) / `candidate_applied` / `ai_fix_stale` / `file_deleted` / `version_conflict`; 422 `fix_not_allowed`; 404 `ai_fix_not_found` / `candidate_not_found` |
+| GET /v1/change-sets/{id} | viewer | adds `ai` `{available, reason}` (project switch and server setup) |
+| GET /v1/ai-runs/{id} | viewer | kind `fix` adds `change_set_id` and `fix` (as above; edits and hashes stay internal); `answer` is null for fix runs. AI exports carry `fix` |
+
 Derived copies scanned by checks are not listed as uploads, not counted in project overviews and not offered to AI by default; their `change_set` scans never change issues and are not listed under Reviews.
 
 ## Target contract (later phases)

@@ -30,3 +30,15 @@ Test no-key state, provider outage, budget exhaustion, prompt injection, malicio
 
 Implemented as one typed orchestrator (ADR 0012): deterministic planner, bounded model investigator with five read-only snapshot tools, deterministic anchor verifier, and stored runs/findings; Temporal (standard) or the inline runner (lite) owns the lifecycle and never retries paid calls. Alibaba OCR was evaluated and not adopted (docs/validation/P03_OCR_EVALUATION.md). Labelled evaluation: `fixtures/ai-eval/`, `crp-dev ai-eval`. Live quality measurement awaits a configured provider (docs/validation/P03_REPORT.md).
 
+## Fix suggestions (P08, ADR 0016)
+
+A fourth run kind, `fix`, asks for up to `CRP_AI_FIX_MAX_CANDIDATES` (default 3) candidate fixes of one finding in a fix workspace. It runs through the same gate, budgets, accounting, Temporal or inline lifecycle and fenced untrusted context as the other runs. The differences:
+- The prompt (`rx-ai-fix-v1`) shows the file as it is in the workspace. The read tools see that text through an overlay; every other file reads as uploaded.
+- The model submits whole-line edits that quote the original lines (`submit_fixes`); it cannot name another file.
+- Each candidate is then checked deterministically (`crp_analysis/fixes/ai_candidates.py`):
+  - the exact lines must match;
+  - the strict change policy applies (no suppressions, no weakened, skipped or focused tests, no configuration changes, size limit);
+  - the P05 ladder runs on copies with the trusted engines: parse, original check gone, nothing new.
+- Only candidates that pass can be applied, by a person, as an `ai` change with the finding recorded.
+- Model agreement never counts as verification, and live quality is not measured until the owner's key is configured.
+

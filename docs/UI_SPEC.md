@@ -84,6 +84,14 @@ The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in ligh
   - **Changes tab:** changed files (Changed/Added/Deleted, file name first, a warning mark when a policy flag applies), **History** (collapsed), and a comparison of the selected file — **Side by side** (upload left) or **Inline** (default below 1,100 px). Unchanged lines are collapsed and word changes highlighted. Also **Edit** and **Undo changes to this file**.
   - **Edit tab:** **Open a file** (search the upload, files changed here, **Add a new file**). The code editor has line numbers, search, Ctrl/⌘+S to save and colouring for Java/Apex, JavaScript/TypeScript, XML and JSON. Under it: **Save**, **Discard edits**, **Undo all changes to this file** and **Delete file**, plus warnings after saving ("Adds a marker that hides problems… counted as hidden, not fixed"). Beside it, **Issues in this file** jump to their line. Files that cannot be edited say why (binary, too large, not stored, not UTF-8). Leaving with unsaved changes asks first.
   - **Technical details** (collapsed): upload and commit, content digest, dates, **Download as one commit** for `git am`, and how to apply the patch.
+- **AI suggestions (when the project's AI switch is on and the server has a provider):** **Ask AI** on each issue with a line (issue queue and "Issues in this file"). The editor's side column then shows **AI suggestions** per issue, polling while they are prepared, with **Stop**. Each suggestion shows:
+  - an "AI suggestion" badge, title, confidence, explanation and "What to watch";
+  - its diff;
+  - the five checks with icons ("Patch applies…", "Changed file still parses", "Checks no longer report the problem", and "Project tests" / "Build or deployment" not run);
+  - **Apply to this file**, disabled while the editor has unsaved edits, then "Applied"; or "Not applied: …" with the reason (for example the change policy refusing a suppression);
+  - the label "AI suggestion: review it before applying. Not compiled, built or tested."
+
+  Without AI, the side column says why in one line.
 - **Upload page → Compare tab:** choose another upload; counts (added, changed, removed, moved), the list of changed files, and each file side by side or inline.
 - The editor and grammars load only on these pages. Code is inert text. Checked in light, dark and mobile (390 px, no horizontal page scroll; on phones the issue table shows severity, result and **Edit** under the title) by `apps/web/e2e/p08-workspace.spec.ts`, screenshots `p08-*.png`.
 
