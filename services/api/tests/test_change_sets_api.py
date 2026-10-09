@@ -261,6 +261,15 @@ async def test_edit_files_with_flags_conflicts_and_line_endings(api: ApiHarness)
     assert ws["base_snapshot_id"] == str(upload["snapshot"])
     assert ws["base_scan_id"] is None and ws["files"] == [] and ws["version"] == 1
     assert ws["base_name"] == "shop.zip" and ws["can_edit"] is True
+    # Pull requests only apply to code reviewed from a connected GitHub repository.
+    assert ws["pull_request"] == {
+        "applies": False,
+        "available": False,
+        "reason": None,
+        "opened": [],
+    }
+    no_github = await api.client.post(f"/v1/change-sets/{ws['id']}/pull-request", headers=api.auth)
+    assert no_github.status_code == 503 and no_github.json()["code"] == "github_not_configured"
     listed = (await api.client.get(f"/v1/projects/{project}/change-sets", headers=api.auth)).json()
     assert [i["id"] for i in listed["items"]] == [ws["id"]]
 

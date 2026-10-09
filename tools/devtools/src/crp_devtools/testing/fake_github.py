@@ -694,6 +694,8 @@ class FakeGitHub:
                             if node.mode == "100755"
                             else (node.data or b"")
                         )
+                for path in repo.commits[parent].files.keys() - files.keys():
+                    changes[path] = None  # deleted in the new tree
                 sha = repo.commit("__fix_tmp__", changes, data["message"], base=parent)
                 del repo.branches["__fix_tmp__"]
                 repo.created_commits.append(sha)
@@ -738,7 +740,10 @@ class FakeGitHub:
         base = next(c for c in repo.commits.values() if c.tree == data["base_tree"])
         files = dict(base.files)
         for item in data["tree"]:
-            files[item["path"]] = _Node(item["mode"], item["sha"], repo.blobs[item["sha"]])
+            if item["sha"] is None:  # GitHub: a null sha deletes the path
+                files.pop(item["path"], None)
+            else:
+                files[item["path"]] = _Node(item["mode"], item["sha"], repo.blobs[item["sha"]])
         sha = repo._write_tree(files)
         self._pending_tree_files[sha] = files
         return sha

@@ -38,7 +38,14 @@ from crp_analysis.fixes.changeset import (
 )
 from crp_analysis.fixes.patching import Edit, PatchError, apply_edits
 from crp_analysis.manifest import blob_key
+from crp_analysis.sources import publication
 from crp_analysis.sources.changes import diff_manifests
+from crp_analysis.sources.github import (
+    CommitChange,
+    GitHubAccessError,
+    GitHubConflictError,
+    GitHubError,
+)
 from crp_api import __version__
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.auth.principal import Principal
@@ -69,11 +76,14 @@ from crp_api.schemas import (
     WorkspaceFixSkipped,
     WorkspaceIssue,
     WorkspaceIssuePage,
+    WorkspacePullRequest,
+    WorkspacePullRequestState,
     WorkspaceSaveResult,
 )
 from crp_api.services import change_sets as workspace
+from crp_api.services import git as git_service
 from crp_api.services.scope import decode_offset, encode_offset, get_scoped
-from crp_api.services.snapshot_files import read_blob_text, sfdx_reader
+from crp_api.services.snapshot_files import read_blob_bytes, read_blob_text, sfdx_reader
 from crp_core.artifacts import ArtifactKey
 from crp_core.db.models import (
     AiRun,
@@ -81,6 +91,7 @@ from crp_core.db.models import (
     ChangeSetCheck,
     ChangeSetEvent,
     ChangeSetFile,
+    ChangeSetPullRequest,
     FileEntry,
     Finding,
     Project,
@@ -204,6 +215,70 @@ async def _ai_status(
     return WorkspaceAiStatus(available=True, reason=None)
 
 
+_PR_NEEDS_CHECK = "Check your changes first: only checked changes can become pull requests."
+
+
+def _pull_request(row: ChangeSetPullRequest, change_set: ChangeSet) -> WorkspacePullRequest:
+    return WorkspacePullRequest(
+        number=row.number,
+        url=row.url,
+        repository=row.repository,
+        branch=row.branch,
+        base_ref=row.base_ref,
+        base_sha=row.base_sha,
+        commit_sha=row.commit_sha,
+        content_sha256=row.content_sha256,
+        current=row.content_sha256 == change_set.content_sha256,
+        created_at=row.created_at,
+    )
+
+
+async def _pull_request_state(
+    session: AsyncSession, change_set: ChangeSet, latest: ChangeSetCheck | None
+) -> WorkspacePullRequestState:
+    opened = list(
+        (
+            await session.execute(
+                select(ChangeSetPullRequest)
+                .where(ChangeSetPullRequest.change_set_id == change_set.id)
+                .order_by(ChangeSetPullRequest.created_at.desc())
+            )
+        ).scalars()
+    )
+    rows = [_pull_request(row, change_set) for row in opened]
+    base = await session.get(Snapshot, change_set.base_snapshot_id)
+    target, reason = (
+        await git_service.publish_target(session, change_set.project_id, base)
+        if base is not None
+        else (None, None)
+    )
+    applies = target is not None or reason is not None
+    if target is None:
+        return WorkspacePullRequestState(
+            applies=applies, available=False, reason=reason, opened=rows
+        )
+    if any(row.current for row in rows):
+        return WorkspacePullRequestState(applies=True, available=False, reason=None, opened=rows)
+    has_files = await session.scalar(
+        select(ChangeSetFile.id).where(ChangeSetFile.change_set_id == change_set.id).limit(1)
+    )
+    if has_files is None:
+        reason = "Make a change first."
+    elif not _checked(change_set, latest):
+        reason = _PR_NEEDS_CHECK
+    return WorkspacePullRequestState(
+        applies=True, available=reason is None, reason=reason, opened=rows
+    )
+
+
+def _checked(change_set: ChangeSet, latest: ChangeSetCheck | None) -> bool:
+    return (
+        latest is not None
+        and latest.content_sha256 == change_set.content_sha256
+        and latest.state in _DONE_CHECK
+    )
+
+
 async def _response(
     session: AsyncSession, container: Any, change_set: ChangeSet, can_edit: bool
 ) -> ChangeSetResponse:
@@ -234,6 +309,7 @@ async def _response(
         version=change_set.version,
         can_edit=can_edit,
         ai=await _ai_status(session, container, change_set),
+        pull_request=await _pull_request_state(session, change_set, latest),
         files=[
             ChangeSetFileSummary(
                 path=f.path,
@@ -1002,6 +1078,165 @@ async def apply_ai_fix(
             )
     except StaleDataError as exc:
         raise ApiError(409, "version_conflict", "The workspace changed meanwhile; reload") from exc
+
+
+# -- pull request (GitHub) -------------------------------------------------------------------------
+
+CHANGE_WORDS = {"modify": "Changed", "add": "Added", "delete": "Deleted"}
+_SOURCE_WORDS = {"manual": "by hand", "recipe": "automatic fix", "ai": "AI suggestion"}
+_FLAG_WORDS = {
+    "suppression_added": "adds a marker that hides problems",
+    "test_weakened": "removes, skips or focuses tests",
+    "config_change": "changes build or analyzer configuration",
+}
+
+
+def _pull_request_text(
+    change_set: ChangeSet, files: list[ChangeSetFile], check: ChangeSetCheck, short_sha: str
+) -> tuple[str, str, str]:
+    md = publication.md
+    title = f"refactorX: {change_set.title}"[:250]
+    lines = [
+        "Opened from refactorX by a reviewer: the changes of the fix workspace "
+        f"{md(change_set.title)}.",
+        "",
+        "**Files**",
+    ]
+    for row in files:
+        where = f"`{row.path}`" if "`" not in row.path else md(row.path)
+        sources = ", ".join(_SOURCE_WORDS.get(s, s) for s in row.sources if s in _SOURCE_WORDS)
+        flags = "; ".join(_FLAG_WORDS[f] for f in row.flags if f in _FLAG_WORDS)
+        lines.append(
+            f"- {CHANGE_WORDS.get(row.action, row.action)} {where}"
+            + (f" ({sources})" if sources else "")
+            + (f" — note: {flags}" if flags else "")
+        )
+    counts = (check.result or {}).get("counts")
+    numbers = counts if isinstance(counts, dict) else {}
+    lines += [
+        "",
+        f"**Check of these exact changes** on a copy of commit {short_sha}: "
+        f"{numbers.get('fixed', 0)} fixed, {numbers.get('still_present', 0)} still present, "
+        f"{numbers.get('suppressed', 0)} hidden (not fixed), "
+        f"{numbers.get('not_rechecked', 0)} not rechecked, {numbers.get('new', 0)} new.",
+        "",
+        "refactorX did not compile, build or test this change. Review it and let your own CI "
+        "run before merging.",
+    ]
+    message = (
+        f"{change_set.title}\n\nChanges from refactorX fix workspace {change_set.id} "
+        f"({len(files)} files).\nChecked by refactorX at source level; not built or tested."
+    )
+    return title, "\n".join(lines), message
+
+
+@router.post(
+    "/change-sets/{change_set_id}/pull-request",
+    status_code=201,
+    response_model=WorkspacePullRequest,
+    responses={**_ERRORS, 503: {"model": ErrorResponse}},
+)
+async def open_pull_request(
+    change_set_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> WorkspacePullRequest:
+    """Open one pull request with the checked workspace changes on the reviewed branch.
+
+    The branch must still point at the reviewed commit; otherwise 409 ``stale_patch``. The same
+    content opens one pull request (asking again returns it); nothing is ever merged.
+    """
+    client = container.github
+    if client is None:
+        raise ApiError(503, "github_not_configured", "GitHub is not set up on this server")
+    async with transaction(container.session_factory) as session:
+        change_set = await _editable(session, principal, change_set_id, None)
+        existing = await session.scalar(
+            select(ChangeSetPullRequest).where(
+                ChangeSetPullRequest.change_set_id == change_set.id,
+                ChangeSetPullRequest.content_sha256 == change_set.content_sha256,
+            )
+        )
+        if existing is not None:
+            return _pull_request(existing, change_set)
+        base = await session.get(Snapshot, change_set.base_snapshot_id)
+        if base is None:
+            raise ApiError(404, "snapshot_not_found", "The upload was deleted")
+        target, reason = await git_service.publish_target(session, change_set.project_id, base)
+        if target is None:
+            raise ApiError(
+                409, "pull_request_unavailable", reason or "This code did not come from GitHub"
+            )
+        files = await workspace.files_of(session, change_set.id)
+        if not files:
+            raise ApiError(422, "nothing_to_export", "The workspace has no changes yet")
+        latest = await _latest_check(session, change_set.id)
+        if latest is None or not _checked(change_set, latest):
+            raise ApiError(409, "pull_request_unavailable", _PR_NEEDS_CHECK)
+        changes = [
+            CommitChange(
+                row.path,
+                "100755" if row.path in target.executable else "100644",
+                None if row.sha256 is None else await read_blob_bytes(container, row.sha256),
+            )
+            for row in files
+        ]
+        title, body, message = _pull_request_text(change_set, files, latest, target.base_sha[:7])
+        try:
+            head = await client.branch_head(target.access, target.branch)
+            if head != target.base_sha:
+                raise ApiError(
+                    409,
+                    "stale_patch",
+                    f"{target.branch} moved on since the reviewed commit; review the newer "
+                    "commit and move your changes there",
+                    {"reviewed": target.base_sha, "current": head},
+                )
+            commit = await client.create_commit(
+                target.access,
+                parent_sha=target.base_sha,
+                base_tree=target.tree_sha or await client.commit_tree(target.access, head),
+                changes=changes,
+                message=message,
+            )
+            stem = f"refactorx/workspace-{change_set.id.hex[:8]}-{change_set.content_sha256[:8]}"
+            branch = stem
+            for attempt in range(1, 4):
+                try:
+                    await client.create_branch(target.access, branch, commit)
+                    break
+                except GitHubConflictError:
+                    if attempt == 3:
+                        raise
+                    branch = f"{stem}-{attempt + 1}"
+            number, url = await client.create_pull_request(
+                target.access, head=branch, base=target.branch, title=title, body=body
+            )
+        except GitHubAccessError as exc:
+            raise ApiError(409, exc.code, exc.message) from exc
+        except GitHubConflictError as exc:
+            raise ApiError(409, "github_rejected", exc.message) from exc
+        except GitHubError as exc:
+            raise ApiError(503, "github_unavailable", exc.message) from exc
+        row = ChangeSetPullRequest(
+            change_set_id=change_set.id,
+            workspace_id=change_set.workspace_id,
+            project_id=change_set.project_id,
+            content_sha256=change_set.content_sha256,
+            repository=target.access.full_name,
+            branch=branch,
+            base_ref=target.branch,
+            base_sha=target.base_sha,
+            commit_sha=commit,
+            number=number,
+            url=url,
+            created_by=principal.user_id,
+        )
+        session.add(row)
+        session.add(
+            workspace.export_event(change_set, principal.user_id, f"pull request #{number}")
+        )
+        await session.flush()
+        await session.refresh(row)
+        return _pull_request(row, change_set)
 
 
 # -- checks ----------------------------------------------------------------------------------------

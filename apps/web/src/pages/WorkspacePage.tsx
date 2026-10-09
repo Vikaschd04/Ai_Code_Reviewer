@@ -26,6 +26,7 @@ import {
   listAiFixes,
   listFiles,
   listWorkspaceIssues,
+  openWorkspacePullRequest,
   requestAiFix,
   revertWorkspaceFile,
   saveWorkspaceFile,
@@ -735,6 +736,90 @@ function ChangeDetail({
   );
 }
 
+function PullRequestCard({
+  workspace,
+  onChange,
+}: {
+  workspace: Workspace;
+  onChange: SetWorkspace;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const state = workspace.pull_request;
+  if (!state.applies) return null;
+  const current = state.opened.find((pull) => pull.current);
+  const earlier = state.opened.filter((pull) => !pull.current);
+  return (
+    <section
+      className="card stack"
+      aria-labelledby="ws-pr-title"
+      data-testid="workspace-pull-request"
+    >
+      <h2 id="ws-pr-title" className="card-title">
+        <Icon name="branch" size={16} /> Pull request on GitHub
+      </h2>
+      {current ? (
+        <p className="row small">
+          <a href={current.url} target="_blank" rel="noreferrer">
+            Pull request #{current.number} on GitHub
+          </a>
+          <span className="muted">from {current.branch}</span>
+        </p>
+      ) : state.available ? (
+        <div className="stack stack-xs">
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy || !workspace.can_edit}
+              onClick={() => {
+                setBusy(true);
+                setError(null);
+                openWorkspacePullRequest(workspace.id)
+                  .then(() => fetchWorkspace(workspace.id))
+                  .then(
+                    (next) => {
+                      setBusy(false);
+                      onChange(next);
+                    },
+                    (caught: unknown) => {
+                      setError(describeError(caught));
+                      setBusy(false);
+                    },
+                  );
+              }}
+              data-testid="workspace-open-pull-request"
+            >
+              <Icon name="branch" size={14} /> {busy ? "Opening…" : "Open pull request"}
+            </button>
+          </div>
+          <p className="small muted">
+            One commit with all your changes on the reviewed branch, only if it has not moved since
+            the review. Nothing is merged.
+          </p>
+        </div>
+      ) : (
+        <p className="small muted">{state.reason}</p>
+      )}
+      {earlier.length > 0 ? (
+        <p className="small muted">
+          Earlier:{" "}
+          {earlier.map((pull, index) => (
+            <span key={pull.number}>
+              {index > 0 ? ", " : ""}
+              <a href={pull.url} target="_blank" rel="noreferrer">
+                #{pull.number}
+              </a>
+            </span>
+          ))}{" "}
+          (for an older version of your changes)
+        </p>
+      ) : null}
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </section>
+  );
+}
+
 function ChangesView({
   workspace,
   path,
@@ -757,54 +842,57 @@ function ChangesView({
   }
   const current = path ?? workspace.files[0]?.path ?? null;
   return (
-    <div className="split split-files">
-      <section className="card stack" aria-labelledby="ws-files-title">
-        <h2 id="ws-files-title" className="card-title">
-          <Icon name="file" size={16} /> {plural(workspace.files.length, "changed file")}
-        </h2>
-        <ul className="stack stack-xs plain-list" data-testid="workspace-files">
-          {workspace.files.map((file) => (
-            <li key={file.path}>
-              <a
-                className="result-item"
-                href={workspaceHref(workspace.id, "changes", file.path)}
-                aria-current={file.path === current ? "true" : undefined}
-                data-action={file.action}
-              >
-                <span
-                  className={`badge badge-${file.action === "delete" ? "bad" : file.action === "add" ? "ok" : "neutral"}`}
+    <div className="stack">
+      <PullRequestCard workspace={workspace} onChange={onChange} />
+      <div className="split split-files">
+        <section className="card stack" aria-labelledby="ws-files-title">
+          <h2 id="ws-files-title" className="card-title">
+            <Icon name="file" size={16} /> {plural(workspace.files.length, "changed file")}
+          </h2>
+          <ul className="stack stack-xs plain-list" data-testid="workspace-files">
+            {workspace.files.map((file) => (
+              <li key={file.path}>
+                <a
+                  className="result-item"
+                  href={workspaceHref(workspace.id, "changes", file.path)}
+                  aria-current={file.path === current ? "true" : undefined}
+                  data-action={file.action}
                 >
-                  {CHANGE_ACTIONS[file.action] ?? file.action}
-                </span>
-                <span className="grow">
-                  <FileLocation path={file.path} />
-                </span>
-                {file.flags.length > 0 ? (
-                  <span className="status-icon status-warn" title="Needs attention">
-                    <Icon name="alert" size={13} />
-                    <span className="visually-hidden">Needs attention</span>
+                  <span
+                    className={`badge badge-${file.action === "delete" ? "bad" : file.action === "add" ? "ok" : "neutral"}`}
+                  >
+                    {CHANGE_ACTIONS[file.action] ?? file.action}
                   </span>
-                ) : null}
-              </a>
-            </li>
-          ))}
-        </ul>
-        <Disclosure summary="History">
-          <ul className="stack stack-sm plain-list small" data-testid="workspace-history">
-            {workspace.events.map((event, index) => (
-              <li key={index}>
-                <strong>{CHANGE_SOURCES[event.source] ?? event.source}</strong>{" "}
-                <span className="secondary">{event.summary}</span>
-                {event.path ? <span className="mono"> {event.path}</span> : null}{" "}
-                <span className="muted">{formatRelative(event.created_at)}</span>
+                  <span className="grow">
+                    <FileLocation path={file.path} />
+                  </span>
+                  {file.flags.length > 0 ? (
+                    <span className="status-icon status-warn" title="Needs attention">
+                      <Icon name="alert" size={13} />
+                      <span className="visually-hidden">Needs attention</span>
+                    </span>
+                  ) : null}
+                </a>
               </li>
             ))}
           </ul>
-        </Disclosure>
-      </section>
-      {current ? (
-        <ChangeDetail key={current} workspace={workspace} path={current} onChange={onChange} />
-      ) : null}
+          <Disclosure summary="History">
+            <ul className="stack stack-sm plain-list small" data-testid="workspace-history">
+              {workspace.events.map((event, index) => (
+                <li key={index}>
+                  <strong>{CHANGE_SOURCES[event.source] ?? event.source}</strong>{" "}
+                  <span className="secondary">{event.summary}</span>
+                  {event.path ? <span className="mono"> {event.path}</span> : null}{" "}
+                  <span className="muted">{formatRelative(event.created_at)}</span>
+                </li>
+              ))}
+            </ul>
+          </Disclosure>
+        </section>
+        {current ? (
+          <ChangeDetail key={current} workspace={workspace} path={current} onChange={onChange} />
+        ) : null}
+      </div>
     </div>
   );
 }

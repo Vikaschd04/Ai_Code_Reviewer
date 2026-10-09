@@ -61,6 +61,8 @@ Optional:
 - `CRP_GITHUB_WEBHOOK_MAX_BYTES` (default 25 MiB).
 - `CRP_GIT_RECONCILE_DAYS` (default 7): days between full re-checks.
 
+Fix workspaces (P08) use the same "Open pull requests" permission and project switch as fix pull requests: a checked workspace becomes one pull request with all its changes, only while the branch still points at the reviewed commit.
+
 File variants must be owner-only (`chmod 600`). Restart the service; **Administration → GitHub**
 then shows the connect steps. If a value is missing, the page says which one, for admins only.
 

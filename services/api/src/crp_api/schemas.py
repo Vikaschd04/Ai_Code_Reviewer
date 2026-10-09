@@ -1247,6 +1247,7 @@ class ChangeSetResponse(ApiModel):
     version: int
     can_edit: bool
     ai: WorkspaceAiStatus
+    pull_request: WorkspacePullRequestState
     files: list[ChangeSetFileSummary]
     latest_check: ChangeSetCheckResponse | None
     events: list[ChangeSetEventResponse]
@@ -1257,6 +1258,26 @@ class ChangeSetResponse(ApiModel):
 class WorkspaceAiStatus(ApiModel):
     available: bool = Field(description="AI fix suggestions can be requested in this workspace")
     reason: str | None = Field(description="Why not (plain language)")
+
+
+class WorkspacePullRequest(ApiModel):
+    number: int
+    url: str
+    repository: str
+    branch: str
+    base_ref: str
+    base_sha: str
+    commit_sha: str
+    content_sha256: str
+    current: bool = Field(description="Opened for the workspace content as it is now")
+    created_at: datetime
+
+
+class WorkspacePullRequestState(ApiModel):
+    applies: bool = Field(description="The upload came from a connected GitHub repository")
+    available: bool = Field(description="A pull request can be opened for the current content")
+    reason: str | None = Field(description="Why not (plain language)")
+    opened: list[WorkspacePullRequest]
 
 
 class WorkspaceAiFixRequest(ApiModel):

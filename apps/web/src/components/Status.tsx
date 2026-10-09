@@ -57,7 +57,7 @@ const STATES: Record<string, { tone: Tone; icon: IconName; label: string }> = {
   // Fix workspace as a whole (P08).
   draft: { tone: "neutral", icon: "wrench", label: "Draft" },
   checking: { tone: "live", icon: "pulse", label: "Checking" },
-  exported: { tone: "ok", icon: "download", label: "Downloaded" },
+  exported: { tone: "ok", icon: "download", label: "Delivered" },
   // Graph edge classification.
   resolved: { tone: "ok", icon: "check", label: "Confirmed" },
   declared: { tone: "neutral", icon: "info", label: "Declared" },

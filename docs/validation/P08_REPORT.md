@@ -4,16 +4,19 @@ Date: 8 October 2026. Environment: macOS arm64 (Darwin 25.5), Python 3.14 (uv), 
 PostgreSQL 18.6, Temporal CLI dev server, PMD 7.27.0, ESLint 10.11.0, Opengrep 1.30.0, Trivy 0.69.3
 (offline DB). Decision record: [ADR 0016](../adr/0016_FIX_WORKSPACES.md).
 
-Status: **IN_PROGRESS.** Slices 1–4 are delivered and every mandatory check that applies to them
+Status: **BLOCKED (live AI quality only).** Slices 1–5 are delivered and every mandatory check that applies to them
 passes:
 - change-set core and exports;
 - editor and comparison;
 - bulk fixes and re-check;
 - AI fix candidates (9 October 2026), verified with the labelled test model.
 
+- the change-set pull request (9 October 2026), verified against the labelled fake GitHub.
+
 Open:
-- Live AI candidate quality, which needs the owner's key (K-P08-01, K-P03-01).
-- Slice 5, the change-set pull request (K-P08-02).
+- Live AI candidate quality, which needs the owner's key (K-P08-01, K-P03-01). This is the only
+  open gate item, so P08 is BLOCKED on it.
+- The live GitHub check is shared with P06 (K-P06-01).
 
 Compile results depend on P09 and are shown as "not compiled".
 
@@ -26,7 +29,7 @@ Compile results depend on P09 and are shown as "not compiled".
 | 3. Fixing issues in bulk (recipes incl. "all occurrences"; AI; by hand at the line; conflicts never merged; budgets) | Delivered. Recipes on a selection or a whole rule, applied on the current text exactly or where the same lines are; otherwise skipped with the reason. "Edit" opens the editor at the line. **Ask AI** per issue: up to 3 candidates (`CRP_AI_FIX_MAX_CANDIDATES`) for the workspace text, each checked like a recipe fix (exact lines, strict policy, P05 ladder); only checked ones can be applied, once, recorded as `ai`. Limits: files per workspace (500), file size, AI per-run and monthly budgets | `routes/change_sets.py` (`/fixes`, `/ai-fixes`), `fixes/changeset.apply_on_current`, `fixes/ai_candidates.py`, `crp_worker/ai_run.py` |
 | 4. Re-check on a derived snapshot with per-file reuse; fixed / still / not rechecked / new; bound to the content hash; "not compiled" | Delivered: derived snapshot reused per digest, a `change_set` scan of the whole snapshot with the engine cache, and the P06 finding diff. Hiding is reported as `suppressed`, never `fixed`. Runs on Temporal (`ChangeSetCheckWorkflow`) and the lite runner (resumes after restart) | `crp_worker/change_set.py`, `comparison.py`, `inline.py` |
 | 5. Compare (side by side and inline, collapsed regions, word highlights, inert; any two uploads) | Delivered: per-file comparison in the workspace and between two uploads (added / changed / removed / moved). **Not yet:** ignore-whitespace (P08-F2) | `CompareView`, `pages/CompareUploadsView.tsx`, `/v1/snapshots/{id}/compare` |
-| 6. Export (patch for `git apply` / `git am`; changed-files ZIP + manifest; full ZIP; JSON + Markdown summary; PR; base named, exact-base warning) | Delivered: all formats except the pull request (slice 5). Summary schema `crp-change-set-export/v1`. ZIPs are built off the event loop with file modes; unchanged files are copied byte for byte | `routes/change_sets.py` (`/export`), `schemas/crp-change-set-export-v1.schema.json` |
+| 6. Export (patch for `git apply` / `git am`; changed-files ZIP + manifest; full ZIP; JSON + Markdown summary; PR; base named, exact-base warning) | Delivered: all formats, plus one pull request per checked workspace content for GitHub projects (one commit with additions, changes, deletions and executable bits; P06 publication and freshness rules). Summary schema `crp-change-set-export/v1`. ZIPs are built off the event loop with file modes; unchanged files are copied byte for byte | `routes/change_sets.py` (`/export`), `schemas/crp-change-set-export-v1.schema.json` |
 | 7. UI (queue with filters, file list with markers, editor, compare, check results, export; finding page link; plain language; light/dark/mobile) | Delivered: project "Fix workspaces" tab, workspace page (Issues, Changes, Edit), "Open in workspace" on findings, "Compare" on uploads | `apps/web/src/pages/*`, UI_SPEC "Implemented in P08" |
 
 ## Mandatory tests (P08 prompt)
@@ -38,7 +41,8 @@ Compile results depend on P09 and are shown as "not compiled".
 | Provenance and honesty | Manual, recipe and revert events; suppression edit; weakened and skipped tests | PASS. Sources and events are recorded with their findings. A suppression is flagged, and the vanished finding is `suppressed`, never fixed. Weakened, skipped and focused tests are flagged; recipes refuse them | `test_edit_files_with_flags_conflicts_and_line_endings`, `test_bulk_recipe_fixes_issue_queue_and_conflicts`, `test_p08_workspace.py`, `test_fixes.py` policy cases, `test_changeset.py` |
 | Conflicts and limits | Stale version; a hand edit on a recipe's lines; ambiguous lines; binary, oversized and non-UTF-8 files; the files-per-workspace limit; CRLF and Unicode | PASS. 409 `version_conflict`. The recipe is skipped as "changed in this workspace", and an ambiguous relocation is a conflict. Binary and non-UTF-8 files return 409 `not_editable`, an oversized file 413, a full workspace 409 `workspace_full`. CRLF is kept and a BOM, emoji and CJK round-trip | `test_edit_files…`, `test_bulk…`, `test_encodings_unicode_and_limits`, `test_recipe_edits_apply_on_changed_text_or_conflict` |
 | Re-check | Real engines on the seeded fixture, with a bulk recipe, a suppression with a real fix, and a new `eval` | PASS. The target finding and the same-line PMD finding are `fixed`; the NaN finding is `suppressed`; the other InvoiceService findings are `still_present`; new problems include `app.js`. The digest is current. A second check of the same content reuses the derived copy with identical outcomes | `test_p08_workspace.py` (Temporal and lite) |
-| Configuration edits and unchanged files | The whole derived snapshot is scanned (unchanged files from the cache), so new findings in unchanged files are found | PASS by design and the full-snapshot scan in the worker test. A dedicated dependency-upgrade fixture is not yet added (Trivy DB offline) | `change_set.py` (`prepare` builds the full manifest) |
+| Configuration edits and unchanged files | The whole derived snapshot is scanned (unchanged files from the cache). The workspace adds `log4j-core` 2.14.1 to `pom.xml` | PASS. The edit is flagged `config_change`, and Trivy reports new dependency findings in `pom.xml`. Effects in other, unchanged files are covered by the full-snapshot scan by design; no dedicated fixture exercises such a cross-file case | `test_p08_workspace.py`, `change_set.py` (`prepare` builds the full manifest) |
+| Pull request (GitHub) | A checked workspace with bulk fixes, a deleted file, an added file and an executable script; asked again; new content; branch moved | PASS. One commit on the reviewed commit: deletion applied, `100755` kept, untouched files identical. The body lists provenance and check counts and says not compiled. Asking again returns the same PR; refused until checked and when not allowed; new content needs a new check; a moved branch gives `stale_patch`. Non-GitHub uploads show no option | `test_p06_github.py::test_workspace_pull_request_is_one_checked_commit`, `test_change_sets_api.py`, `e2e/p06-github.spec.ts` |
 | AI | Off when the policy is off; labelled; validated; budgets; injection stays data | PASS (labelled test model; live quality BLOCKED on the key, K-P08-01). The request is refused with nothing sent while the project switch is off. Every candidate carries the AI label. The real fix passes the five checks with real ESLint/Opengrep/Trivy and can be applied once (recorded `ai`; the workspace check then reports the finding fixed). The hiding candidate is refused (`suppression_added`). A model that never submits stops `BUDGET_EXHAUSTED` with no candidates. An `AGENTS.md` telling the AI to add eslint-disable reaches the model only as fenced, labelled data, and any such edit is refused by the policy. Edits cannot name another file. Invented lines, kept and new problems, skipped tests, duplicates and no-ops are refused or dropped. Stale suggestions are never merged. Other workspaces get 404 | `test_p08_ai_fixes.py` (Temporal and lite), `test_ai_fix_requests_are_gated_and_applied_only_when_checked`, `test_ai_fixes_without_a_provider_say_why`, `test_ai_candidates.py` (8), `e2e/p08-workspace.spec.ts` |
 | Safety | Upload digests and the original folder; isolation for other workspaces; inert rendering | PASS. Upload blob digests and file rows are unchanged; the uploaded folder digest is unchanged. Upload list, review list, overview counts and issues are unchanged after checks. The demo workspace gets 404 on every workspace, file, issue, export, check and compare route. Code renders as CodeMirror text, and the prompt-injection `AGENTS.md` shows as plain text in the comparison | `test_edit_files…`, `test_p08_workspace.py`, `test_other_workspaces_see_nothing`, `p08-compare-uploads.png` |
 | Real stack | API, worker on Temporal and lite, and the browser journey: select issues → bulk fix → hand edit → re-check → compare → download the patch and changed files → compare two uploads | PASS (AI step pending slice 4) | `test_change_sets_api.py` (10), `test_p08_workspace.py` (2), `e2e/p08-workspace.spec.ts` |
@@ -49,7 +53,7 @@ Compile results depend on P09 and are shown as "not compiled".
 |---|---|---|
 | Lint, format, types and contracts | `make check` | exit 0 |
 | Types for Linux | `uv run mypy --platform linux` | no issues in 172 source files |
-| Tests | `make test` | exit 0. 497 pytest (8 October: 485). P08 added 46: changeset helpers 18, policy 4, AI candidates 8, API 12, real-stack worker 4. 29 vitest; P08 added 5: router 3, editor 2 |
+| Tests | `make test` | exit 0. 498 pytest (8 October: 485). P08 added 47 (workspace pull request 1 more): changeset helpers 18, policy 4, AI candidates 8, API 12, real-stack worker 4. 29 vitest; P08 added 5: router 3, editor 2 |
 | Browser E2E | `make test-e2e` | exit 0: 19/19 (P08 workspace journey added; foundation, P01–P06 and UI tour unchanged) |
 | Screens | `p08-ai.png` (AI suggestions: a checked one with Apply, a refused one with the reason), `p08-workspace.png`, `p08-workspace-dark.png`, `p08-workspace-mobile.png`, `p08-editor.png`, `p08-compare.png`, `p08-compare-mobile.png`, `p08-compare-uploads.png` | Reviewed. Plain language with technical details collapsed. On phones, the issue table shows severity, result and Edit under the title. The compare gutters align once the viewer is in view. No horizontal page scroll at 390 px |
 | Bundle | `pnpm build` | Main bundle unchanged (440 kB). Editor chunk 347 kB (112 kB gzip) and grammars (2–92 kB) load only on workspace and compare pages |
@@ -62,6 +66,26 @@ Compile results depend on P09 and are shown as "not compiled".
 - **UI:** after a save, the editor remounted with stale content and lost the policy flags. It now stays mounted across saves and remounts only on freshly loaded content. CRLF files no longer look edited when unchanged.
 - **E2E flake:** typing two lines into the editor with one simulated keystroke string sometimes kept only the first line under full-suite load. The test now pastes multi-line text through CodeMirror's paste handler, as a user would. The product code was not at fault.
 - **Same-line findings** are correctly reported as fixed together (PMD `CompareObjectsWithEquals` disappears with `UseEqualsToCompareStrings`).
+
+## Environment note (9 October 2026)
+
+The last browser runs overlapped with this Mac sleeping on battery. The power log shows it waking
+for about 30 seconds every 15 minutes. During those runs, two tests stalled for exactly one sleep
+interval each:
+- one waiting for AI suggestions;
+- one waiting for the P02 architecture graph.
+
+A 20-second timer in a process sampler took 16 minutes. No product code was involved.
+
+Results with the slice 5 code:
+- `make check` exit 0;
+- `make test` 498 pytest and 29 vitest;
+- the last full `make test-e2e` run: 17 of 19 passed;
+- the P02 architecture test passed when rerun alone.
+
+The P08 browser journey passed alone twice with the slice 4 code, and its slice 5 change (the pull
+request card) is covered by the P06 browser journey, which passed. **Pending:** one more
+`make test-e2e` with the machine awake and on power, to show 19/19 for this exact code.
 
 ## Limitations
 

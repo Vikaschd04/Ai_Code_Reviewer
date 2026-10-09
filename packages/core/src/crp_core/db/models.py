@@ -1456,6 +1456,40 @@ class ChangeSet(TimestampMixin, Base):
     __mapper_args__ = {"version_id_col": version}  # noqa: RUF012 - SQLAlchemy declarative API
 
 
+class ChangeSetPullRequest(Base):
+    """A pull request opened for exactly one workspace content, after a person asked for it.
+
+    New content opens a new pull request (new branch); nothing is ever merged.
+    """
+
+    __tablename__ = "change_set_pull_requests"
+    __table_args__ = (
+        ForeignKeyConstraint(["change_set_id"], ["change_sets.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("change_set_id", "content_sha256"),
+        CheckConstraint("content_sha256 ~ '^[0-9a-f]{64}$'", name="content_sha256_format"),
+        CheckConstraint(f"base_sha ~ {_SHA}", name="base_sha_format"),
+        CheckConstraint(f"commit_sha ~ {_SHA}", name="commit_sha_format"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    change_set_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    repository: Mapped[str] = mapped_column(String(255), nullable=False)
+    branch: Mapped[str] = mapped_column(String(255), nullable=False)
+    base_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    base_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    commit_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ChangeSetFile(Base):
     """The current revision of one file in a workspace (content in the artifact store)."""
 

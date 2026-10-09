@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crp_analysis.sources.github import GitHubClient
+from crp_analysis.sources.github import GitHubClient, RepoAccess
 from crp_api.schemas import GitInstallationResponse, GitRepositoryResponse
 from crp_core.db.models import (
     CodeReview,
@@ -19,6 +20,7 @@ from crp_core.db.models import (
     GitInstallation,
     GitRepository,
     Project,
+    Snapshot,
 )
 from crp_core.domain.states import CodeReviewState
 from crp_core.workflows.gateway import WorkflowGateway, WorkflowUnavailableError
@@ -229,3 +231,68 @@ def connection_status(
     if repository.removed_at is not None:
         return "access_removed", "refactorX no longer has access to this repository on GitHub."
     return "active", None
+
+
+@dataclass(frozen=True, slots=True)
+class PublishTarget:
+    """Where a pull request for changes to one reviewed GitHub commit would go."""
+
+    access: RepoAccess
+    branch: str
+    base_sha: str
+    tree_sha: str
+    executable: frozenset[str]
+
+
+async def publish_target(
+    session: AsyncSession, project_id: uuid.UUID, snapshot: Snapshot
+) -> tuple[PublishTarget | None, str | None]:
+    """The pull request target for changes to ``snapshot``, or why there is none (plain text).
+
+    (None, None) means the code did not come from GitHub, so pull requests do not apply.
+    """
+    if snapshot.git_provider is None or not snapshot.git_commit:
+        return None, None
+    row = (
+        await session.execute(
+            select(GitConnection, GitRepository, GitInstallation)
+            .join(GitRepository, GitRepository.id == GitConnection.repository_id)
+            .join(GitInstallation, GitInstallation.id == GitRepository.installation_id)
+            .where(GitConnection.project_id == project_id)
+        )
+    ).one_or_none()
+    if row is None:
+        return None, "The repository is no longer connected to this project."
+    connection, repository, installation = row
+    status, reason = connection_status(installation, repository)
+    if status != "active":
+        return None, reason
+    if snapshot.git_repository and snapshot.git_repository != repository.full_name:
+        renamed = await session.scalar(
+            select(GitRepository.id).where(GitRepository.full_name == snapshot.git_repository)
+        )
+        if renamed is not None and renamed != repository.id:
+            return None, "This code belongs to a different repository than the connected one."
+    if not connection.publish_pull_requests:
+        return None, "A project admin has not allowed refactorX to open pull requests."
+    fork = await session.scalar(
+        select(CodeReview.id).where(
+            CodeReview.head_snapshot_id == snapshot.id, CodeReview.fork.is_(True)
+        )
+    )
+    if fork is not None:
+        return None, "This code comes from a fork; refactorX cannot add a branch there."
+    if not snapshot.git_ref:
+        return None, "The reviewed commit is not on a known branch."
+    capture = snapshot.git_capture or {}
+    listed = capture.get("executable") if isinstance(capture, dict) else None
+    return (
+        PublishTarget(
+            RepoAccess(installation.external_id, repository.external_id, repository.full_name),
+            snapshot.git_ref,
+            snapshot.git_commit,
+            snapshot.git_tree_sha or "",
+            frozenset(str(p) for p in listed) if isinstance(listed, list) else frozenset(),
+        ),
+        None,
+    )

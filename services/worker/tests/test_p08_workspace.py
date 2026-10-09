@@ -112,6 +112,22 @@ async def _fix_and_check(stack: Any, tmp_path: Path) -> None:
         )
     )["change_set"]
 
+    # A configuration edit (a vulnerable dependency, allowed for manual edits and flagged) is
+    # checked across the whole copy, so the dependency check reports it as new.
+    pom = (
+        (source / "pom.xml")
+        .read_text()
+        .replace(
+            "</project>",
+            "  <dependencies>\n    <dependency>\n      <groupId>org.apache.logging.log4j</groupId>\n"
+            "      <artifactId>log4j-core</artifactId>\n      <version>2.14.1</version>\n"
+            "    </dependency>\n  </dependencies>\n</project>",
+        )
+    )
+    saved = await _save(stack, ws, "pom.xml", pom)
+    assert saved["flags"] == ["config_change"]
+    ws = saved["change_set"]
+
     started = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/checks")
     check = await _wait_check(stack, started["id"])
     assert check["state"] in {"SUCCEEDED", "PARTIAL"}, check
@@ -126,6 +142,9 @@ async def _fix_and_check(stack: Any, tmp_path: Path) -> None:
         assert outcomes[finding["id"]] == expected, finding  # the same line's issues go together
     assert result["counts"]["fixed"] >= 1 and result["counts"]["new"] >= 1
     assert any(item["path"] == APP for item in result["new_items"])
+    assert any(
+        item["path"] == "pom.xml" and item["engine"] == "trivy" for item in result["new_items"]
+    ), result["new_items"]
     assert result["compiled"] is False and "not compiled" in result["not_verified"]
 
     # The issue queue shows the outcomes; the summary export carries the check.

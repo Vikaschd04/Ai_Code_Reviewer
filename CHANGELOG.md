@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — P08 workspace pull requests (9 October 2026)
+
+- For code reviewed from a connected GitHub repository, a checked fix workspace becomes **one pull request** (Changes tab → **Open pull request**). It is one commit on the reviewed commit with every change (added, changed and deleted files; executable bits kept). The body lists each file with how it was changed (by hand, automatic fix, AI suggestion), notes such as hiding markers, the check results and "not compiled, built or tested". Nothing is merged.
+- It follows the fix pull request rules: a project admin must allow pull requests, never for forks, only if the branch has not moved since the review (otherwise "stale"), and only for changes that were checked as they are now. Asking again returns the same pull request; new changes need a new check.
+- A configuration edit in a workspace (for example a vulnerable dependency in `pom.xml`) is now tested to surface the new dependency findings in the re-check.
+- API: `POST /v1/change-sets/{id}/pull-request`, workspace `pull_request` status. Migration `0011`. The workspace status "Downloaded" is now "Delivered" (downloaded or sent as a pull request).
+
 ## Unreleased — P08 AI fix suggestions (9 October 2026)
 
 - **Ask AI** on an issue in a fix workspace (ADR 0016). It works only when a project admin switched AI on and the server has a provider with budget left. The AI sees the file as it is in the workspace and suggests up to three fixes.

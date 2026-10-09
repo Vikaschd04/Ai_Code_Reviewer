@@ -65,6 +65,8 @@ Retention: deleting a project removes its connection, reviews, deliveries' revie
 
 - Migration `0010`: `ai_runs.kind` accepts `fix`; `ai_runs.change_set_id` (`SET NULL`, indexed, so AI usage accounting survives workspace deletion) and `target_sha256` (the exact file text the candidates were made for, 64-hex CHECK). Candidates, their edits, checks and `applied_at` are stored in `ai_runs.answer`.
 
+- Migration `0011`: `change_set_pull_requests` (workspace cascade; unique `(change_set_id, content_sha256)`; repository, branch, base ref and commit, commit, number, url, creator).
+
 Retention: deleting a workspace deletes its files, events, checks and derived copies (with their scans and findings); deleting the project or the upload deletes the workspace. Revision blobs are shared content-addressed objects (no separate GC yet, K-P01-03).
 
 ## Target model

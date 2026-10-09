@@ -11,7 +11,9 @@ Only GitHub is the test double in ``crp_devtools.testing.fake_github``. Covered:
 - configuration-only changes;
 - partial scans, provider outages and revoked access;
 - forks;
-- fix pull requests with an exact-head freshness check.
+- fix pull requests with an exact-head freshness check;
+- one pull request per checked fix workspace (P08): changed, added, deleted and executable files
+  in one commit, with the same freshness check.
 """
 
 from __future__ import annotations
@@ -688,3 +690,111 @@ async def test_push_reviews_and_publication_on_the_lite_profile(world: World) ->
             assert scheduled["kind"] == "branch" and scheduled["ref"] == "main"
         finally:
             await engine.dispose()
+
+
+async def _wait_workspace_check(stack: Any, check_id: str) -> dict[str, Any]:
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
+        check = await stack.ok("GET", f"/v1/change-set-checks/{check_id}")
+        if check["state"] in {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}:
+            return dict(check)
+        await asyncio.sleep(0.3)
+    raise AssertionError("workspace check did not finish")
+
+
+async def _save(stack: Any, ws: dict[str, Any], path: str, text: str) -> dict[str, Any]:
+    saved = await stack.ok(
+        "PUT",
+        f"/v1/change-sets/{ws['id']}/file",
+        json={"version": ws["version"], "path": path, "content": text},
+    )
+    return dict(saved["change_set"])
+
+
+async def test_workspace_pull_request_is_one_checked_commit(
+    world: World, stack_factory: StackFactory
+) -> None:
+    async with stack_factory(world.settings) as stack:
+        project, review = await connect(stack, world)
+        ws = await stack.ok(
+            "POST",
+            f"/v1/projects/{project}/change-sets",
+            json={"snapshot_id": review["head_snapshot_id"]},
+        )
+        state = ws["pull_request"]
+        assert state["applies"] and not state["available"]
+        assert "has not allowed" in state["reason"]
+        connection = await stack.ok("GET", f"/v1/projects/{project}/git-connection")
+        await stack.ok(
+            "PATCH",
+            f"/v1/projects/{project}/git-connection",
+            json={"version": connection["version"], "publish_pull_requests": True},
+        )
+        ws = await stack.ok("GET", f"/v1/change-sets/{ws['id']}")
+        assert ws["pull_request"]["reason"] == "Make a change first."
+
+        fixed = await stack.ok(
+            "POST",
+            f"/v1/change-sets/{ws['id']}/fixes",
+            json={
+                "version": ws["version"],
+                "engine": "pmd",
+                "rule_id": "UseEqualsToCompareStrings",
+            },
+        )
+        assert len(fixed["applied"]) >= 3
+        ws = fixed["change_set"]
+        ws = await stack.ok(
+            "POST",
+            f"/v1/change-sets/{ws['id']}/file/delete",
+            json={"version": ws["version"], "path": "src/main/java/shop/Legacy.java"},
+        )
+        ws = await _save(stack, ws, "docs/CHANGES.md", "# Changes\n\nFixed comparisons.\n")
+        ws = await _save(stack, ws, "scripts/build.sh", "#!/bin/sh\nmvn -q -B package\n")
+        assert "Check your changes first" in ws["pull_request"]["reason"]
+        unchecked = await stack.client.post(f"/v1/change-sets/{ws['id']}/pull-request")
+        assert unchecked.status_code == 409
+        assert unchecked.json()["code"] == "pull_request_unavailable"
+        assert world.repo.created_pulls == []
+
+        started = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/checks")
+        check = await _wait_workspace_check(stack, started["id"])
+        assert check["state"] in {"SUCCEEDED", "PARTIAL"}, check
+        ws = await stack.ok("GET", f"/v1/change-sets/{ws['id']}")
+        assert ws["pull_request"]["available"] and ws["pull_request"]["reason"] is None
+
+        opened = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/pull-request")
+        assert opened["base_ref"] == "main" and opened["base_sha"] == world.main
+        assert opened["branch"].startswith("refactorx/workspace-") and opened["current"]
+        again = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/pull-request")
+        assert again["number"] == opened["number"] and len(world.repo.created_pulls) == 1
+        commit = world.repo.commits[opened["commit_sha"]]
+        assert commit.parents == [world.main]
+        files = commit.files
+        orders = files["src/main/java/shop/Orders.java"].data or b""
+        assert b'"PAID".equals(status)' in orders
+        assert "src/main/java/shop/Legacy.java" not in files
+        assert files["docs/CHANGES.md"].data == b"# Changes\n\nFixed comparisons.\n"
+        assert files["scripts/build.sh"].mode == "100755"
+        assert files["scripts/build.sh"].data == b"#!/bin/sh\nmvn -q -B package\n"
+        base_files = world.repo.commits[world.main].files
+        assert files["README.md"] == base_files["README.md"]
+        assert files["pom.xml"] == base_files["pom.xml"]
+        pull = world.repo.created_pulls[0]
+        assert pull["base"] == "main" and "did not compile, build or test" in pull["body"]
+        assert "Deleted `src/main/java/shop/Legacy.java`" in pull["body"]
+        assert "automatic fix" in pull["body"] and "fixed" in pull["body"]
+        ws = await stack.ok("GET", f"/v1/change-sets/{ws['id']}")
+        assert ws["pull_request"]["opened"][0]["number"] == opened["number"]
+        assert not ws["pull_request"]["available"] and ws["state"] == "exported"
+
+        # New content needs a new check; a moved branch makes it stale.
+        ws = await _save(stack, ws, "README.md", "# Shop\n\nFixed.\n")
+        assert ws["pull_request"]["opened"][0]["current"] is False
+        assert "Check your changes first" in ws["pull_request"]["reason"]
+        started = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/checks")
+        await _wait_workspace_check(stack, started["id"])
+        world.repo.commit("main", {"README.md": "# Shop\n\nmoved\n"}, "moved")
+        stale = await stack.client.post(f"/v1/change-sets/{ws['id']}/pull-request")
+        assert stale.status_code == 409 and stale.json()["code"] == "stale_patch", stale.text
+        assert len(world.repo.created_pulls) == 1

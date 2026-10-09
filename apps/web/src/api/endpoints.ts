@@ -1070,3 +1070,14 @@ export async function applyAiFix(
   if (data) return data;
   throw toApiError(response, error);
 }
+
+/** Open one pull request with the checked workspace changes (GitHub uploads; never merged). */
+export async function openWorkspacePullRequest(
+  workspaceId: string,
+): Promise<Workspace["pull_request"]["opened"][number]> {
+  const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/pull-request", {
+    params: { path: { change_set_id: workspaceId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}

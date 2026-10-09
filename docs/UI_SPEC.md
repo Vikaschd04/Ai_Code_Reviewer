@@ -77,7 +77,7 @@ The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in ligh
 - **Project → Fix workspaces tab:** what a workspace does in one sentence, **New workspace** (on the latest upload), and a list (title, "On shop.zip", files changed, last check, updated).
 - **Finding page → Fix in a workspace:** **Open in workspace** reuses the newest workspace on the finding's upload (or creates one) and opens the file at the finding's line.
 - **Workspace page** (`#/workspaces/:id`):
-  - **Header:** title, "Your fixes on top of shop.zip. The upload itself is never changed.", a status badge (Draft, Checking, Checked, Downloaded) and downloads: **Patch**, **Changed files**, **Full project**, **Summary**.
+  - **Header:** title, "Your fixes on top of shop.zip. The upload itself is never changed.", a status badge (Draft, Checking, Checked, Delivered: downloaded or sent as a pull request) and downloads: **Patch**, **Changed files**, **Full project**, **Summary**.
   - **Issues tab:**
     - **Check my changes** explains what is checked and that nothing is compiled, built or tested. Tiles: Fixed, Still present, **Hidden, not fixed** and New problems; new problems link into the editor. A notice says when results belong to an earlier version of the changes; **Stop** while checking.
     - **Issues to fix:** search, severity, last result, "Automatic fix available". A table with checkboxes; **Fix N selected automatically**, **Select all with an automatic fix**, and per row **Edit** and **Fix all like this**. The result note says how many issues were fixed and, collapsed, why the others were skipped.
@@ -92,6 +92,7 @@ The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in ligh
   - the label "AI suggestion: review it before applying. Not compiled, built or tested."
 
   Without AI, the side column says why in one line.
+- **Pull request on GitHub** (Changes tab, only for uploads from a connected repository): **Open pull request** when the current changes were checked ("One commit with all your changes on the reviewed branch, only if it has not moved since the review. Nothing is merged."), then "Pull request #N on GitHub"; otherwise the plain reason (not allowed by an admin, fork, check your changes first, make a change first); earlier pull requests for older versions are listed.
 - **Upload page → Compare tab:** choose another upload; counts (added, changed, removed, moved), the list of changed files, and each file side by side or inline.
 - The editor and grammars load only on these pages. Code is inert text. Checked in light, dark and mobile (390 px, no horizontal page scroll; on phones the issue table shows severity, result and **Edit** under the title) by `apps/web/e2e/p08-workspace.spec.ts`, screenshots `p08-*.png`.
 

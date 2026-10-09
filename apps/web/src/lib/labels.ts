@@ -169,7 +169,7 @@ export const CHANGE_SOURCES: Record<string, string> = {
   recipe: "Automatic fix",
   ai: "AI suggestion",
   revert: "Undone",
-  export: "Downloaded",
+  export: "Delivered",
 };
 
 export const EDIT_FLAGS: Record<string, string> = {

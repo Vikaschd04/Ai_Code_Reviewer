@@ -419,6 +419,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/change-sets/{change_set_id}/pull-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Pull Request
+         * @description Open one pull request with the checked workspace changes on the reviewed branch.
+         *
+         *     The branch must still point at the reviewed commit; otherwise 409 ``stale_patch``. The same
+         *     content opens one pull request (asking again returns it); nothing is ever merged.
+         */
+        post: operations["open_pull_request_v1_change_sets__change_set_id__pull_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/code-reviews/{review_id}": {
         parameters: {
             query?: never;
@@ -2254,6 +2277,7 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            pull_request: components["schemas"]["WorkspacePullRequestState"];
             /**
              * State
              * @description ready: checked as it is now; exported: downloaded as it is now
@@ -4436,6 +4460,55 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** WorkspacePullRequest */
+        WorkspacePullRequest: {
+            /** Base Ref */
+            base_ref: string;
+            /** Base Sha */
+            base_sha: string;
+            /** Branch */
+            branch: string;
+            /** Commit Sha */
+            commit_sha: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Current
+             * @description Opened for the workspace content as it is now
+             */
+            current: boolean;
+            /** Number */
+            number: number;
+            /** Repository */
+            repository: string;
+            /** Url */
+            url: string;
+        };
+        /** WorkspacePullRequestState */
+        WorkspacePullRequestState: {
+            /**
+             * Applies
+             * @description The upload came from a connected GitHub repository
+             */
+            applies: boolean;
+            /**
+             * Available
+             * @description A pull request can be opened for the current content
+             */
+            available: boolean;
+            /** Opened */
+            opened: components["schemas"]["WorkspacePullRequest"][];
+            /**
+             * Reason
+             * @description Why not (plain language)
+             */
+            reason: string | null;
+        };
         /** WorkspaceSaveResult */
         WorkspaceSaveResult: {
             change_set: components["schemas"]["ChangeSetResponse"];
@@ -5969,6 +6042,82 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    open_pull_request_v1_change_sets__change_set_id__pull_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                change_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspacePullRequest"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

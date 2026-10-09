@@ -27,7 +27,7 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P08-02 | Editor and simplified compare (per file, per change set, two uploads/commits) | Policy flags on save; inert rendering; light/dark/mobile — **DONE** (CodeMirror 6; ignore-whitespace is P08-F2) |
 | P08-03 | Bulk recipe fixes, conflicts and change-set re-check | Fixed / still present / new reported correctly — **DONE** (suppressed never fixed; Temporal and lite) |
 | P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest — **DONE offline** (labelled test model; live quality needs K-P03-01) |
-| P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules — **NEXT** |
+| P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules — **DONE** (fake GitHub; live with K-P06-01) |
 | P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded |
 | P09-02 | Tier 1 safe compile in a sandbox (Java `-proc:none`, npm `--ignore-scripts`) | Malicious processor/script not executed; egress blocked |
 | P09-03 | Tier 2 builds/tests in microVMs, bring-your-own CI, Salesforce/SAP profiles | Containment tests; results bound to hashes |

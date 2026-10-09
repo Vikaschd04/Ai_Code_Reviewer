@@ -48,7 +48,7 @@ Every owner requirement, the phase that delivers it, and how it is verified. "Se
 | 5 | P04 Frameworks | SAP Commerce and Salesforce packs | P02 | COMPLETE (experimental) |
 | 6 | P05 Validated fixes | Deterministic fixes, validation ladder, patch | P03–P04 | IN_PROGRESS (tests/build need P09; AI patches need the key) |
 | 7 | P06 GitHub and incremental | GitHub App, branch and PR reviews, publication | P02, P05 | BLOCKED (owner's GitHub App for the live check) |
-| **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | IN_PROGRESS (slices 1–3 done; AI candidates and PR next) |
+| **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | BLOCKED (all slices done; live AI quality needs the owner's key) |
 | **9** | **P09 Isolated build** | Tiered compile and build in the portal; completes P05 tests and build steps | P05, P08; paid compute (owner) | NOT_STARTED |
 | **10 (next phase focus)** | **P10 Architecture intelligence** | Architecture model, metrics, intended-architecture rules, smell, performance and scalability catalogs, Git-history hotspots, runtime import, recommendations, grounded AI architect | P02, P04, P06; P03 for AI | NOT_STARTED |
 | **11** | **P11 Architecture remediation** | Deterministic refactorings, what-if simulation, AI multi-file plans, verified migrations | P08, P09, P10 | NOT_STARTED |

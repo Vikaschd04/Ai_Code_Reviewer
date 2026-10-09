@@ -1,10 +1,9 @@
 # ADR 0016 — Fix workspaces: change sets, re-checks, comparison and exports
 
-Status: accepted. Slices 1–4 are implemented and verified:
+Status: accepted. Slices 1–5 are implemented and verified:
 - change sets, editor and comparison, bulk fixes, re-check and exports;
-- AI candidates, verified with the labelled test model; live quality needs the owner's AI key.
-
-Slice 5 (change-set pull request) is planned. Date: 8 October 2026. Owner: repository owner (requirements of
+- AI candidates, verified with the labelled test model; live quality needs the owner's AI key;
+- one pull request per checked workspace, verified against the labelled fake GitHub. Date: 8 October 2026. Owner: repository owner (requirements of
 8 October 2026; prompts/P08_FIX_WORKSPACE.md). Implemented by the development agent.
 
 Context and constraints:
@@ -154,10 +153,27 @@ Decision:
     - Budgets stop honestly (`BUDGET_EXHAUSTED`, nothing invented). Source text, including
       instruction files, stays fenced, labelled data.
 
+11. **One pull request per checked workspace content (slice 5).**
+    - When the upload is a capture of a connected GitHub repository, a member can open a pull
+      request.
+    - Preconditions: the P06 publication rules (an admin allowed pull requests, not a fork,
+      active installation, same repository), a current successful workspace check, and the
+      reviewed branch still at the reviewed commit (`stale_patch` otherwise).
+    - It is one commit on that commit with every change: blobs for added and changed files,
+      null tree entries for deletions, and the executable bit from the capture. It is pushed
+      to `refactorx/workspace-<id>-<digest>`.
+    - The body lists each file with its provenance and notes (hiding markers, weakened tests,
+      configuration), the check counts and "not compiled, built or tested".
+    - The same content returns the same pull request; new content needs a new check and opens
+      a new one. It is recorded in `change_set_pull_requests` (migration 0011) and as a
+      delivery event. Nothing is ever merged.
+    - The fix and workspace pull requests share one target function
+      (`services/git.publish_target`).
+
 Consequences:
 
-- Users can fix, check, compare and take away many fixes without Git. GitHub stays optional
-  (slice 5 adds one pull request per workspace with the P06 freshness rules).
+- Users can fix, check, compare and take away many fixes without Git. GitHub stays optional;
+  for connected repositories a checked workspace becomes one pull request.
 - Checks are source-level. Compile, type and test results arrive with P09's sandbox. Until then
   the UI, exports and summaries say "not compiled, built or tested".
 - Each check adds a derived snapshot and two scans. They are deleted with the workspace or the

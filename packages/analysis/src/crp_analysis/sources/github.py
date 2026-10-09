@@ -300,6 +300,15 @@ def _next_link(header: str | None) -> str | None:
     return None
 
 
+@dataclass(frozen=True, slots=True)
+class CommitChange:
+    """A file in a new commit: its content, or None to delete it (a null tree entry)."""
+
+    path: str
+    mode: str
+    content: bytes | None
+
+
 class GitHubClient:
     """Async GitHub REST client for one server; share one instance per process."""
 
@@ -725,31 +734,55 @@ class GitHubClient:
         content: bytes,
         message: str,
     ) -> str:
-        blob = await self._repo_json(
+        return await self.create_commit(
             access,
-            PUBLISH_FIXES,
-            "POST",
-            f"{access.path}/git/blobs",
-            "uploading the fixed file",
-            body={"content": base64.b64encode(content).decode("ascii"), "encoding": "base64"},
+            parent_sha=parent_sha,
+            base_tree=base_tree,
+            changes=[CommitChange(path, mode, content)],
+            message=message,
         )
+
+    async def create_commit(
+        self,
+        access: RepoAccess,
+        *,
+        parent_sha: str,
+        base_tree: str,
+        changes: list[CommitChange],
+        message: str,
+    ) -> str:
+        """One commit on ``parent_sha`` that adds, changes or deletes (``content`` None) files."""
+        entries: list[dict[str, object]] = []
+        for change in changes:
+            sha: str | None = None
+            if change.content is not None:
+                blob = await self._repo_json(
+                    access,
+                    PUBLISH_FIXES,
+                    "POST",
+                    f"{access.path}/git/blobs",
+                    "uploading a changed file",
+                    body={
+                        "content": base64.b64encode(change.content).decode("ascii"),
+                        "encoding": "base64",
+                    },
+                )
+                sha = str(blob["sha"])
+            entries.append({"path": change.path, "mode": change.mode, "type": "blob", "sha": sha})
         tree = await self._repo_json(
             access,
             PUBLISH_FIXES,
             "POST",
             f"{access.path}/git/trees",
-            "creating the fixed tree",
-            body={
-                "base_tree": base_tree,
-                "tree": [{"path": path, "mode": mode, "type": "blob", "sha": blob["sha"]}],
-            },
+            "creating the changed tree",
+            body={"base_tree": base_tree, "tree": entries},
         )
         commit = await self._repo_json(
             access,
             PUBLISH_FIXES,
             "POST",
             f"{access.path}/git/commits",
-            "creating the fix commit",
+            "creating the commit",
             body={"message": message, "tree": tree["sha"], "parents": [parent_sha]},
         )
         return str(commit["sha"])

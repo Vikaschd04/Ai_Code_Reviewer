@@ -62,15 +62,11 @@ from crp_api.services import git as git_service
 from crp_api.services.scope import get_scoped
 from crp_core.artifacts import ArtifactKey
 from crp_core.db.models import (
-    CodeReview,
     FileEntry,
     Finding,
     FixProposal,
     FixPullRequest,
     FixValidation,
-    GitConnection,
-    GitInstallation,
-    GitRepository,
     Project,
     Snapshot,
 )
@@ -277,39 +273,11 @@ async def _pull_request_target(
 ) -> tuple[_PrTarget | None, str | None]:
     """Where a pull request for this fix would go, or why it cannot be opened (plain text)."""
     snapshot = await session.get(Snapshot, proposal.snapshot_id)
-    if snapshot is None or snapshot.git_provider is None or not snapshot.git_commit:
-        return None, None  # not from a connected repository: no pull requests
-    row = (
-        await session.execute(
-            select(GitConnection, GitRepository, GitInstallation)
-            .join(GitRepository, GitRepository.id == GitConnection.repository_id)
-            .join(GitInstallation, GitInstallation.id == GitRepository.installation_id)
-            .where(GitConnection.project_id == proposal.project_id)
-        )
-    ).one_or_none()
-    if row is None:
-        return None, "The repository is no longer connected to this project."
-    connection, repository, installation = row
-    status, reason = git_service.connection_status(installation, repository)
-    if status != "active":
+    if snapshot is None:
+        return None, None
+    target, reason = await git_service.publish_target(session, proposal.project_id, snapshot)
+    if target is None:
         return None, reason
-    if snapshot.git_repository and snapshot.git_repository != repository.full_name:
-        renamed = await session.scalar(
-            select(GitRepository.id).where(GitRepository.full_name == snapshot.git_repository)
-        )
-        if renamed is not None and renamed != repository.id:
-            return None, "This fix belongs to a different repository than the connected one."
-    if not connection.publish_pull_requests:
-        return None, "A project admin has not allowed refactorX to open pull requests."
-    fork = await session.scalar(
-        select(CodeReview.id).where(
-            CodeReview.head_snapshot_id == snapshot.id, CodeReview.fork.is_(True)
-        )
-    )
-    if fork is not None:
-        return None, "This code comes from a fork; refactorX cannot add a branch there."
-    if not snapshot.git_ref:
-        return None, "The reviewed commit is not on a known branch."
     passed = (
         latest is not None
         and latest.state == FixValidationState.PASSED.value
@@ -321,17 +289,9 @@ async def _pull_request_target(
             None,
             "Run the checks first: only fixes whose checks passed can become pull requests.",
         )
-    capture = snapshot.git_capture or {}
-    executable = capture.get("executable") if isinstance(capture, dict) else None
-    mode = "100755" if isinstance(executable, list) and proposal.path in executable else "100644"
+    mode = "100755" if proposal.path in target.executable else "100644"
     return (
-        _PrTarget(
-            RepoAccess(installation.external_id, repository.external_id, repository.full_name),
-            snapshot.git_ref,
-            snapshot.git_commit,
-            snapshot.git_tree_sha or "",
-            mode,
-        ),
+        _PrTarget(target.access, target.branch, target.base_sha, target.tree_sha, mode),
         None,
     )
 

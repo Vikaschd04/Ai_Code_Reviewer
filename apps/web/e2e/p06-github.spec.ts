@@ -49,7 +49,7 @@ test("GitHub: verified linking, reviews, a published check and a fix pull reques
   page,
   request,
 }) => {
-  test.setTimeout(480_000);
+  test.setTimeout(600_000);
   await signIn(page);
 
   // Link the GitHub account: the fake asks for consent and sends the browser back.
@@ -154,4 +154,26 @@ test("GitHub: verified linking, reviews, a published check and a fix pull reques
   const after = await fakeState(request);
   expect(after.pulls).toHaveLength(1);
   expect(after.pulls[0]?.base).toBe("main");
+
+  // A checked fix workspace becomes one pull request with all its changes (P08).
+  await page.getByRole("link", { name: "Back to the finding" }).click();
+  await page.getByTestId("workspace-open").click();
+  await expect(page).toHaveURL(/#\/workspaces\//);
+  await page.getByRole("link", { name: "Issues", exact: true }).click();
+  await page.getByRole("button", { name: "Select all with an automatic fix" }).click();
+  await page.getByTestId("workspace-fix-selected").click();
+  await expect(page.getByTestId("workspace-fix-result")).toContainText(
+    /Fixed \d+ issues? automatically/,
+  );
+  await page.getByTestId("workspace-run-check").click();
+  await expect(page.getByTestId("workspace-outcomes")).toBeVisible({ timeout: 180_000 });
+  await page.getByRole("link", { name: /^Changes \(\d+\)$/ }).click();
+  await page.getByTestId("workspace-open-pull-request").click();
+  await expect(page.getByTestId("workspace-pull-request")).toContainText(
+    /Pull request #\d+ on GitHub/,
+  );
+  await page.screenshot({ path: "test-results/screens/p08-pull-request.png", fullPage: true });
+  const delivered2 = await fakeState(request);
+  expect(delivered2.pulls).toHaveLength(2);
+  expect(delivered2.pulls[1]?.base).toBe("main");
 });

@@ -1657,6 +1657,9 @@
             "title": "Project Id",
             "type": "string"
           },
+          "pull_request": {
+            "$ref": "#/components/schemas/WorkspacePullRequestState"
+          },
           "state": {
             "description": "ready: checked as it is now; exported: downloaded as it is now",
             "enum": [
@@ -1695,6 +1698,7 @@
           "version",
           "can_edit",
           "ai",
+          "pull_request",
           "files",
           "latest_check",
           "events",
@@ -7984,6 +7988,109 @@
         "title": "WorkspaceIssuePage",
         "type": "object"
       },
+      "WorkspacePullRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_ref": {
+            "title": "Base Ref",
+            "type": "string"
+          },
+          "base_sha": {
+            "title": "Base Sha",
+            "type": "string"
+          },
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "commit_sha": {
+            "title": "Commit Sha",
+            "type": "string"
+          },
+          "content_sha256": {
+            "title": "Content Sha256",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "description": "Opened for the workspace content as it is now",
+            "title": "Current",
+            "type": "boolean"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "repository": {
+            "title": "Repository",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "url",
+          "repository",
+          "branch",
+          "base_ref",
+          "base_sha",
+          "commit_sha",
+          "content_sha256",
+          "current",
+          "created_at"
+        ],
+        "title": "WorkspacePullRequest",
+        "type": "object"
+      },
+      "WorkspacePullRequestState": {
+        "additionalProperties": false,
+        "properties": {
+          "applies": {
+            "description": "The upload came from a connected GitHub repository",
+            "title": "Applies",
+            "type": "boolean"
+          },
+          "available": {
+            "description": "A pull request can be opened for the current content",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "opened": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspacePullRequest"
+            },
+            "title": "Opened",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why not (plain language)",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "applies",
+          "available",
+          "reason",
+          "opened"
+        ],
+        "title": "WorkspacePullRequestState",
+        "type": "object"
+      },
       "WorkspaceSaveResult": {
         "additionalProperties": false,
         "properties": {
@@ -10051,6 +10158,100 @@
           }
         },
         "summary": "List Issues",
+        "tags": [
+          "fix workspaces"
+        ]
+      }
+    },
+    "/v1/change-sets/{change_set_id}/pull-request": {
+      "post": {
+        "description": "Open one pull request with the checked workspace changes on the reviewed branch.\n\nThe branch must still point at the reviewed commit; otherwise 409 ``stale_patch``. The same\ncontent opens one pull request (asking again returns it); nothing is ever merged.",
+        "operationId": "open_pull_request_v1_change_sets__change_set_id__pull_request_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_set_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Change Set Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspacePullRequest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Open Pull Request",
         "tags": [
           "fix workspaces"
         ]
