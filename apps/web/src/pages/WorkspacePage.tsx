@@ -126,6 +126,87 @@ function ExportMenu({ workspace }: { workspace: Workspace }) {
 
 // -- check -----------------------------------------------------------------------------------------
 
+interface TypeError {
+  path: string;
+  line: number;
+  code: string;
+  message: string;
+}
+
+interface TypesResult {
+  state: string;
+  tool?: string | null;
+  reason?: string | null;
+  new_count?: number;
+  new?: TypeError[];
+  fixed?: number | null;
+  unresolved_imports?: number;
+}
+
+function typesOf(check: WorkspaceCheck | null | undefined): TypesResult | null {
+  const types = check?.result?.types;
+  if (!types || typeof types !== "object" || !("state" in types)) return null;
+  return types as TypesResult;
+}
+
+/** Tier 0 type-check result (P09): new and fixed TypeScript errors, or why it did not run. */
+function TypesNote({
+  check,
+  workspaceId,
+}: {
+  check: WorkspaceCheck | null | undefined;
+  workspaceId: string;
+}) {
+  const types = typesOf(check);
+  if (!types || types.state === "not_applicable") return null;
+  if (types.state !== "checked") {
+    return (
+      <p className="small muted" data-testid="workspace-types" data-state={types.state}>
+        Type check: {types.reason ?? "not available."}
+      </p>
+    );
+  }
+  const added = types.new_count ?? 0;
+  const fixed = types.fixed ?? 0;
+  return (
+    <div className="stack stack-xs" data-testid="workspace-types" data-state="checked">
+      <div className="row">
+        <StatusBadge
+          state={added > 0 ? "FAILED" : "fixed"}
+          label={added > 0 ? plural(added, "new type error") : "No new type errors"}
+        />
+        <span className="small muted">
+          {fixed > 0 ? `${plural(fixed, "type error")} fixed · ` : ""}
+          TypeScript type-check
+        </span>
+      </div>
+      {(types.unresolved_imports ?? 0) > 0 ? (
+        <p className="small muted">
+          {plural(types.unresolved_imports ?? 0, "import")} of packages that are not installed could
+          not be checked.
+        </p>
+      ) : null}
+      {added > 0 ? (
+        <Disclosure summary="Show the new type errors" testId="workspace-type-errors">
+          <ul className="stack stack-sm plain-list">
+            {(types.new ?? []).map((item, index) => (
+              <li key={index} className="stack stack-xs">
+                <a
+                  className="small"
+                  href={workspaceHref(workspaceId, "edit", item.path, item.line)}
+                >
+                  <FileLocation path={item.path} line={item.line} />
+                </a>
+                <span className="small secondary">{item.message}</span>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      ) : null}
+    </div>
+  );
+}
+
 function CheckCard({ workspace, onChange }: { workspace: Workspace; onChange: SetWorkspace }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,8 +245,9 @@ function CheckCard({ workspace, onChange }: { workspace: Workspace; onChange: Se
             <Icon name="shield" size={16} /> Check my changes
           </h2>
           <p className="card-sub">
-            refactorX scans a copy of your upload with your changes and compares the results with
-            the original review. It does not compile, build or run tests.
+            refactorX checks a copy of your upload with your changes and compares the results with
+            the original review. TypeScript is type-checked; nothing is built, run or tested, and
+            Java is not compiled.
           </p>
         </div>
         {check ? <StatusBadge state={check.state} /> : null}
@@ -185,6 +267,7 @@ function CheckCard({ workspace, onChange }: { workspace: Workspace; onChange: Se
           ))}
         </div>
       ) : null}
+      {finished ? <TypesNote check={check} workspaceId={workspace.id} /> : null}
       {finished && count(check, "not_rechecked") > 0 ? (
         <p className="small muted">
           {plural(count(check, "not_rechecked"), "issue")} could not be rechecked (for example a

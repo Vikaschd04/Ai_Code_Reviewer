@@ -28,7 +28,7 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P08-03 | Bulk recipe fixes, conflicts and change-set re-check | Fixed / still present / new reported correctly — **DONE** (suppressed never fixed; Temporal and lite) |
 | P08-04 | AI fix candidates in the workspace | Labelled, policy-gated, validated; budgets honest — **DONE offline** (labelled test model; live quality needs K-P03-01) |
 | P08-05 | Change-set pull request (GitHub) and IDE apply guidance | P06 freshness rules — **DONE** (fake GitHub; live with K-P06-01) |
-| P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded |
+| P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded — **DONE** (TypeScript in workspace checks; ADR 0017) |
 | P09-02 | Tier 1 safe compile in a sandbox (Java `-proc:none`, npm `--ignore-scripts`) | Malicious processor/script not executed; egress blocked |
 | P09-03 | Tier 2 builds/tests in microVMs, bring-your-own CI, Salesforce/SAP profiles | Containment tests; results bound to hashes |
 | P10-01 | Architecture model and structural metrics with views | Hand-computed metric fixtures |
@@ -99,3 +99,12 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P08-F4 | Content-addressed blob garbage collection for workspace revisions (with P01-F2) | Unreferenced revisions removed; referenced ones kept |
 | P08-F5 | Workspace archive and multi-user presence (who is editing) | Archived workspaces read-only; edits by two users conflict visibly |
 | P08-F6 | Share the original-copy engine runs between AI candidates (the ladder runs each engine on the unchanged file once per candidate today) | Same results; fewer engine runs per request |
+
+## Follow-ups discovered in P09
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P09-F1 | Run the Tier 0 type-check in the P05 single-fix ladder (the "build" step becomes "type-checked" for TypeScript fixes) | A fix that breaks types fails the ladder; Java still "not compiled" |
+| P09-F2 | Show customer CI results (check runs and statuses) on fix and workspace pull requests | Read through the P06 client; fake and live GitHub |
+| P09-F3 | Several TypeScript projects in one upload (project references, nested tsconfig files) | Each file checked with its nearest tsconfig |
+

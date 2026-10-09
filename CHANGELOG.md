@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — P09 Tier 0 type-check (9 October 2026)
+
+- **Check my changes** now type-checks TypeScript (ADR 0017). The platform's own pinned TypeScript compiler (5.9.3) reads the upload's and the changed copy's TypeScript files and shows "No new type errors" or "N new type errors" (each with file and line), plus type errors your changes fixed. Moved lines do not count as new.
+- Nothing from your project runs: no compiler plugins, no project-installed TypeScript, no settings that reach outside the upload, nothing written. Imports of packages that are not installed are counted and shown, not reported as your errors. Results are cached by exact content.
+- The check now says exactly what was verified: "TypeScript is type-checked; nothing is built, run or tested, and Java is not compiled." Java compiling, builds and tests need isolated computing (Tiers 1–2), which is waiting for an owner decision.
+- Settings `CRP_TYPECHECK_ENABLED`, `CRP_TYPECHECK_TIMEOUT_SECONDS` (300), `CRP_TYPECHECK_MAX_FILES` (3,000).
+
 ## Unreleased — P08 workspace pull requests (9 October 2026)
 
 - For code reviewed from a connected GitHub repository, a checked fix workspace becomes **one pull request** (Changes tab → **Open pull request**). It is one commit on the reviewed commit with every change (added, changed and deleted files; executable bits kept). The body lists each file with how it was changed (by hand, automatic fix, AI suggestion), notes such as hiding markers, the check results and "not compiled, built or tested". Nothing is merged.

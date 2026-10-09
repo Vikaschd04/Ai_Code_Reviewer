@@ -1,6 +1,6 @@
 # Known issues and gaps
 
-Updated 8 October 2026 (P08 fix workspaces). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate; K-P05-01 and K-P05-02 keep P05 IN_PROGRESS; K-P06-01 blocks the P06 live gate; K-P08-01 and K-P08-02 keep P08 IN_PROGRESS.
+Updated 9 October 2026 (P09 Tier 0). None of these block the P00–P02 or P04 gates; K-P03-01 blocks the P03 gate; K-P05-01 and K-P05-02 keep P05 IN_PROGRESS; K-P06-01 blocks the P06 live gate; K-P08-01 and K-P08-02 keep P08 IN_PROGRESS.
 
 | ID | Symptom / gap | Scope | Severity | Evidence | Workaround / next action |
 |---|---|---|---|---|---|
@@ -53,11 +53,13 @@ Updated 8 October 2026 (P08 fix workspaces). None of these block the P00–P02 o
 | K-P06-06 | The App's private key on the server can mint tokens for all its installations | security | Medium | ADR 0015 | Owner-only secret storage and the rotation runbook in docs/GITHUB.md |
 | K-P08-01 | AI fix candidates are verified only with the labelled test model; their real quality (how often a provider's suggestion passes the checks and is right) is unmeasured | P08 gate (AI quality) | High (gate) | P08_REPORT | Owner adds `CRP_AI_*`; measure on the labelled fixtures with the live provider |
 | K-P08-02 | Workspace pull requests are verified only against the labelled fake GitHub (like all of P06) | GitHub delivery | Medium | P08_REPORT | Covered by the P06 live checklist once the owner's GitHub App exists (K-P06-01) |
-| K-P08-03 | Workspace checks are source-level: nothing is compiled, built or tested | fix workspaces | Medium | ADR 0016 | P09 sandboxed compile (Tier 0 now possible without paid compute) |
+| K-P08-03 | Workspace checks type-check TypeScript (Tier 0) but compile no Java and build or test nothing | fix workspaces | Medium | ADR 0016, ADR 0017 | Tiers 1–2 with sandbox compute (K-P09-01) |
 | K-P08-04 | Non-UTF-8 text files (for example Latin-1 Java) cannot be edited in the browser; they download unchanged | editor | Low | test_encodings_unicode_and_limits | Edit locally, or P08-F3 |
 | K-P08-05 | A workspace stays on its upload; moving edits to a newer upload is per P05 fix only | workspaces | Low | ADR 0016 | P08-F1 three-way move |
 | K-P08-06 | Comparison has no ignore-whitespace option and no single all-files diff view | compare | Low | UI_SPEC | P08-F2 |
 | K-P08-07 | Checking an AI suggestion runs every eligible engine on the original and the changed copy (about 30 s for a JavaScript file with Trivy and Opengrep) | AI suggestions | Low | P08_REPORT | P08-F6 shares the original-copy runs |
+| K-P09-01 | Tier 1 (safe compile) and Tier 2 (builds and tests) are not available: running build tools or tests executes project code and needs hardware-isolated sandboxes | P09 gate (Tiers 1–2) | High (gate) | P09_REPORT | Owner chooses managed microVM sandboxes or a self-hosted Firecracker/gVisor node, a package proxy and a cost ceiling |
+| K-P09-02 | The Tier 0 type-check cannot see types of packages that are not installed; such imports become `any` and are counted, not checked | type-check | Low | ADR 0017 | Tier 1 installs packages with scripts off in a sandbox |
 | K-P02-06 | Disk: Trivy DB + engines use ~1.75 GB; host had ~6 GB free | local dev | Low | INSTALLATION | Skip the DB with `uv run crp-dev engines --skip-trivy-db` (Trivy then reports UNAVAILABLE) |
 
 Known planned limitations: no Git ingestion until P06; no AI provider required in P00/P01; no universal defect detection; SAP/Salesforce runtime checks depend on authorized platform environments; private runner execution is distinct from local snapshot upload.

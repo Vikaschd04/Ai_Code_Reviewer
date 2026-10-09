@@ -207,6 +207,10 @@ class Settings(BaseSettings):
     change_set_max_files: Annotated[int, Field(ge=1, le=10_000)] = 500
     # AI fix suggestions per request in a fix workspace (P08); each is checked like a P05 fix.
     ai_fix_max_candidates: Annotated[int, Field(ge=1, le=5)] = 3
+    # Tier 0 type-check (P09): the pinned TypeScript compiler reads files only; nothing runs.
+    typecheck_enabled: bool = True
+    typecheck_timeout_seconds: Annotated[int, Field(ge=10, le=3600)] = 300
+    typecheck_max_files: Annotated[int, Field(ge=1, le=100_000)] = 3000
 
     log_level: str = "INFO"
     log_format: str = "json"

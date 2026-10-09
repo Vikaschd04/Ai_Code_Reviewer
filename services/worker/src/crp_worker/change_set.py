@@ -12,12 +12,19 @@ Outcome of each upload finding:
 - suppressed: gone only because a suppression marker was added in that file;
 - not rechecked: file removed, check incomplete, or rules changed.
 
-New findings introduced by the edits are listed. No project code is executed.
+New findings introduced by the edits are listed.
+
+When the copies contain TypeScript, a Tier 0 type-check (P09, ADR 0017) runs the platform's pinned
+compiler over the upload's and the copy's TypeScript files, reading them as data, and reports
+type errors the edits introduced or removed. Results are cached by exact content. No project code
+is executed.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -35,11 +42,20 @@ with workflow.unsafe.imports_passed_through():
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+    from crp_analysis.engines.base import CancelToken
     from crp_analysis.fixes.changeset import FileChange, RevisionInfo, derive_entries
     from crp_analysis.inventory import build_inventory
     from crp_analysis.manifest import ManifestEntry, blob_key, manifest_digest, manifest_document
     from crp_analysis.policy import POLICY_VERSION
     from crp_analysis.sources.changes import diff_findings
+    from crp_analysis.typecheck import (
+        TypeChecker,
+        TypeCheckResult,
+        cache_key,
+        compare,
+        typecheck_paths,
+    )
+    from crp_analysis.workspace import WorkFile, materialized
     from crp_core.artifacts import ArtifactKey, ArtifactStore
     from crp_core.config import Settings
     from crp_core.db.models import (
@@ -80,6 +96,7 @@ _DONE = (ScanState.SUCCEEDED.value, ScanState.PARTIAL.value)
 _RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 _NEW_ITEMS = 200
 _INVENTORY_BYTES = 1024 * 1024
+TYPESCRIPT = (".ts", ".tsx", ".mts", ".cts")
 
 
 def _text(value: object) -> str | None:
@@ -119,6 +136,13 @@ class ChangeSetCheckActivities:
         self._settings = settings
         self._store = store
         self._sessions = sessions
+        self._typechecker = TypeChecker(
+            settings.eslint_runner_dir,
+            node_executable=settings.node_executable,
+            timeout_seconds=settings.typecheck_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+            heap_mb=settings.eslint_heap_mb,
+        )
 
     async def _end(
         self,
@@ -369,6 +393,9 @@ class ChangeSetCheckActivities:
                 )
             heartbeat("comparing results")
             result = await self._compare(session, check, head, base)
+            before_files = await self._typed_files(session, base.snapshot_id if base else None)
+            after_files = await self._typed_files(session, head.snapshot_id)
+        result["types"] = await self._types(check_id, before_files, after_files)
         async with transaction(self._sessions) as session:
             row = await session.get(ChangeSetCheck, check_id, with_for_update=True)
             if row is None or ChangeSetCheckState(row.state).is_terminal:
@@ -379,6 +406,84 @@ class ChangeSetCheckActivities:
             row.state = str(result["state"])
             row.finished_at = datetime.now(UTC)
             return ChangeSetCheckResult(check_id=check_id, state=row.state)
+
+    # -- Tier 0 type-check ----------------------------------------------------------------------
+
+    async def _typed_files(self, session: AsyncSession, snapshot_id: UUID | None) -> dict[str, str]:
+        if snapshot_id is None:
+            return {}
+        rows = await session.execute(
+            select(FileEntry.path, FileEntry.blob_sha256).where(
+                FileEntry.snapshot_id == snapshot_id,
+                FileEntry.disposition == FileDisposition.ANALYZABLE.value,
+            )
+        )
+        stored = {path: sha for path, sha in rows.all() if sha}
+        return {path: stored[path] for path in typecheck_paths(stored)}
+
+    def _typecheck(self, files: dict[str, str], label: str, cancel: CancelToken) -> TypeCheckResult:
+        """Type-check one version of the files (cached by checker and exact contents)."""
+        key = ArtifactKey(f"typecheck/{cache_key(self._typechecker.identity(), files)}.json")
+        with contextlib.suppress(Exception):  # a missing or unreadable cache entry: check again
+            return TypeCheckResult.from_json(
+                json.loads(self._store.read_bytes(key, max_bytes=16 * 1024 * 1024))
+            )
+        root_dir = self._settings.work_root / f"typecheck-{label}-{uuid.uuid4().hex}"
+        work = [WorkFile(path, sha) for path, sha in sorted(files.items())]
+        with materialized(
+            self._store,
+            root_dir,
+            work,
+            max_file_bytes=self._settings.intake_max_text_file_bytes,
+        ) as root:
+            result = self._typechecker.run(
+                root, list(files), cancel=cancel, heartbeat=lambda _m: None
+            )
+        if result.state == "checked":
+            with contextlib.suppress(Exception):
+                self._store.put_bytes(key, json.dumps(result.to_json()).encode(), overwrite=True)
+        return result
+
+    async def _types(
+        self, check_id: UUID, before: dict[str, str], after: dict[str, str]
+    ) -> dict[str, Any]:
+        if not any(p.endswith(TYPESCRIPT) for p in after):
+            return {"state": "not_applicable", "reason": "No TypeScript files to type-check."}
+        if not self._settings.typecheck_enabled:
+            return {"state": "unavailable", "reason": "The type check is switched off here."}
+        limit = self._settings.typecheck_max_files
+        if len(after) > limit:
+            return {
+                "state": "skipped",
+                "reason": f"More than {limit:,} TypeScript files; the type check was skipped.",
+            }
+        cancel = CancelToken()
+
+        def both() -> dict[str, Any]:
+            old = (
+                self._typecheck(before, "before", cancel) if before else TypeCheckResult("checked")
+            )
+            new = self._typecheck(after, "after", cancel)
+            return compare(old, new)
+
+        job = asyncio.ensure_future(asyncio.to_thread(both))
+        try:
+            while not job.done():
+                heartbeat("type-checking TypeScript")
+                async with transaction(self._sessions) as session:
+                    requested = await session.scalar(
+                        select(ChangeSetCheck.cancel_requested_at).where(
+                            ChangeSetCheck.id == check_id
+                        )
+                    )
+                if requested is not None:
+                    cancel.cancel()
+                await asyncio.wait({job}, timeout=1)
+        except asyncio.CancelledError:
+            cancel.cancel()
+            await asyncio.shield(asyncio.wait({job}, timeout=30))
+            raise
+        return job.result()
 
     async def _compare(
         self, session: AsyncSession, check: ChangeSetCheck, head: Scan, base: Scan | None
@@ -421,7 +526,10 @@ class ChangeSetCheckActivities:
             "base_missing": not base_ok,
             "cache": cache,
             "compiled": False,
-            "not_verified": "Source-level checks only: not compiled, built or tested.",
+            "not_verified": (
+                "Source-level checks and, for TypeScript, a type-check: nothing was built, "
+                "run or tested, and Java was not compiled."
+            ),
         }
 
     # -- finalize -------------------------------------------------------------------------------

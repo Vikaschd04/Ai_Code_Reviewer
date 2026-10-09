@@ -98,10 +98,13 @@ async def _fix_and_check(stack: Any, tmp_path: Path) -> None:
     assert [a["finding_id"] for a in fixed["applied"]] == [target["id"]]
     ws = fixed["change_set"]
     # A real fix next to a new suppression marker: the vanished finding is "suppressed".
-    silenced = cart_text.replace(
-        "    if (item.price === NaN) {",
-        "    // eslint-disable-next-line no-dupe-keys\n    if (Number.isNaN(item.price)) {",
-    )
+    silenced = (
+        cart_text.replace(
+            "    if (item.price === NaN) {",
+            "    // eslint-disable-next-line no-dupe-keys\n    if (Number.isNaN(item.price)) {",
+        )
+        + 'export const label: number = "total";\n'
+    )  # a new type error for the Tier 0 check
     saved = await _save(stack, ws, CART, silenced)
     assert saved["flags"] == ["suppression_added"]
     ws = saved["change_set"]
@@ -145,7 +148,12 @@ async def _fix_and_check(stack: Any, tmp_path: Path) -> None:
     assert any(
         item["path"] == "pom.xml" and item["engine"] == "trivy" for item in result["new_items"]
     ), result["new_items"]
-    assert result["compiled"] is False and "not compiled" in result["not_verified"]
+    assert result["compiled"] is False and "Java was not compiled" in result["not_verified"]
+    # Tier 0 type-check (P09): the edit fixed an always-false NaN comparison and added an error.
+    types = result["types"]
+    assert types["state"] == "checked" and types["tool"].startswith("TypeScript "), types
+    assert any(d["path"] == CART and d["code"] == "TS2322" for d in types["new"]), types["new"]
+    assert types["fixed"] >= 1 and isinstance(types["unresolved_imports"], int)
 
     # The issue queue shows the outcomes; the summary export carries the check.
     queue = await stack.ok("GET", f"/v1/change-sets/{ws['id']}/issues?outcome=fixed")
@@ -181,6 +189,7 @@ async def _fix_and_check(stack: Any, tmp_path: Path) -> None:
     second = await _wait_check(stack, again["id"])
     assert second["snapshot_id"] == check["snapshot_id"]
     assert second["result"]["outcomes"] == outcomes
+    assert second["result"]["types"] == types  # the same content gives the same type result
 
 
 async def test_workspace_check_on_the_temporal_worker(

@@ -128,7 +128,12 @@ test("fix in bulk and by hand, re-check, compare and download", async ({ page })
   await expect(outcomes).toBeVisible({ timeout: 180_000 });
   await expect(outcomes.locator('[data-outcome="fixed"] .tile-value')).not.toHaveText("0");
   await expect(outcomes.locator('[data-outcome="suppressed"] .tile-value')).not.toHaveText("0");
-  await expect(page.getByTestId("workspace-check")).toContainText("does not compile");
+  await expect(page.getByTestId("workspace-check")).toContainText(
+    "nothing is built, run or tested",
+  );
+  // Tier 0 type-check (P09): the hand edit fixed an always-false NaN comparison.
+  await expect(page.getByTestId("workspace-types")).toHaveAttribute("data-state", "checked");
+  await expect(page.getByTestId("workspace-types")).toContainText("type error fixed");
   await page.screenshot({ path: "test-results/screens/p08-workspace.png", fullPage: true });
 
   // Downloads: a patch for this exact upload and a ZIP with only the changed files.

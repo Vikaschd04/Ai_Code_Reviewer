@@ -1,5 +1,9 @@
 # Session handoff
 
+9 October 2026 (P09 Tier 0) — Owner: "continue". Ran `caffeinate -i make test-e2e` → 19/19 on 0330f3d; pushed 0330f3d + 39c388e. Built P09 slice 1: `engines/eslint-runner/typecheck.mjs` (pinned TypeScript 5.9.3, read-only, confined host, no plugins/types/extends outside), `crp_analysis/typecheck.py` (TypeChecker, compare, cache_key), workspace check `result.types` (base vs copy, cached by content hash in `typecheck/<key>.json`), UI type-check line, settings `CRP_TYPECHECK_*`, ADR 0017, P09_REPORT. Tiers 1–2 BLOCKED on the owner's compute decision (K-P09-01).
+
+Next runnable task: P09-F1 (type-check in the P05 ladder) or P10 slice 1 (architecture model and structural metrics: Martin metrics, cycles, size, with hand-computed fixtures; docs/ARCHITECTURE_INTELLIGENCE.md). Always run `caffeinate -i make test-e2e` on this Mac (it sleeps on battery).
+
 9 October 2026 (P08 slice 5) — Built the workspace pull request: `change_set_pull_requests` (migration 0011), `GitHubClient.create_commit` (multi-file, null-sha deletions; fix commits use it), shared `services/git.publish_target` (fix + workspace PRs), `POST /v1/change-sets/{id}/pull-request` (current check + exact-head freshness), workspace `pull_request` state, UI card in the Changes tab; fake GitHub now handles deletions; workspace check test adds a vulnerable `pom.xml` dependency (new Trivy findings). P08 = BLOCKED only on live AI quality (K-P08-01). Environment:
 - The late E2E runs overlapped with the Mac sleeping on battery (pmset: 30-second dark wakes every 15 minutes). Stalls of about 15 minutes in E2E tests or builds mean the machine slept; they are not code failures.
 - The 11-day-old background `make dev` stack was stopped; restart it with `make dev` when needed.
