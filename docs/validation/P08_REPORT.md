@@ -54,7 +54,7 @@ Compile results depend on P09 and are shown as "not compiled".
 | Lint, format, types and contracts | `make check` | exit 0 |
 | Types for Linux | `uv run mypy --platform linux` | no issues in 172 source files |
 | Tests | `make test` | exit 0. 498 pytest (8 October: 485). P08 added 47 (workspace pull request 1 more): changeset helpers 18, policy 4, AI candidates 8, API 12, real-stack worker 4. 29 vitest; P08 added 5: router 3, editor 2 |
-| Browser E2E | `make test-e2e` | exit 0: 19/19 (P08 workspace journey added; foundation, P01–P06 and UI tour unchanged) |
+| Browser E2E | `make test-e2e` | exit 0: 19/19 on `0330f3d` (P08 workspace journey with AI suggestions; P06 journey now also opens a workspace pull request) |
 | Screens | `p08-ai.png` (AI suggestions: a checked one with Apply, a refused one with the reason), `p08-workspace.png`, `p08-workspace-dark.png`, `p08-workspace-mobile.png`, `p08-editor.png`, `p08-compare.png`, `p08-compare-mobile.png`, `p08-compare-uploads.png` | Reviewed. Plain language with technical details collapsed. On phones, the issue table shows severity, result and Edit under the title. The compare gutters align once the viewer is in view. No horizontal page scroll at 390 px |
 | Bundle | `pnpm build` | Main bundle unchanged (440 kB). Editor chunk 347 kB (112 kB gzip) and grammars (2–92 kB) load only on workspace and compare pages |
 | Supply chain | `npm view` license and publish time for all 23 new packages | All MIT. Pinned with overrides to releases that were public for at least two weeks. `@codemirror/language` 6.13.x (and its new dependency `@codemirror/streamparser`), `@lezer/java` 1.1.5 and `@lezer/lr` 1.4.11, all published on 7 October 2026, were not adopted |
@@ -84,8 +84,8 @@ Results with the slice 5 code:
 - the P02 architecture test passed when rerun alone.
 
 The P08 browser journey passed alone twice with the slice 4 code, and its slice 5 change (the pull
-request card) is covered by the P06 browser journey, which passed. **Pending:** one more
-`make test-e2e` with the machine awake and on power, to show 19/19 for this exact code.
+request card) is covered by the P06 browser journey, which passed. Rerun on 9 October 2026 at 11:38 with the Mac kept awake
+(`caffeinate -i make test-e2e`): **19/19 passed in 7.4 minutes** on commit `0330f3d`.
 
 ## Limitations
 

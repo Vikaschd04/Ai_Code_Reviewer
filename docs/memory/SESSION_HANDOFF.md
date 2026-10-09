@@ -3,7 +3,7 @@
 9 October 2026 (P08 slice 5) — Built the workspace pull request: `change_set_pull_requests` (migration 0011), `GitHubClient.create_commit` (multi-file, null-sha deletions; fix commits use it), shared `services/git.publish_target` (fix + workspace PRs), `POST /v1/change-sets/{id}/pull-request` (current check + exact-head freshness), workspace `pull_request` state, UI card in the Changes tab; fake GitHub now handles deletions; workspace check test adds a vulnerable `pom.xml` dependency (new Trivy findings). P08 = BLOCKED only on live AI quality (K-P08-01). Environment:
 - The late E2E runs overlapped with the Mac sleeping on battery (pmset: 30-second dark wakes every 15 minutes). Stalls of about 15 minutes in E2E tests or builds mean the machine slept; they are not code failures.
 - The 11-day-old background `make dev` stack was stopped; restart it with `make dev` when needed.
-- The slice 5 gate needs one more `make test-e2e` on power and awake (last run 17/19, both stalls during sleep). Slice 5 is committed locally, not pushed, until then.
+- `caffeinate -i make test-e2e` gave 19/19 on 0330f3d (9 October 11:38); pushed.
 
 Next runnable task: P09 slice 1 — Tier 0 TypeScript type-check (pinned TypeScript 5.9.3 in `engines/eslint-runner`, prototype in this session: compiler reads files only, confined to the folder, `types: []`, unresolved imports / missing JSX types counted separately) run on base and derived copies in the workspace check; report new/fixed type errors; Java Tier 1 needs sandbox compute (owner decision).
 
