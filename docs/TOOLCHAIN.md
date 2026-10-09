@@ -36,9 +36,11 @@ Status: selected and verified in P00–P01 on 26 September 2026. Exact transitiv
 | temporalio | 1.33.0 | MIT | workflow client/worker |
 | httpx | 0.28.1 | BSD-3-Clause | runner, doctor, AI and GitHub clients, tests |
 | cryptography | 50.0.2 (cffi 2.1.1 MIT-0, pycparser 3.0 BSD-3-Clause) | Apache-2.0 OR BSD-3-Clause | GitHub App JWT (RS256) signing (P06; checked on PyPI 1 Oct 2026; wheels for macOS arm64 and manylinux x86_64) |
+| pyyaml | 6.0.3 | MIT | Architecture rules YAML import and export (P10 slice 2; parsed as data with `SafeLoader`, anchors, aliases and tags refused, 64 KB limit; checked on PyPI 9 Oct 2026: released 25 Sep 2025, wheels for CPython 3.14) |
 | ruff | 0.16.9 | MIT | format + lint |
 | mypy | 2.3.1 (strict, pydantic plugin) | MIT | type checks |
 | pytest / pytest-asyncio | 9.1.1 / 1.4.0 | MIT / Apache-2.0 | tests |
+| types-pyyaml | 6.0.12.20260906 | Apache-2.0 | PyYAML type stubs for mypy (development only; typeshed, released 6 Sep 2026) |
 
 License note: psycopg is LGPL-3.0 and `psycopg-binary` bundles libpq. It is used unmodified as a dynamically imported library. **Before distributing container images or binaries, obtain a license review** and ship the required notices (tracked in KNOWN_ISSUES K-P00-03).
 

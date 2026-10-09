@@ -17,11 +17,13 @@ pytestmark = pytest.mark.integration
 
 StackFactory = Callable[..., contextlib.AbstractAsyncContextManager[Any]]
 TERMINAL = {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}
-# Core checks succeed; the platform packs have no SAP/Salesforce files here and say so.
+# Core checks succeed; the platform packs have no SAP/Salesforce files here and the project has
+# no architecture rules, and both say so.
 EXPECTED_ENGINES = {
     **dict.fromkeys(("structure", "graph", "pmd", "eslint", "opengrep", "trivy"), "SUCCEEDED"),
     "pmd-apex": "NOT_APPLICABLE",
     "frameworks": "NOT_APPLICABLE",
+    "architecture": "NOT_APPLICABLE",
 }
 
 

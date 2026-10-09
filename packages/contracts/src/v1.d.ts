@@ -1102,6 +1102,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/architecture-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Architecture Rules
+         * @description The project's architecture rules (newest or a given version) and their history.
+         */
+        get: operations["get_architecture_rules_v1_projects__project_id__architecture_rules_get"];
+        /**
+         * Save Architecture Rules
+         * @description Save the rules as a new version (members). Identical rules add no version; a newer version
+         *     than ``base_version`` is a conflict. The next review applies the newest version.
+         */
+        put: operations["save_architecture_rules_v1_projects__project_id__architecture_rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{project_id}/architecture-rules/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Architecture Rules
+         * @description The rules as YAML, ready to keep in the repository or import into another project.
+         */
+        get: operations["export_architecture_rules_v1_projects__project_id__architecture_rules_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/change-sets": {
         parameters: {
             query?: never;
@@ -1451,6 +1496,27 @@ export interface paths {
         get: operations["architecture_metrics_v1_snapshots__snapshot_id__architecture_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/snapshots/{snapshot_id}/architecture-rules/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Architecture Rules
+         * @description Evaluate rules (the given ones, or the project's newest) on this upload's dependency map.
+         *     Read-only: nothing is saved and no findings are created.
+         */
+        post: operations["check_architecture_rules_v1_snapshots__snapshot_id__architecture_rules_check_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2081,6 +2147,20 @@ export interface components {
              */
             usage_reported: boolean;
         };
+        /** ArchitectureAllowDocument */
+        ArchitectureAllowDocument: {
+            /** From */
+            from: string;
+            /** Reason */
+            reason: string;
+            /** To */
+            to: string;
+            /**
+             * Until
+             * @description Expiry date (YYYY-MM-DD); expired exceptions stop applying
+             */
+            until?: string | null;
+        };
         /** ArchitectureComponent */
         ArchitectureComponent: {
             /** Abstract Types */
@@ -2181,6 +2261,56 @@ export interface components {
              */
             weight: number;
         };
+        /** ArchitectureForbidDocument */
+        ArchitectureForbidDocument: {
+            /**
+             * From
+             * @description A layer name or a pattern
+             */
+            from: string;
+            /**
+             * Key
+             * @description Stable rule key (derived when omitted)
+             */
+            key?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Severity
+             * @default medium
+             * @enum {string}
+             */
+            severity: "critical" | "high" | "medium" | "low";
+            /**
+             * To
+             * @description A layer name or a pattern
+             */
+            to: string;
+        };
+        /** ArchitectureLayerDocument */
+        ArchitectureLayerDocument: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Match
+             * @description Patterns over parts (Java packages or folders): * within one name part, ** any number of parts
+             */
+            match: string[];
+            /** Name */
+            name: string;
+        };
+        /** ArchitectureLayerParts */
+        ArchitectureLayerParts: {
+            /** Name */
+            name: string;
+            /** Part Count */
+            part_count: number;
+            /**
+             * Parts
+             * @description Up to 50
+             */
+            parts: string[];
+        };
         /** ArchitectureMetricsResponse */
         ArchitectureMetricsResponse: {
             /** Algorithm */
@@ -2203,6 +2333,183 @@ export interface components {
             /** Notes */
             notes: string[];
             summary: components["schemas"]["ArchitectureSummary"];
+        };
+        /** ArchitectureRuleVersionSummary */
+        ArchitectureRuleVersionSummary: {
+            /** Allow */
+            allow: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * @description Display name of the author
+             */
+            created_by: string | null;
+            /** Forbid */
+            forbid: number;
+            /** Layers */
+            layers: number;
+            /** Note */
+            note: string | null;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "editor" | "yaml";
+            /** Version */
+            version: number;
+        };
+        /** ArchitectureRulesCheckRequest */
+        ArchitectureRulesCheckRequest: {
+            document?: components["schemas"]["ArchitectureRulesDocument"] | null;
+            /** Yaml */
+            yaml?: string | null;
+        };
+        /** ArchitectureRulesCheckResponse */
+        ArchitectureRulesCheckResponse: {
+            /** Allowed By Exception */
+            allowed_by_exception: number;
+            /**
+             * Build Id
+             * Format: uuid
+             */
+            build_id: string;
+            /** By Rule */
+            by_rule: {
+                [key: string]: number;
+            };
+            /** Dependencies Checked */
+            dependencies_checked: number;
+            /** Expired Exceptions */
+            expired_exceptions: string[];
+            /** Layers */
+            layers: components["schemas"]["ArchitectureLayerParts"][];
+            /** Notes */
+            notes: string[];
+            /**
+             * Overlaps
+             * @description Parts matching more than one layer
+             */
+            overlaps: {
+                [key: string]: string[];
+            };
+            /** Rules Sha256 */
+            rules_sha256: string;
+            /**
+             * Rules Version
+             * @description Null when unsaved rules were checked
+             */
+            rules_version: number | null;
+            /**
+             * Unassigned
+             * @description Parts in no layer (up to 50)
+             */
+            unassigned: string[];
+            /** Unassigned Count */
+            unassigned_count: number;
+            /** Violation Count */
+            violation_count: number;
+            /**
+             * Violations
+             * @description Up to 200
+             */
+            violations: components["schemas"]["ArchitectureViolationResponse"][];
+        };
+        /** ArchitectureRulesDocument */
+        ArchitectureRulesDocument: {
+            /**
+             * Allow
+             * @description Exceptions to layering
+             */
+            allow?: components["schemas"]["ArchitectureAllowDocument"][];
+            /** Forbid */
+            forbid?: components["schemas"]["ArchitectureForbidDocument"][];
+            /**
+             * Layering
+             * @description lower: a layer may use any layer below it; next: only the one directly below; none: layers only name groups
+             * @default lower
+             * @enum {string}
+             */
+            layering: "lower" | "next" | "none";
+            /**
+             * Layers
+             * @description Top to bottom
+             */
+            layers?: components["schemas"]["ArchitectureLayerDocument"][];
+            /**
+             * Schema
+             * @default crp-architecture-rules-v1
+             * @constant
+             */
+            schema: "crp-architecture-rules-v1";
+            /**
+             * Severity
+             * @description Severity of layering breaches
+             * @default medium
+             * @enum {string}
+             */
+            severity: "critical" | "high" | "medium" | "low";
+        };
+        /** ArchitectureRulesResponse */
+        ArchitectureRulesResponse: {
+            /** Can Edit */
+            can_edit: boolean;
+            /** Created At */
+            created_at: string | null;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Current Version
+             * @description The version the next review applies
+             */
+            current_version: number;
+            document: components["schemas"]["ArchitectureRulesDocument"] | null;
+            /**
+             * History
+             * @description Newest first, up to 50
+             */
+            history: components["schemas"]["ArchitectureRuleVersionSummary"][];
+            /** Note */
+            note: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Rule Ids */
+            rule_ids: string[];
+            /** Sha256 */
+            sha256: string | null;
+            /**
+             * Version
+             * @description 0 when no rules were saved
+             */
+            version: number;
+        };
+        /** ArchitectureRulesUpdate */
+        ArchitectureRulesUpdate: {
+            /**
+             * Base Version
+             * @description The version you edited (0 when none); a newer one is a conflict
+             */
+            base_version: number;
+            /** @description The rules as JSON (give this or yaml) */
+            document?: components["schemas"]["ArchitectureRulesDocument"] | null;
+            /**
+             * Note
+             * @description Why the rules changed
+             */
+            note?: string | null;
+            /**
+             * Yaml
+             * @description The rules as YAML (give this or document)
+             */
+            yaml?: string | null;
         };
         /** ArchitectureSummary */
         ArchitectureSummary: {
@@ -2235,6 +2542,34 @@ export interface components {
             zone_of_pain: number;
             /** Zone Of Uselessness */
             zone_of_uselessness: number;
+        };
+        /** ArchitectureViolationResponse */
+        ArchitectureViolationResponse: {
+            /** Line */
+            line: number | null;
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
+            /** Rule Id */
+            rule_id: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "critical" | "high" | "medium" | "low";
+            /** Source Component */
+            source_component: string;
+            /** Source Layer */
+            source_layer: string | null;
+            /** Target */
+            target: string;
+            /** Target Component */
+            target_component: string;
+            /** Target Layer */
+            target_layer: string | null;
+            /** Title */
+            title: string;
         };
         /** ArtifactProbeResult */
         ArtifactProbeResult: {
@@ -8798,6 +9133,217 @@ export interface operations {
             };
         };
     };
+    get_architecture_rules_v1_projects__project_id__architecture_rules_get: {
+        parameters: {
+            query?: {
+                /** @description A saved version (default: newest) */
+                version?: number | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureRulesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_architecture_rules_v1_projects__project_id__architecture_rules_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchitectureRulesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureRulesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_architecture_rules_v1_projects__project_id__architecture_rules_export_get: {
+        parameters: {
+            query?: {
+                version?: number | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/yaml": unknown;
+                    "text/plain": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_change_sets_v1_projects__project_id__change_sets_get: {
         parameters: {
             query?: never;
@@ -10432,6 +10978,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_architecture_rules_v1_snapshots__snapshot_id__architecture_rules_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchitectureRulesCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureRulesCheckResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

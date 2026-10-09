@@ -569,10 +569,13 @@ async def architecture_metrics(
     cheapest dependencies to cut, computed from the upload's current graph (P10; ADR 0018)."""
     async with transaction(container.session_factory) as session:
         build = await _usable(session, principal, snapshot_id)
-        files, types, dependencies, not_counted = await architecture.load_model(session, build)
+        model = await architecture.load_model(session, build)
         known = architecture.abstract_known(build)
         build_id, extractor = build.id, build.extractor
-    result = await asyncio.to_thread(compute, files, types, dependencies, abstract_known=known)
+    not_counted = model.not_counted
+    result = await asyncio.to_thread(
+        compute, model.files, model.types, model.dependencies, abstract_known=known
+    )
     distances = [c.distance for c in result.components if c.distance is not None]
     notes = []
     if not known:

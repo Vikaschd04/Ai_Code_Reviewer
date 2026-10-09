@@ -4,10 +4,15 @@ An absent finding is only VERIFIED_ABSENT when the newer scan could actually hav
 the same engine completed, analyzed the same path, the rule is still enabled, and the engine
 version and rule-set hash equal those of the earlier observation. Anything else is NOT_RECHECKED,
 UNKNOWN or RULE_OBSOLETE - never "fixed".
+
+Engines with per-rule configuration (architecture rules, ADR 0019) report a hash per rule: the
+recheck then compares the rule's own hash, so changing one rule does not make every other rule's
+absences unverifiable, and a changed rule is never mistaken for a fix.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from crp_core.domain.states import CoverageOutcome, EngineState, RecheckState
@@ -22,6 +27,22 @@ class RunView:
     engine_version: str | None
     ruleset_sha256: str | None
     enabled_rules: frozenset[str] | None  # None: open-ended rule set (e.g. vulnerability DB)
+    rule_hashes: Mapping[str, str] | None = None  # per-rule configuration hashes, if reported
+
+
+def rule_hashes(diagnostics: Mapping[str, object] | None) -> dict[str, str] | None:
+    """The per-rule hashes an engine run reported in its diagnostics (None: not reported)."""
+    value = (diagnostics or {}).get("rule_hashes")
+    if not isinstance(value, dict):
+        return None
+    return {str(k): v for k, v in value.items() if isinstance(v, str)}
+
+
+def observed_ruleset(details: Mapping[str, object] | None, run_sha256: str | None) -> str | None:
+    """The rule configuration a finding was observed under: its rule's own hash when the engine
+    reports one (``details.rule_sha256``), else the run's rule-set hash."""
+    value = (details or {}).get("rule_sha256")
+    return value if isinstance(value, str) else run_sha256
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +93,13 @@ def classify_absence(
             RecheckState.UNKNOWN,
             f"{prior.engine} version changed ({prior.engine_version} -> {run.engine_version})",
         )
-    if prior.ruleset_sha256 != run.ruleset_sha256:
+    if run.rule_hashes is not None:
+        if prior.ruleset_sha256 != run.rule_hashes.get(prior.rule_id):
+            return Recheck(
+                RecheckState.UNKNOWN,
+                f"rule {prior.rule_id} changed since the earlier observation",
+            )
+    elif prior.ruleset_sha256 != run.ruleset_sha256:
         return Recheck(
             RecheckState.UNKNOWN,
             f"{prior.engine} rules/configuration changed since the earlier observation",

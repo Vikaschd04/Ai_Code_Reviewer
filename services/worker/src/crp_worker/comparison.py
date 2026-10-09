@@ -12,7 +12,13 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from crp_analysis.lifecycle import Prior, RunView, classify_absence
+from crp_analysis.lifecycle import (
+    Prior,
+    RunView,
+    classify_absence,
+    observed_ruleset,
+    rule_hashes,
+)
 from crp_analysis.manifest import blob_key
 from crp_analysis.normalize import evidence_line
 from crp_analysis.sources.changes import FindingRef
@@ -109,6 +115,7 @@ async def findings_of(session: AsyncSession, scan_id: UUID) -> list[FindingRef]:
             f.start_line,
             f.severity,
             f.title,
+            rule_sha256=observed_ruleset(f.details, None),
         )
         for f, path in rows.all()
     ]
@@ -157,6 +164,7 @@ async def with_text(
             evidence_line(texts[f.path], f.start_line)
             if f.path in texts and f.start_line
             else None,
+            f.rule_sha256,
         )
         for f in findings
     ]
@@ -217,6 +225,7 @@ async def classify_absent(
                 run.engine_version,
                 run.ruleset_sha256,
                 frozenset(run.enabled_rules) if run.enabled_rules is not None else None,
+                rule_hashes(run.diagnostics),
             )
             if run is not None
             else None
@@ -227,7 +236,7 @@ async def classify_absent(
                 finding.rule_id,
                 path,
                 prior_run.engine_version if prior_run else None,
-                prior_run.ruleset_sha256 if prior_run else None,
+                finding.rule_sha256 or (prior_run.ruleset_sha256 if prior_run else None),
             ),
             view,
             file_present=entry_id is not None,

@@ -12,6 +12,7 @@ import {
   startScan,
   uploadArchive,
 } from "../api/endpoints";
+import { ArchitectureRules } from "../components/ArchitectureRules";
 import {
   Alert,
   CopyBlock,
@@ -359,7 +360,15 @@ function ReviewsTable({ scans }: { scans: Scan[] }) {
   );
 }
 
-export function ProjectPage({ projectId, tab: requested }: { projectId: string; tab: string }) {
+export function ProjectPage({
+  projectId,
+  tab: requested,
+  check = null,
+}: {
+  projectId: string;
+  tab: string;
+  check?: string | null;
+}) {
   const { options } = useSession();
   const [deleting, setDeleting] = useState(false);
   const tab = TAB_ALIASES[requested] ?? requested;
@@ -427,7 +436,9 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
           { id: "upload", label: "Upload code", href: `${base}?tab=upload` },
         ]}
       />
-      {tab === "issues" ? <IssuesView projectId={projectId} /> : null}
+      {tab === "issues" ? (
+        <IssuesView key={check ?? ""} projectId={projectId} check={check} />
+      ) : null}
       {tab === "ai" ? <AiView projectId={projectId} snapshotId={snapshot?.id ?? null} /> : null}
       {tab === "fixes" ? <FixesView projectId={projectId} /> : null}
       {tab === "workspaces" ? (
@@ -437,13 +448,16 @@ export function ProjectPage({ projectId, tab: requested }: { projectId: string; 
         <GitHubView projectId={projectId} workspaceId={project.workspace_id} />
       ) : null}
       {tab === "architecture" ? (
-        snapshot ? (
-          <ArchitectureView snapshotId={snapshot.id} />
-        ) : (
-          <Empty title="No code uploaded yet">
-            <p>Upload code and review it to see its architecture.</p>
-          </Empty>
-        )
+        <div className="stack">
+          <ArchitectureRules projectId={projectId} snapshotId={snapshot?.id ?? null} />
+          {snapshot ? (
+            <ArchitectureView snapshotId={snapshot.id} />
+          ) : (
+            <Empty title="No code uploaded yet">
+              <p>Upload code and review it to see its architecture.</p>
+            </Empty>
+          )}
+        </div>
       ) : null}
       {tab === "overview" ? (
         <div className="split">

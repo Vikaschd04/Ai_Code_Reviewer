@@ -67,6 +67,8 @@ Retention: deleting a project removes its connection, reviews, deliveries' revie
 
 - Migration `0011`: `change_set_pull_requests` (workspace cascade; unique `(change_set_id, content_sha256)`; repository, branch, base ref and commit, commit, number, url, creator).
 
+- Migration `0012` (P10 slice 2, ADR 0019): `architecture_rule_versions` (composite FK `(workspace_id, project_id) → projects`, cascade; `created_by` `SET NULL`; unique `(project_id, version)`, `version >= 1`): canonical rules `document` (JSON), `sha256` (64-hex CHECK), `source` (`editor`/`yaml`, CHECK), `note`, `created_at`. Append-only; the newest version applies to the next review. Engine runs of `architecture` record the version id, number and per-rule hashes in `diagnostics`; their findings carry the rule's hash in `details.rule_sha256`, which the issue lifecycle stores as `issues.last_seen_ruleset_sha256`.
+
 Retention: deleting a workspace deletes its files, events, checks and derived copies (with their scans and findings); deleting the project or the upload deletes the workspace. Revision blobs are shared content-addressed objects (no separate GC yet, K-P01-03).
 
 ## Target model

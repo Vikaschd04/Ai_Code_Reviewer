@@ -21,6 +21,7 @@ from crp_api.middleware import (
 )
 from crp_api.routes import (
     ai,
+    architecture_rules,
     auth,
     change_sets,
     code_reviews,
@@ -119,6 +120,7 @@ def create_app(
         issues.router,
         reports.router,
         graph.router,
+        architecture_rules.router,
         ai.router,
         fixes.router,
         change_sets.router,

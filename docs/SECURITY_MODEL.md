@@ -159,6 +159,17 @@ Residual risk: the ladder is source-level. A fix that passes it may still fail t
 
 Residual risk: checks are source-level; an edited project can still fail to compile or behave differently (P09 adds sandboxed compilation). Exported ZIPs and patches contain the customer's code — they are served only to authorized users with `Cache-Control: no-store` and temporary files are removed after sending.
 
+### Architecture rules (P10 slice 2, ADR 0019)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Imported YAML is data | PyYAML `SafeLoader`; anchors and aliases refused before construction (no expansion attacks), non-standard tags fail, one document, 64 KB; strict schema with unknown fields refused and every problem located | test_invalid_rules_say_where_and_why, test_invalid_rules_are_refused_with_reasons |
+| Rules never come from uploads | Rules are saved in the portal by members; files in uploads (including any rules file) are never read as rules | ADR 0019 |
+| Audit | Append-only versions with author, note, source and hash; stale saves are conflicts (409), not overwrites | test_rules_are_versioned_audited_and_exported |
+| A rule edit is never a fix | Per-rule hashes: an absent breach is `VERIFIED_ABSENT` only under the identical rule; a changed rule gives `UNKNOWN`, a removed rule `RULE_OBSOLETE`; only verified absences resolve issues | test_recheck_compares_the_rules_own_hash, test_architecture_rules_on_real_reviews |
+| Isolation | Rules, checks and exports are project-scoped (404 for other workspaces); members edit, viewers read | test_members_edit_rules_and_other_workspaces_see_nothing |
+| Nothing executed | Evaluation reads the dependency map the platform built from source; no project code or configuration runs | crp_analysis/engines/architecture.py |
+
 ### GitHub (P06, ADR 0015)
 
 | Control | Implementation | Evidence |

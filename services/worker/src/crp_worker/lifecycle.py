@@ -21,7 +21,13 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crp_analysis.lifecycle import Prior, RunView, classify_absence
+from crp_analysis.lifecycle import (
+    Prior,
+    RunView,
+    classify_absence,
+    observed_ruleset,
+    rule_hashes,
+)
 from crp_analysis.sources.changes import diff_manifests
 from crp_core.db.models import (
     CodeReview,
@@ -281,7 +287,9 @@ async def apply_lifecycle(
         issue.last_seen_scan_id = scan.id
         issue.last_seen_at = now
         issue.last_seen_engine_version = finding.engine_version
-        issue.last_seen_ruleset_sha256 = run.ruleset_sha256 if run else None
+        issue.last_seen_ruleset_sha256 = observed_ruleset(
+            finding.details, run.ruleset_sha256 if run else None
+        )
         issue.last_evaluated_scan_id = scan.id
 
     absent = [
@@ -320,6 +328,7 @@ async def apply_lifecycle(
                 r.engine_version,
                 r.ruleset_sha256,
                 frozenset(r.enabled_rules) if r.enabled_rules is not None else None,
+                rule_hashes(r.diagnostics),
             )
             for r in runs
         }

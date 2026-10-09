@@ -8,11 +8,23 @@ describe("parseRoute", () => {
   it("maps hashes to typed routes with default tabs", () => {
     expect(parseRoute("")).toEqual({ name: "dashboard" });
     expect(parseRoute("#/projects")).toEqual({ name: "projects" });
-    expect(parseRoute(`#/projects/${ID}`)).toEqual({ name: "project", id: ID, tab: "overview" });
+    expect(parseRoute(`#/projects/${ID}`)).toEqual({
+      name: "project",
+      id: ID,
+      tab: "overview",
+      check: null,
+    });
     expect(parseRoute(`#/projects/${ID}?tab=source`)).toEqual({
       name: "project",
       id: ID,
       tab: "source",
+      check: null,
+    });
+    expect(parseRoute(`#/projects/${ID}?tab=issues&check=architecture`)).toEqual({
+      name: "project",
+      id: ID,
+      tab: "issues",
+      check: "architecture",
     });
     expect(parseRoute(`#/scans/${ID}`)).toEqual({ name: "scan", id: ID, tab: "findings" });
     expect(parseRoute(`#/findings/${ID}`)).toEqual({ name: "finding", id: ID });

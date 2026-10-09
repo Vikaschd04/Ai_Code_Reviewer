@@ -1467,3 +1467,143 @@ class ArchitectureMetricsResponse(ApiModel):
     edges_truncated: bool
     cycles: list[ArchitectureCycle]
     notes: list[str]
+
+
+# -- architecture rules (P10 slice 2; ADR 0019) -------------------------------------------------
+
+_RuleSeverity = Literal["critical", "high", "medium", "low"]
+
+
+class ArchitectureLayerDocument(ApiModel):
+    name: str = Field(max_length=40)
+    match: list[Annotated[str, StringConstraints(max_length=200)]] = Field(
+        max_length=20,
+        description="Patterns over parts (Java packages or folders): * within one name part, "
+        "** any number of parts",
+    )
+    description: str | None = Field(default=None, max_length=300)
+
+
+class ArchitectureForbidDocument(ApiModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    key: str | None = Field(
+        default=None, max_length=48, description="Stable rule key (derived when omitted)"
+    )
+    source: str = Field(alias="from", max_length=300, description="A layer name or a pattern")
+    target: str = Field(alias="to", max_length=300, description="A layer name or a pattern")
+    reason: str | None = Field(default=None, max_length=300)
+    severity: _RuleSeverity = "medium"
+
+
+class ArchitectureAllowDocument(ApiModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    source: str = Field(alias="from", max_length=300)
+    target: str = Field(alias="to", max_length=300)
+    reason: str = Field(max_length=300)
+    until: str | None = Field(
+        default=None, description="Expiry date (YYYY-MM-DD); expired exceptions stop applying"
+    )
+
+
+class ArchitectureRulesDocument(ApiModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    rules_schema: Literal["crp-architecture-rules-v1"] = Field(
+        default="crp-architecture-rules-v1", alias="schema"
+    )
+    layers: list[ArchitectureLayerDocument] = Field(
+        default_factory=list, max_length=30, description="Top to bottom"
+    )
+    layering: Literal["lower", "next", "none"] = Field(
+        default="lower",
+        description="lower: a layer may use any layer below it; next: only the one directly "
+        "below; none: layers only name groups",
+    )
+    severity: _RuleSeverity = Field(default="medium", description="Severity of layering breaches")
+    forbid: list[ArchitectureForbidDocument] = Field(default_factory=list, max_length=100)
+    allow: list[ArchitectureAllowDocument] = Field(
+        default_factory=list, max_length=100, description="Exceptions to layering"
+    )
+
+
+class ArchitectureRuleVersionSummary(ApiModel):
+    version: int
+    sha256: str
+    source: Literal["editor", "yaml"]
+    note: str | None
+    created_at: datetime
+    created_by: str | None = Field(description="Display name of the author")
+    layers: int
+    forbid: int
+    allow: int
+
+
+class ArchitectureRulesResponse(ApiModel):
+    project_id: UUID
+    version: int = Field(description="0 when no rules were saved")
+    current_version: int = Field(description="The version the next review applies")
+    sha256: str | None
+    document: ArchitectureRulesDocument | None
+    rule_ids: list[str]
+    note: str | None
+    created_at: datetime | None
+    created_by: str | None
+    can_edit: bool
+    history: list[ArchitectureRuleVersionSummary] = Field(description="Newest first, up to 50")
+
+
+class ArchitectureRulesUpdate(ApiModel):
+    document: ArchitectureRulesDocument | None = Field(
+        default=None, description="The rules as JSON (give this or yaml)"
+    )
+    yaml: str | None = Field(
+        default=None, max_length=65536, description="The rules as YAML (give this or document)"
+    )
+    note: str | None = Field(default=None, max_length=500, description="Why the rules changed")
+    base_version: int = Field(
+        ge=0, description="The version you edited (0 when none); a newer one is a conflict"
+    )
+
+
+class ArchitectureRulesCheckRequest(ApiModel):
+    document: ArchitectureRulesDocument | None = None
+    yaml: str | None = Field(default=None, max_length=65536)
+
+
+class ArchitectureLayerParts(ApiModel):
+    name: str
+    parts: list[str] = Field(description="Up to 50")
+    part_count: int
+
+
+class ArchitectureViolationResponse(ApiModel):
+    rule_id: str
+    title: str
+    severity: _RuleSeverity
+    path: str
+    line: int | None
+    target: str
+    source_component: str
+    target_component: str
+    source_layer: str | None
+    target_layer: str | None
+    message: str
+
+
+class ArchitectureRulesCheckResponse(ApiModel):
+    build_id: UUID
+    rules_sha256: str
+    rules_version: int | None = Field(description="Null when unsaved rules were checked")
+    layers: list[ArchitectureLayerParts]
+    unassigned: list[str] = Field(description="Parts in no layer (up to 50)")
+    unassigned_count: int
+    overlaps: dict[str, list[str]] = Field(description="Parts matching more than one layer")
+    violations: list[ArchitectureViolationResponse] = Field(description="Up to 200")
+    violation_count: int
+    by_rule: dict[str, int]
+    allowed_by_exception: int
+    expired_exceptions: list[str]
+    dependencies_checked: int
+    notes: list[str]

@@ -880,6 +880,42 @@ class AiPolicyEvent(Base):
     )
 
 
+class ArchitectureRuleVersion(Base):
+    """One saved version of a project's intended architecture (P10 slice 2; ADR 0019).
+
+    Append-only: every save adds the next version with its author and note, so the history is
+    the audit trail. The newest version applies to the next review; ``document`` is the canonical
+    rules document (``crp_analysis.architecture.rules``) and ``sha256`` its hash.
+    """
+
+    __tablename__ = "architecture_rule_versions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("project_id", "version"),
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256_format"),
+        CheckConstraint("source IN ('editor', 'yaml')", name="source_valid"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    document: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AiRun(TimestampMixin, Base):
     """One bounded AI investigation of a snapshot: a question, a finding review or a file review.
 

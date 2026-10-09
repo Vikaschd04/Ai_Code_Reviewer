@@ -5,6 +5,8 @@ import {
   type AiPolicy,
   type AiRun,
   type ArchitectureMetrics,
+  type ArchitectureRules,
+  type ArchitectureRulesCheck,
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
@@ -408,6 +410,7 @@ export async function listCoverage(
 
 export interface IssueQuery {
   status?: string;
+  engine?: string;
   recheck?: string;
   severity?: string;
   q?: string;
@@ -427,6 +430,7 @@ export async function listIssues(
         ...(query.status ? { status: [query.status] } : {}),
         ...(query.recheck ? { recheck_state: [query.recheck] } : {}),
         ...(query.severity ? { severity: [query.severity] } : {}),
+        ...(query.engine ? { engine: query.engine } : {}),
         ...(query.q ? { q: query.q } : {}),
         ...(query.cursor ? { cursor: query.cursor } : {}),
       },
@@ -1084,6 +1088,61 @@ export async function openWorkspacePullRequest(
 }
 
 /** Components, structural metrics and cycles of an upload's current architecture map (P10). */
+/** A project's architecture rules (newest or a given version) and their history. */
+export async function fetchArchitectureRules(
+  projectId: string,
+  signal?: Sig,
+  version?: number,
+): Promise<ArchitectureRules> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/architecture-rules", {
+    params: { path: { project_id: projectId }, query: version ? { version } : {} },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Save YAML rules as a new version (members); ``baseVersion`` guards against lost updates. */
+export async function saveArchitectureRules(
+  projectId: string,
+  yaml: string,
+  baseVersion: number,
+  note: string,
+): Promise<ArchitectureRules> {
+  const { data, error, response } = await api.PUT("/v1/projects/{project_id}/architecture-rules", {
+    params: { path: { project_id: projectId } },
+    body: { yaml, base_version: baseVersion, note: note.trim() || null },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Check YAML rules (or, without YAML, the saved ones) on an upload; nothing is saved. */
+export async function checkArchitectureRules(
+  snapshotId: string,
+  yaml: string | null,
+): Promise<ArchitectureRulesCheck> {
+  const { data, error, response } = await api.POST(
+    "/v1/snapshots/{snapshot_id}/architecture-rules/check",
+    { params: { path: { snapshot_id: snapshotId } }, body: yaml === null ? {} : { yaml } },
+  );
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export function architectureRulesExportUrl(projectId: string, version?: number): string {
+  const query = version ? `?version=${String(version)}` : "";
+  return `/v1/projects/${encodeURIComponent(projectId)}/architecture-rules/export${query}`;
+}
+
+export async function fetchArchitectureRulesYaml(projectId: string): Promise<string> {
+  const response = await fetch(architectureRulesExportUrl(projectId), {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw toApiError(response, await response.json().catch(() => null));
+  return response.text();
+}
+
 export async function fetchArchitecture(
   snapshotId: string,
   signal?: Sig,

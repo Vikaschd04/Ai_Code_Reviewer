@@ -166,6 +166,7 @@ class FindingRef:
     severity: str
     title: str
     text: str | None = None  # normalized evidence line; needed only for renamed files
+    rule_sha256: str | None = None  # the rule's own hash, for engines that report one
 
 
 @dataclass(frozen=True, slots=True)

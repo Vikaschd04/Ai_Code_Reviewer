@@ -250,7 +250,9 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
         </>
       );
     case "project":
-      return <ProjectPage key={route.id} projectId={route.id} tab={route.tab} />;
+      return (
+        <ProjectPage key={route.id} projectId={route.id} tab={route.tab} check={route.check} />
+      );
     case "snapshot":
       return <SnapshotPage key={route.id} snapshotId={route.id} tab={route.tab} />;
     case "scan":

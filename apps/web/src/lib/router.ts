@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 export type Route =
   | { name: "dashboard" }
   | { name: "projects" }
-  | { name: "project"; id: string; tab: string }
+  | { name: "project"; id: string; tab: string; check: string | null }
   | { name: "snapshot"; id: string; tab: string }
   | { name: "scan"; id: string; tab: string }
   | { name: "finding"; id: string }
@@ -35,7 +35,7 @@ export function parseRoute(hash: string): Route {
     const id = match[2];
     switch (match[1]) {
       case "projects":
-        return { name: "project", id, tab: tab || "overview" };
+        return { name: "project", id, tab: tab || "overview", check: params.get("check") };
       case "snapshots":
         return { name: "snapshot", id, tab: tab || "scope" };
       case "scans":

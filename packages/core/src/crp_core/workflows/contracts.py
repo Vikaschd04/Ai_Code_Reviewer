@@ -88,10 +88,13 @@ ENGINE_NAMES = (
     "trivy",
     "pmd-apex",
     "frameworks",
+    "architecture",
 )
 ENGINE_PATTERN = "^(" + "|".join(re.escape(name) for name in ENGINE_NAMES) + ")$"
 # Platform extractors (not finding engines): their failures make a scan PARTIAL, never FAILED.
 EXTRACTOR_NAMES = frozenset({"structure", "graph"})
+# Engines that read what the graph step published for the same review; they run after it.
+AFTER_GRAPH = frozenset({"architecture"})
 
 
 def scan_workflow_id(scan_id: UUID) -> str:

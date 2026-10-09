@@ -16,7 +16,13 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
-from crp_analysis.lifecycle import Prior, RunView, classify_absence
+from crp_analysis.lifecycle import (
+    Prior,
+    RunView,
+    classify_absence,
+    observed_ruleset,
+    rule_hashes,
+)
 from crp_analysis.reports import EXPORT_FORMAT, build_sarif
 from crp_api import __version__
 from crp_api.auth.dependencies import Container, CurrentPrincipal
@@ -303,6 +309,7 @@ async def compare_scans(
             r.engine_version,
             r.ruleset_sha256,
             frozenset(r.enabled_rules) if r.enabled_rules is not None else None,
+            rule_hashes(r.diagnostics),
         )
         for engine, r in target_runs.items()
     }
@@ -318,7 +325,7 @@ async def compare_scans(
                 f.rule_id,
                 path,
                 f.engine_version,
-                base_run.ruleset_sha256 if base_run else None,
+                observed_ruleset(f.details, base_run.ruleset_sha256 if base_run else None),
             ),
             views.get(f.engine),
             file_present=entry_id is not None,

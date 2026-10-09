@@ -27,10 +27,18 @@ with workflow.unsafe.imports_passed_through():
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from crp_analysis import structure
+    from crp_analysis.architecture.model import build_model
+    from crp_analysis.architecture.rules import RulesError, RuleSet, from_document
+    from crp_analysis.engines.architecture import RULESET_ID as ARCHITECTURE_RULESET
+    from crp_analysis.engines.architecture import ArchitectureRulesAdapter
+    from crp_analysis.engines.architecture import (
+        engine_version as architecture_version,
+    )
     from crp_analysis.engines.base import (
         CancelToken,
         EngineAdapter,
         EngineOutcome,
+        FileProblem,
         completed_state,
     )
     from crp_analysis.engines.eslint import EslintAdapter
@@ -43,7 +51,9 @@ with workflow.unsafe.imports_passed_through():
     from crp_analysis.workspace import WorkFile, materialized
     from crp_core.artifacts import ArtifactKey, ArtifactStore
     from crp_core.config import Settings
+    from crp_core.db.graph_reads import architecture_rows
     from crp_core.db.models import (
+        ArchitectureRuleVersion,
         CodeSymbol,
         EngineRun,
         FileCoverage,
@@ -60,10 +70,12 @@ with workflow.unsafe.imports_passed_through():
         EngineState,
         FileDisposition,
         FindingStatus,
+        GraphBuildState,
         ScanState,
         require_scan_transition,
     )
     from crp_core.workflows.contracts import (
+        AFTER_GRAPH,
         ENGINE_NAMES,
         EXTRACTOR_NAMES,
         SCAN_WORKFLOW_NAME,
@@ -92,6 +104,7 @@ TERMINAL_ENGINE = frozenset(
 )
 _COMPLETED = frozenset({EngineState.SUCCEEDED, EngineState.PARTIAL})
 CACHED_REASON = "reused cached result (identical content, engine, rules and configuration)"
+_NO_MAP = "the dependency map of this review is not available, so the rules could not be checked"
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +191,9 @@ def default_adapters(settings: Settings) -> dict[str, EngineAdapter]:
             ruleset=APEX,
         ),
         "frameworks": FrameworkRulesAdapter(settings.intake_max_text_file_bytes),
+        # Intended architecture (P10): bound per review to the project's rules and the
+        # dependency map of the same review.
+        "architecture": ArchitectureRulesAdapter(),
     }
 
 
@@ -261,6 +277,26 @@ class ScanActivities:
                     run.ruleset_id = "crp-graph-v1"
                     availability_reason = None
                     available = True
+                elif engine == "architecture":
+                    rules = await self._architecture_rules(session, scan.project_id)
+                    run.engine_version = architecture_version(graph_extractor_version())
+                    run.ruleset_id = ARCHITECTURE_RULESET
+                    available, availability_reason = True, None
+                    if rules is None:
+                        files = []
+                        run.files_eligible = 0
+                        run.error_code = "no_rules"
+                        run.error_message = "No architecture rules are set for this project."
+                    else:
+                        version, rule_set = rules
+                        run.ruleset_sha256 = rule_set.sha256()
+                        run.config_fingerprint = version.sha256
+                        run.enabled_rules = rule_set.rule_ids()
+                        run.diagnostics = {
+                            "rules_version_id": str(version.id),
+                            "rules_version": version.version,
+                            "rule_hashes": rule_set.rule_hashes(),
+                        }
                 else:
                     adapter = self._adapters[engine]
                     availability = adapter.availability()
@@ -268,8 +304,8 @@ class ScanActivities:
                     run.ruleset_id = adapter.ruleset_id
                     available = availability.available
                     availability_reason = availability.reason
-                    rules = adapter.enabled_rules()
-                    run.enabled_rules = list(rules) if rules is not None else None
+                    enabled = adapter.enabled_rules()
+                    run.enabled_rules = list(enabled) if enabled is not None else None
                     identity = adapter.cache_identity() if available else None
                     run.config_fingerprint = identity.config_fingerprint if identity else None
                 if not files:
@@ -344,6 +380,9 @@ class ScanActivities:
             snapshot_files = (
                 await self._snapshot_files(session, scan) if task.engine == "graph" else []
             )
+            bound: EngineAdapter | None = None
+            if task.engine == "architecture":
+                bound = await self._bind_architecture(session, scan, run)
             await self._event(
                 session, task.scan_id, "engine_started", engine=task.engine, files=len(files)
             )
@@ -375,12 +414,25 @@ class ScanActivities:
             return await self._publish_graph(
                 task, run_id, meta, sources, snapshot_files, graph_run, scope, keys
             )
+        if task.engine == "architecture" and bound is None:
+            outcome = EngineOutcome(
+                state=EngineState.FAILED,
+                engine_version=None,
+                ruleset_id=ARCHITECTURE_RULESET,
+                ruleset_sha256=None,
+                problems=[
+                    FileProblem(f.path, CoverageOutcome.NOT_ATTEMPTED.value, _NO_MAP) for f in files
+                ],
+                error_code="graph_unavailable",
+                error_message=_NO_MAP,
+            )
+            return await self._publish_engine(task, run_id, snapshot_id, meta, files, outcome, [])
         misses = [f for f in files if f.path not in hits]
-        adapter = self._adapters[task.engine]
+        adapter = bound or self._adapters[task.engine]
         if misses:
             work_dir = self._settings.work_root / "scans" / task.scan_id.hex / task.engine
             outcome, normalized = await self._supervise(
-                lambda: self._run_adapter(task.engine, misses, work_dir, cancel),
+                lambda: self._run_adapter(task.engine, misses, work_dir, cancel, adapter),
                 cancel,
                 run_id,
                 task.engine,
@@ -404,6 +456,77 @@ class ScanActivities:
             outcome,
             normalized,
             cache=(scope, keys, set(hits), refresh),
+        )
+
+    @staticmethod
+    async def _architecture_rules(
+        session: AsyncSession, project_id: UUID
+    ) -> tuple[ArchitectureRuleVersion, RuleSet] | None:
+        """The project's newest rule version, if it declares anything to check."""
+        version = (
+            await session.execute(
+                select(ArchitectureRuleVersion)
+                .where(ArchitectureRuleVersion.project_id == project_id)
+                .order_by(ArchitectureRuleVersion.version.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if version is None:
+            return None
+        try:
+            rules = from_document(version.document)
+        except RulesError:
+            logger.exception("stored architecture rules are invalid", extra={"id": version.id})
+            return None
+        return None if rules.empty else (version, rules)
+
+    async def _bind_architecture(
+        self, session: AsyncSession, scan: Scan, run: EngineRun
+    ) -> ArchitectureRulesAdapter | None:
+        """The rules recorded when the review started, bound to the snapshot's current
+        dependency map (None: no usable map, so nothing can be checked)."""
+        recorded = (run.diagnostics or {}).get("rules_version_id")
+        version = (
+            await session.get(ArchitectureRuleVersion, UUID(str(recorded))) if recorded else None
+        )
+        if version is None or version.project_id != scan.project_id:
+            return None
+        build = (
+            await session.execute(
+                select(GraphBuild).where(
+                    GraphBuild.snapshot_id == scan.snapshot_id, GraphBuild.is_current.is_(True)
+                )
+            )
+        ).scalar_one_or_none()
+        if (
+            build is None
+            or build.state == GraphBuildState.FAILED.value
+            or build.extractor != graph_extractor_version()
+        ):
+            return None
+        rows = await architecture_rows(session, build.id)
+        unreadable = {
+            path: f"the dependency map could not read this file ({reason or outcome.lower()})"
+            for path, outcome, reason in (
+                await session.execute(
+                    select(FileEntry.path, FileCoverage.outcome, FileCoverage.reason)
+                    .join(FileCoverage, FileCoverage.file_entry_id == FileEntry.id)
+                    .join(EngineRun, EngineRun.id == FileCoverage.engine_run_id)
+                    .where(
+                        EngineRun.scan_id == build.scan_id,
+                        EngineRun.engine == "graph",
+                        FileCoverage.outcome != CoverageOutcome.ANALYZED.value,
+                    )
+                )
+            ).all()
+        }
+        return ArchitectureRulesAdapter().bind(
+            from_document(version.document),
+            build_model(rows.nodes, rows.edges, rows.other_edges),
+            today=datetime.now(UTC).date(),
+            version=run.engine_version or architecture_version(graph_extractor_version()),
+            rules_version=version.version,
+            unreadable=unreadable,
         )
 
     def _cache_scope(
@@ -457,9 +580,14 @@ class ScanActivities:
             raise
 
     def _run_adapter(
-        self, engine: str, files: list[EligibleFile], work_dir: Path, cancel: CancelToken
+        self,
+        engine: str,
+        files: list[EligibleFile],
+        work_dir: Path,
+        cancel: CancelToken,
+        adapter: EngineAdapter | None = None,
     ) -> tuple[EngineOutcome, list[NormalizedFinding]]:
-        adapter = self._adapters[engine]
+        adapter = adapter or self._adapters[engine]
         work = [WorkFile(f.path, f.sha256) for f in files]
         with materialized(
             self._store, work_dir, work, max_file_bytes=self._settings.intake_max_text_file_bytes
@@ -959,24 +1087,33 @@ class ScanWorkflow:
         )
         if plan.terminal:
             return ScanWorkflowResult(scan_id=payload.scan_id, state="TERMINAL")
+        # Histories recorded before AFTER_GRAPH engines existed never planned them, so they
+        # replay as one phase.
+        phases = [
+            [e for e in plan.engines if e not in AFTER_GRAPH],
+            [e for e in plan.engines if e in AFTER_GRAPH],
+        ]
         try:
-            await asyncio.gather(
-                *(
-                    workflow.execute_activity(
-                        "scan.engine",
-                        EngineTask(scan_id=payload.scan_id, engine=engine),
-                        result_type=EngineTaskResult,
-                        start_to_close_timeout=timedelta(hours=2),
-                        heartbeat_timeout=timedelta(seconds=60),
-                        cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
-                        retry_policy=RetryPolicy(
-                            maximum_attempts=2, initial_interval=timedelta(seconds=2)
-                        ),
-                    )
-                    for engine in plan.engines
-                ),
-                return_exceptions=True,
-            )
+            for phase in phases:
+                if not phase:
+                    continue
+                await asyncio.gather(
+                    *(
+                        workflow.execute_activity(
+                            "scan.engine",
+                            EngineTask(scan_id=payload.scan_id, engine=engine),
+                            result_type=EngineTaskResult,
+                            start_to_close_timeout=timedelta(hours=2),
+                            heartbeat_timeout=timedelta(seconds=60),
+                            cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+                            retry_policy=RetryPolicy(
+                                maximum_attempts=2, initial_interval=timedelta(seconds=2)
+                            ),
+                        )
+                        for engine in phase
+                    ),
+                    return_exceptions=True,
+                )
         except asyncio.CancelledError:
             await workflow.execute_activity(
                 "scan.finalize",

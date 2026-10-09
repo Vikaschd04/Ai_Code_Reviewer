@@ -1049,6 +1049,45 @@
         "title": "AiUsageResponse",
         "type": "object"
       },
+      "ArchitectureAllowDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "maxLength": 300,
+            "title": "From",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 300,
+            "title": "Reason",
+            "type": "string"
+          },
+          "to": {
+            "maxLength": 300,
+            "title": "To",
+            "type": "string"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expiry date (YYYY-MM-DD); expired exceptions stop applying",
+            "title": "Until"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "reason"
+        ],
+        "title": "ArchitectureAllowDocument",
+        "type": "object"
+      },
       "ArchitectureComponent": {
         "additionalProperties": false,
         "properties": {
@@ -1263,6 +1302,131 @@
         "title": "ArchitectureEdge",
         "type": "object"
       },
+      "ArchitectureForbidDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "description": "A layer name or a pattern",
+            "maxLength": 300,
+            "title": "From",
+            "type": "string"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "maxLength": 48,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable rule key (derived when omitted)",
+            "title": "Key"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "severity": {
+            "default": "medium",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "to": {
+            "description": "A layer name or a pattern",
+            "maxLength": 300,
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "ArchitectureForbidDocument",
+        "type": "object"
+      },
+      "ArchitectureLayerDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "match": {
+            "description": "Patterns over parts (Java packages or folders): * within one name part, ** any number of parts",
+            "items": {
+              "maxLength": 200,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Match",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 40,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "match"
+        ],
+        "title": "ArchitectureLayerDocument",
+        "type": "object"
+      },
+      "ArchitectureLayerParts": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "part_count": {
+            "title": "Part Count",
+            "type": "integer"
+          },
+          "parts": {
+            "description": "Up to 50",
+            "items": {
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "parts",
+          "part_count"
+        ],
+        "title": "ArchitectureLayerParts",
+        "type": "object"
+      },
       "ArchitectureMetricsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1327,6 +1491,448 @@
           "notes"
         ],
         "title": "ArchitectureMetricsResponse",
+        "type": "object"
+      },
+      "ArchitectureRuleVersionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "allow": {
+            "title": "Allow",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display name of the author",
+            "title": "Created By"
+          },
+          "forbid": {
+            "title": "Forbid",
+            "type": "integer"
+          },
+          "layers": {
+            "title": "Layers",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "editor",
+              "yaml"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "sha256",
+          "source",
+          "note",
+          "created_at",
+          "created_by",
+          "layers",
+          "forbid",
+          "allow"
+        ],
+        "title": "ArchitectureRuleVersionSummary",
+        "type": "object"
+      },
+      "ArchitectureRulesCheckRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchitectureRulesDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "yaml": {
+            "anyOf": [
+              {
+                "maxLength": 65536,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yaml"
+          }
+        },
+        "title": "ArchitectureRulesCheckRequest",
+        "type": "object"
+      },
+      "ArchitectureRulesCheckResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_by_exception": {
+            "title": "Allowed By Exception",
+            "type": "integer"
+          },
+          "build_id": {
+            "format": "uuid",
+            "title": "Build Id",
+            "type": "string"
+          },
+          "by_rule": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Rule",
+            "type": "object"
+          },
+          "dependencies_checked": {
+            "title": "Dependencies Checked",
+            "type": "integer"
+          },
+          "expired_exceptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expired Exceptions",
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureLayerParts"
+            },
+            "title": "Layers",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "overlaps": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "description": "Parts matching more than one layer",
+            "title": "Overlaps",
+            "type": "object"
+          },
+          "rules_sha256": {
+            "title": "Rules Sha256",
+            "type": "string"
+          },
+          "rules_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when unsaved rules were checked",
+            "title": "Rules Version"
+          },
+          "unassigned": {
+            "description": "Parts in no layer (up to 50)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          },
+          "unassigned_count": {
+            "title": "Unassigned Count",
+            "type": "integer"
+          },
+          "violation_count": {
+            "title": "Violation Count",
+            "type": "integer"
+          },
+          "violations": {
+            "description": "Up to 200",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureViolationResponse"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "build_id",
+          "rules_sha256",
+          "rules_version",
+          "layers",
+          "unassigned",
+          "unassigned_count",
+          "overlaps",
+          "violations",
+          "violation_count",
+          "by_rule",
+          "allowed_by_exception",
+          "expired_exceptions",
+          "dependencies_checked",
+          "notes"
+        ],
+        "title": "ArchitectureRulesCheckResponse",
+        "type": "object"
+      },
+      "ArchitectureRulesDocument": {
+        "additionalProperties": false,
+        "properties": {
+          "allow": {
+            "description": "Exceptions to layering",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureAllowDocument"
+            },
+            "maxItems": 100,
+            "title": "Allow",
+            "type": "array"
+          },
+          "forbid": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureForbidDocument"
+            },
+            "maxItems": 100,
+            "title": "Forbid",
+            "type": "array"
+          },
+          "layering": {
+            "default": "lower",
+            "description": "lower: a layer may use any layer below it; next: only the one directly below; none: layers only name groups",
+            "enum": [
+              "lower",
+              "next",
+              "none"
+            ],
+            "title": "Layering",
+            "type": "string"
+          },
+          "layers": {
+            "description": "Top to bottom",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureLayerDocument"
+            },
+            "maxItems": 30,
+            "title": "Layers",
+            "type": "array"
+          },
+          "schema": {
+            "const": "crp-architecture-rules-v1",
+            "default": "crp-architecture-rules-v1",
+            "title": "Schema",
+            "type": "string"
+          },
+          "severity": {
+            "default": "medium",
+            "description": "Severity of layering breaches",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "title": "ArchitectureRulesDocument",
+        "type": "object"
+      },
+      "ArchitectureRulesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "current_version": {
+            "description": "The version the next review applies",
+            "title": "Current Version",
+            "type": "integer"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchitectureRulesDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "description": "Newest first, up to 50",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureRuleVersionSummary"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "rule_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rule Ids",
+            "type": "array"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "version": {
+            "description": "0 when no rules were saved",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "version",
+          "current_version",
+          "sha256",
+          "document",
+          "rule_ids",
+          "note",
+          "created_at",
+          "created_by",
+          "can_edit",
+          "history"
+        ],
+        "title": "ArchitectureRulesResponse",
+        "type": "object"
+      },
+      "ArchitectureRulesUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "base_version": {
+            "description": "The version you edited (0 when none); a newer one is a conflict",
+            "minimum": 0.0,
+            "title": "Base Version",
+            "type": "integer"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchitectureRulesDocument"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rules as JSON (give this or yaml)"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the rules changed",
+            "title": "Note"
+          },
+          "yaml": {
+            "anyOf": [
+              {
+                "maxLength": 65536,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rules as YAML (give this or document)",
+            "title": "Yaml"
+          }
+        },
+        "required": [
+          "base_version"
+        ],
+        "title": "ArchitectureRulesUpdate",
         "type": "object"
       },
       "ArchitectureSummary": {
@@ -1396,6 +2002,97 @@
           "average_distance"
         ],
         "title": "ArchitectureSummary",
+        "type": "object"
+      },
+      "ArchitectureViolationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "source_component": {
+            "title": "Source Component",
+            "type": "string"
+          },
+          "source_layer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Layer"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "target_component": {
+            "title": "Target Component",
+            "type": "string"
+          },
+          "target_layer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Layer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "title",
+          "severity",
+          "path",
+          "line",
+          "target",
+          "source_component",
+          "target_component",
+          "source_layer",
+          "target_layer",
+          "message"
+        ],
+        "title": "ArchitectureViolationResponse",
         "type": "object"
       },
       "ArtifactProbeResult": {
@@ -13801,6 +14498,303 @@
         ]
       }
     },
+    "/v1/projects/{project_id}/architecture-rules": {
+      "get": {
+        "description": "The project's architecture rules (newest or a given version) and their history.",
+        "operationId": "get_architecture_rules_v1_projects__project_id__architecture_rules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A saved version (default: newest)",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved version (default: newest)",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchitectureRulesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Get Architecture Rules",
+        "tags": [
+          "architecture"
+        ]
+      },
+      "put": {
+        "description": "Save the rules as a new version (members). Identical rules add no version; a newer version\nthan ``base_version`` is a conflict. The next review applies the newest version.",
+        "operationId": "save_architecture_rules_v1_projects__project_id__architecture_rules_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchitectureRulesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchitectureRulesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Save Architecture Rules",
+        "tags": [
+          "architecture"
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/architecture-rules/export": {
+      "get": {
+        "description": "The rules as YAML, ready to keep in the repository or import into another project.",
+        "operationId": "export_architecture_rules_v1_projects__project_id__architecture_rules_export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/yaml": {},
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Export Architecture Rules",
+        "tags": [
+          "architecture"
+        ]
+      }
+    },
     "/v1/projects/{project_id}/change-sets": {
       "get": {
         "operationId": "list_change_sets_v1_projects__project_id__change_sets_get",
@@ -16297,6 +17291,100 @@
         "summary": "Architecture Metrics",
         "tags": [
           "graph"
+        ]
+      }
+    },
+    "/v1/snapshots/{snapshot_id}/architecture-rules/check": {
+      "post": {
+        "description": "Evaluate rules (the given ones, or the project's newest) on this upload's dependency map.\nRead-only: nothing is saved and no findings are created.",
+        "operationId": "check_architecture_rules_v1_snapshots__snapshot_id__architecture_rules_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchitectureRulesCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchitectureRulesCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Check Architecture Rules",
+        "tags": [
+          "architecture"
         ]
       }
     },

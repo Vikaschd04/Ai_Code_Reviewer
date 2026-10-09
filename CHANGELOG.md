@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — P10 architecture rules (9 October 2026)
+
+- **Architecture rules** on the project's Architecture tab (ADR 0019): describe how your code should be organised — layers from top to bottom, dependencies that are never allowed, and exceptions with a reason and an expiry date. Start from an example, **check the rules on the latest upload** before saving, and see which parts fall in which layer.
+- **Every review checks the rules.** Each breach is an issue at the exact import, with the rule's severity and reason, tracked like any other issue (and included in JSON and SARIF exports). Fixing the code resolves it; changing or removing the rule never counts as a fix ("rule changed" / "rule retired").
+- Rules are versioned with author and note, can be downloaded as YAML and imported into another project. YAML is read as plain data (no anchors, aliases or custom tags; 64 KB at most).
+- The Issues tab can be filtered by check (for example "Architecture rules"), and its counts follow the filter.
+- New dependency: PyYAML 6.0.3 (MIT).
+
 ## Unreleased — P10 structure health (9 October 2026)
 
 - **Structure health** on the Architecture tab (ADR 0018): the parts of your code (Java packages and folders, test code left out), which parts depend on which, and R. C. Martin's measures — who uses a part (Ca), what it uses (Ce), instability, abstractness and distance from the balance line. Anything not measurable shows "—", never zero.

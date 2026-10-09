@@ -8,6 +8,7 @@ import { Icon } from "../components/Icon";
 import { SeverityChip } from "../components/Severity";
 import { StatusBadge, statusLabel } from "../components/Status";
 import { formatRelative } from "../lib/format";
+import { FINDING_CHECKS, checkName } from "../lib/labels";
 import { navigate } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 
@@ -21,7 +22,14 @@ const RECHECKS = [
 ];
 
 /** Durable issues across scans: triage state and what the newest compatible scan proved. */
-export function IssuesView({ projectId }: { projectId: string }) {
+export function IssuesView({
+  projectId,
+  check = null,
+}: {
+  projectId: string;
+  check?: string | null;
+}) {
+  const [engine, setEngine] = useState(check && FINDING_CHECKS.includes(check) ? check : "");
   const [status, setStatus] = useState("");
   const [recheck, setRecheck] = useState("");
   const [query, setQuery] = useState("");
@@ -30,12 +38,12 @@ export function IssuesView({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const page = useAsync(
     (signal) =>
-      listIssues(projectId, { status, recheck, q: query }, signal).then((result) => {
+      listIssues(projectId, { status, recheck, engine, q: query }, signal).then((result) => {
         setExtra([]);
         setCursor(result.next_cursor);
         return result;
       }),
-    [projectId, status, recheck, query],
+    [projectId, status, recheck, engine, query],
   );
   const rows = [...(page.data?.items ?? []), ...extra];
   const open = (issue: Issue) => {
@@ -95,6 +103,20 @@ export function IssuesView({ projectId }: { projectId: string }) {
                 {statusLabel(value)} <strong>{page.data?.by_recheck[value] ?? 0}</strong>
               </button>
             ))}
+            <select
+              aria-label="Check"
+              value={engine}
+              onChange={(event) => {
+                setEngine(event.target.value);
+              }}
+            >
+              <option value="">All checks</option>
+              {FINDING_CHECKS.map((name) => (
+                <option key={name} value={name}>
+                  {checkName(name)}
+                </option>
+              ))}
+            </select>
             <input
               type="search"
               aria-label="Search issues by title or path"
@@ -180,7 +202,7 @@ export function IssuesView({ projectId }: { projectId: string }) {
           type="button"
           className="btn btn-ghost"
           onClick={() => {
-            listIssues(projectId, { status, recheck, q: query, cursor }).then(
+            listIssues(projectId, { status, recheck, engine, q: query, cursor }).then(
               (next) => {
                 setExtra((previous) => [...previous, ...next.items]);
                 setCursor(next.next_cursor);

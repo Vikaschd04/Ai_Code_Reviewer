@@ -58,6 +58,7 @@ class Dependency:
     source_path: str
     target_path: str | None = None  # a file in the snapshot
     target_package: str | None = None  # an on-demand import of a whole Java package
+    line: int | None = None  # evidence line in the source file (import, extends, ...)
 
 
 @dataclass(slots=True)

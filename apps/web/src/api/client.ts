@@ -65,6 +65,8 @@ export type CodeReviewCreate = Schemas["CodeReviewCreate"];
 export type Workspace = Schemas["ChangeSetResponse"];
 export type AiFixCandidate = Schemas["AiFixCandidateResponse"];
 export type ArchitectureMetrics = Schemas["ArchitectureMetricsResponse"];
+export type ArchitectureRules = Schemas["ArchitectureRulesResponse"];
+export type ArchitectureRulesCheck = Schemas["ArchitectureRulesCheckResponse"];
 export type WorkspaceListItem = Schemas["ChangeSetListItem"];
 export type WorkspaceFile = Schemas["ChangeSetFileSummary"];
 export type WorkspaceCheck = Schemas["ChangeSetCheckResponse"];
@@ -83,13 +85,21 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly requestId: string | null;
+  readonly details: Record<string, unknown>;
 
-  constructor(status: number, code: string, message: string, requestId: string | null) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    requestId: string | null,
+    details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.details = details;
   }
 }
 
@@ -104,7 +114,13 @@ function isErrorBody(value: unknown): value is ErrorBody {
 
 export function toApiError(response: Response, body: unknown): ApiError {
   if (isErrorBody(body)) {
-    return new ApiError(response.status, body.code, body.message, body.request_id);
+    return new ApiError(
+      response.status,
+      body.code,
+      body.message,
+      body.request_id,
+      body.details ?? {},
+    );
   }
   return new ApiError(
     response.status,

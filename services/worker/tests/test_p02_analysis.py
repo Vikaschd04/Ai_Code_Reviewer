@@ -446,7 +446,8 @@ async def test_issue_lifecycle_comparison_and_triage_across_snapshots(
         ]
         assert applicable and all(e["compatible"] for e in applicable)
         idle = {e["engine"] for e in comparison["engines"] if e["base_state"] == "NOT_APPLICABLE"}
-        assert idle == {"pmd-apex", "frameworks"}  # platform checks: nothing to compare
+        # Platform checks and architecture rules (none set): nothing to compare.
+        assert idle == {"pmd-apex", "frameworks", "architecture"}
 
         # Graph nodes are served only through their own snapshot's current build.
         node_a = (await stack.ok("GET", f"/v1/snapshots/{snap_a}/graph/nodes?limit=1"))["items"][0]

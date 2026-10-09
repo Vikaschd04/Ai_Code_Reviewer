@@ -4,10 +4,11 @@ Date: 9 October 2026. Environment: macOS arm64, Python 3.14, PostgreSQL 18.6, Te
 server, PMD 7.27.0, ESLint 10.11.0, Opengrep 1.30.0, Trivy 0.69.3. Decision record:
 [ADR 0018](../adr/0018_ARCHITECTURE_METRICS.md).
 
-Status: **IN_PROGRESS.** Slice 1 is delivered and verified: the architecture model and structural
-metrics, with Structure health in the UI. Slices 2–8 are planned (docs/ROADMAP.md):
+Status: **IN_PROGRESS.** Slices 1 and 2 are delivered and verified: the architecture model and
+structural metrics with Structure health (slice 1), and intended architecture as code with breaches
+as tracked issues (slice 2, [ADR 0019](../adr/0019_ARCHITECTURE_RULES.md)). Slices 3–8 are planned
+(docs/ROADMAP.md):
 
-2. intended-architecture rules;
 3. smell, performance and scalability catalogs;
 4. Git-history hotspots;
 5. runtime evidence;
@@ -62,3 +63,53 @@ metrics, with Structure health in the UI. Slices 2–8 are planned (docs/ROADMAP
 - Dependencies come from the syntax-level graph (K-P02-03), so resolution gaps lower the counts.
   The number of edges not counted is shown.
 - Measured on request, without caching or history.
+
+## Slice 2 — intended architecture as code (9 October 2026)
+
+| Deliverable (P10 prompt) | Delivered | Where |
+|---|---|---|
+| 3. Rules in the portal, versioned and audited, YAML export and import | Layers (top to bottom, patterns over parts), layering `lower`/`next`/`none`, forbid rules, exceptions with reason and expiry; append-only versions with author, note and source; YAML parsed as data | `crp_analysis/architecture/rules.py`, migration 0012, `routes/architecture_rules.py` |
+| 3. Every review reports deviations as findings with lifecycle | Engine `architecture` after the graph step; one finding per source file and target at the import line; per-rule hashes for honest rechecks | `crp_analysis/engines/architecture.py`, `crp_worker/scan.py`, `crp_analysis/lifecycle.py` |
+| 8. UI: rules editor | "Architecture rules" card on the project's Architecture tab (summary, editor, check on the latest upload, history, YAML download); Issues filter by check | `components/ArchitectureRules.tsx`, `pages/IssuesView.tsx` |
+| 9. Export: rules YAML, SARIF for violations | YAML export; breaches are findings, so the existing JSON and SARIF exports include them | `GET …/architecture-rules/export`, scan exports |
+
+### Mandatory tests that apply to slice 2
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Breaches detected | Fixture with three layers, a forbid rule, an active and an expired exception, a sub-package, an on-demand import, a same-part and a same-layer dependency, a part in no layer and test code; `next` layering variant | PASS. Exactly 3 breaches (2 forbid, 1 layering) at the hand-computed lines; 1 use allowed; the expired exception listed; 9 dependencies checked; test code left out | `test_architecture_rules.py` (40) |
+| Lifecycle-tracked on real reviews | Java project uploaded and reviewed: before rules, with rules, after a code fix, after a rule edit, after a rule removal | PASS. Not applicable without rules (with the reason); 2 findings at the imports (lines 3 and 4) and 2 OPEN issues; the code fix resolves the layering issue (VERIFIED_ABSENT) while the forbid issue stays | `test_p10_architecture.py::test_architecture_rules_on_real_reviews` |
+| Exceptions with expiry | Rule-level `allow … until`; issue-level accepted risk with expiry (P02 lifecycle) | PASS. An exception until 2099 allows a use; one that expired in 2020 does not and is listed | same, and unit tests |
+| A rule change re-evaluates honestly | Edit the forbid rule so it matches nothing; then remove it | PASS. Edit → issue OPEN with UNKNOWN "rule arch.forbid.domain-no-legacy changed since the earlier observation"; the untouched layering issue stays RESOLVED. Removal → RULE_OBSOLETE, still OPEN. Never "fixed" | same; `test_recheck_compares_the_rules_own_hash` |
+| Rules run after the dependency map on Temporal | Same project reviewed on the Temporal stack, where other engines run in parallel | PASS. Architecture SUCCEEDED with 2 findings; it started after the graph step finished | `test_architecture_rules_run_after_the_graph_on_temporal` |
+| Untrusted YAML | Anchors and aliases, two documents, a Python tag, broken YAML, more than 64 KB, unknown fields, bad patterns, duplicate names and keys, missing reasons, bad dates and severities | PASS. All refused with where and why; nothing saved | unit and API tests |
+| Versioning and audit | Save, identical save, stale save, export and re-import into another project, second version, old version | PASS. Identical rules add no version; stale `base_version` → 409; the export imports with the same hash; history newest first with author and note | `test_architecture_rules_api.py` (3) |
+| Workspace isolation | Demo member edits own project; another workspace's rules | PASS. Members can edit; other workspaces get 404 | same |
+| Browser | Write rules from the example, invalid rules, check on the latest upload, save, re-review, breaches in Issues | PASS. Light, dark and 390 px without horizontal scroll | `e2e/p10-architecture-rules.spec.ts`; `p10-rules*.png` |
+
+### Checks (slice 2)
+
+| Check | Command | Outcome |
+|---|---|---|
+| Lint, format, types and contracts | `make check` | exit 0 |
+| Types for Linux | `uv run mypy --platform linux` | no issues in 185 source files |
+| Tests | `caffeinate -i make test` | exit 0: 557 pytest (slice 2 added 45) + 29 vitest, 8 min 37 s |
+| Browser E2E | `caffeinate -i make test-e2e` | exit 0: 20/20 in 3.3 minutes |
+
+### Findings during the slice
+
+- **Counts that did not follow the filter:** with the new check filter, the Issues tiles still
+  counted every issue of the project (7 open while 4 rows showed). The check now scopes the counts
+  too; the real-stack test asserts it.
+- **Phone width:** long file paths in the breach list overflowed by 80 px at 390 px; they now wrap.
+- **Build-only type error:** optional lists in the generated rules type passed `tsc --noEmit` but
+  failed the build's `tsc -b`; fixed with explicit defaults.
+
+### Limitations (slice 2)
+
+- Parts are packages and folders; SAP extensions and Salesforce packages as parts come with
+  framework-aware grouping.
+- Breaches depend on the dependency map's resolution (K-P02-03): an unresolved import cannot be
+  judged and is counted as not counted in Structure health.
+- Rules are not read from uploads (uploads are untrusted); teams keep the exported YAML in their
+  repository and import it.

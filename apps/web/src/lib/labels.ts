@@ -53,6 +53,11 @@ export const CHECKS: Record<string, CheckInfo> = {
     description: "SAP Commerce extension dependencies and Salesforce API versions in metadata.",
     tool: "refactorX framework packs",
   },
+  architecture: {
+    name: "Architecture rules",
+    description: "Dependencies that break your team's layers or forbidden-dependency rules.",
+    tool: "refactorX architecture rules",
+  },
 };
 
 export const CHECK_ORDER = [
@@ -64,13 +69,23 @@ export const CHECK_ORDER = [
   "trivy",
   "pmd-apex",
   "frameworks",
+  "architecture",
 ];
-export const FINDING_CHECKS = ["pmd", "eslint", "opengrep", "trivy", "pmd-apex", "frameworks"];
+export const FINDING_CHECKS = [
+  "pmd",
+  "eslint",
+  "opengrep",
+  "trivy",
+  "pmd-apex",
+  "frameworks",
+  "architecture",
+];
 
-/** Checks that only apply to some platforms: shown only when they had files to check. */
-export const PLATFORM_CHECKS = new Set(["pmd-apex", "frameworks"]);
+/** Checks that only apply to some projects (platform files, architecture rules): shown only
+ * when they applied. */
+export const PLATFORM_CHECKS = new Set(["pmd-apex", "frameworks", "architecture"]);
 
-/** Checks worth showing for a scan: core checks always, platform checks when they applied. */
+/** Checks worth showing for a scan: core checks always, the others when they applied. */
 export function visibleChecks(
   names: string[],
   runs: { engine: string; state: string }[] | null,

@@ -89,3 +89,197 @@ async def test_architecture_metrics_from_a_real_review(settings: Settings) -> No
             f"/v1/snapshots/{snapshot}/architecture", headers={"Authorization": "Bearer nope"}
         )
         assert other.status_code == 401
+
+
+# -- intended architecture (P10 slice 2; ADR 0019) ----------------------------------------------
+
+A = "src/main/java/com/acme"
+RULED = {
+    f"{A}/web/Controller.java": (
+        "package com.acme.web;\n\nimport com.acme.service.OrderService;\n\n"
+        "public class Controller { OrderService s; }\n"
+    ),
+    f"{A}/service/OrderService.java": (
+        "package com.acme.service;\n\nimport com.acme.domain.Order;\nimport com.acme.web.Controller;"
+        "\n\npublic class OrderService { Order o; Controller c; }\n"
+    ),
+    f"{A}/domain/Order.java": (
+        "package com.acme.domain;\n\nimport com.acme.legacy.OldOrder;\n\n"
+        "public class Order { OldOrder old; }\n"
+    ),
+    f"{A}/domain/Status.java": (
+        "package com.acme.domain;\n\nimport com.acme.service.OrderService;\n\n"
+        "public class Status { OrderService s; }\n"
+    ),
+    f"{A}/legacy/OldOrder.java": "package com.acme.legacy;\n\npublic class OldOrder { }\n",
+    "src/test/java/com/acme/domain/OrderTest.java": (
+        "package com.acme.domain;\n\nimport com.acme.legacy.OldOrder;\n\n"
+        "public class OrderTest { OldOrder o; }\n"
+    ),
+}
+# The service no longer reaches up into the web layer.
+FIXED = {
+    **RULED,
+    f"{A}/service/OrderService.java": (
+        "package com.acme.service;\n\nimport com.acme.domain.Order;\n\n"
+        "public class OrderService { Order o; }\n"
+    ),
+}
+RULES = """\
+layers:
+  - name: web
+    match: [com.acme.web.**]
+  - name: service
+    match: [com.acme.service.**]
+  - name: domain
+    match: [com.acme.domain.**]
+forbid:
+  - key: domain-no-legacy
+    from: domain
+    to: com.acme.legacy.**
+    reason: Legacy is being removed.
+    severity: high
+allow:
+  - from: domain
+    to: service
+    reason: Status lookups during the migration.
+    until: 2099-12-31
+  - from: service
+    to: web
+    reason: Old view helper.
+    until: 2020-01-01
+"""
+FORBID = "arch.forbid.domain-no-legacy"
+
+
+def _zip_of(files: dict[str, str]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for path, text in files.items():
+            archive.writestr(path, text)
+    return buffer.getvalue()
+
+
+async def _architecture_issues(stack: Any, project: str) -> dict[str, dict[str, Any]]:
+    page = await stack.ok("GET", f"/v1/projects/{project}/issues?engine=architecture&limit=200")
+    assert sum(page["by_status"].values()) == len(page["items"])  # counts follow the check
+    return {issue["rule_id"]: issue for issue in page["items"]}
+
+
+async def _save(stack: Any, project: str, text: str, base: int) -> dict[str, Any]:
+    return dict(
+        await stack.ok(
+            "PUT",
+            f"/v1/projects/{project}/architecture-rules",
+            json={"yaml": text, "note": f"version after {base}", "base_version": base},
+        )
+    )
+
+
+async def test_architecture_rules_on_real_reviews(settings: Settings) -> None:
+    async with lite_stack(settings) as stack:
+        project = await stack.project("P10 rules")
+        first = await stack.zip_intake(project, _zip_of(RULED))
+        snapshot = first["snapshot_id"]
+
+        # Without rules the check does not apply, and says why.
+        scan = await stack.scan_and_wait(project, snapshot)
+        engines = {e["engine"]: e for e in scan["engines"]}
+        assert engines["architecture"]["state"] == "NOT_APPLICABLE"
+        assert engines["architecture"]["error_message"] == (
+            "No architecture rules are set for this project."
+        )
+
+        saved = await _save(stack, project, RULES, 0)
+        assert saved["version"] == 1
+
+        # A read-only check of the saved rules on this upload.
+        check = await stack.ok(
+            "POST", f"/v1/snapshots/{snapshot}/architecture-rules/check", json={}
+        )
+        assert check["rules_version"] == 1 and check["violation_count"] == 2
+        assert check["by_rule"] == {FORBID: 1, "arch.layers": 1}
+        assert check["allowed_by_exception"] == 1  # Status -> OrderService, until 2099
+        assert check["expired_exceptions"] == ["service → web (expired 2020-01-01)"]
+        assert check["unassigned"] == ["com.acme.legacy"]
+        assert {layer["name"]: layer["parts"] for layer in check["layers"]} == {
+            "web": ["com.acme.web"],
+            "service": ["com.acme.service"],
+            "domain": ["com.acme.domain"],
+        }
+
+        # Every review now checks the rules; breaches are findings at the import.
+        scan = await stack.scan_and_wait(project, snapshot)
+        engines = {e["engine"]: e for e in scan["engines"]}
+        run = engines["architecture"]
+        assert run["state"] == "SUCCEEDED" and run["findings_count"] == 2
+        assert run["files_eligible"] == 5  # the test file is left out
+        assert run["diagnostics"]["rules_version"] == 1
+        findings = {
+            (f["rule_id"], f["path"], f["start_line"], f["severity"])
+            for f in await stack.findings(scan["id"])
+            if f["engine"] == "architecture"
+        }
+        assert findings == {
+            (FORBID, f"{A}/domain/Order.java", 3, "high"),
+            ("arch.layers", f"{A}/service/OrderService.java", 4, "medium"),
+        }
+        issues = await _architecture_issues(stack, project)
+        assert {k: (v["status"], v["recheck_state"]) for k, v in issues.items()} == {
+            FORBID: ("OPEN", "VERIFIED_PRESENT"),
+            "arch.layers": ("OPEN", "VERIFIED_PRESENT"),
+        }
+        assert issues["arch.layers"]["title"] == "Layer service must not use web"
+
+        # The code is fixed: the layering breach is verified gone; the forbidden one stays.
+        second = await stack.zip_intake(project, _zip_of(FIXED))
+        fixed_snapshot = second["snapshot_id"]
+        await stack.scan_and_wait(project, fixed_snapshot)
+        issues = await _architecture_issues(stack, project)
+        assert (issues["arch.layers"]["status"], issues["arch.layers"]["recheck_state"]) == (
+            "RESOLVED",
+            "VERIFIED_ABSENT",
+        )
+        assert issues[FORBID]["recheck_state"] == "VERIFIED_PRESENT"
+
+        # The rule changes so that it no longer matches: that is not a fix.
+        await _save(stack, project, RULES.replace("com.acme.legacy.**", "com.acme.old.**"), 1)
+        scan = await stack.scan_and_wait(project, fixed_snapshot)
+        run = {e["engine"]: e for e in scan["engines"]}["architecture"]
+        assert run["findings_count"] == 0
+        assert run["diagnostics"]["notes"] == [
+            "forbid \"domain-no-legacy\": to 'com.acme.old.**' matches no part"
+        ]
+        issues = await _architecture_issues(stack, project)
+        assert issues[FORBID]["status"] == "OPEN"
+        assert issues[FORBID]["recheck_state"] == "UNKNOWN"
+        assert issues[FORBID]["recheck_reason"] == (
+            f"rule {FORBID} changed since the earlier observation"
+        )
+        assert issues["arch.layers"]["status"] == "RESOLVED"  # its own rule did not change
+
+        # The rule is removed: obsolete, still not fixed.
+        layers_only = RULES.split("forbid:")[0] + "allow:" + RULES.split("allow:")[1]
+        await _save(stack, project, layers_only, 2)
+        await stack.scan_and_wait(project, fixed_snapshot)
+        issues = await _architecture_issues(stack, project)
+        assert (issues[FORBID]["status"], issues[FORBID]["recheck_state"]) == (
+            "OPEN",
+            "RULE_OBSOLETE",
+        )
+
+
+async def test_architecture_rules_run_after_the_graph_on_temporal(
+    settings: Settings, stack_factory: Any
+) -> None:
+    """On Temporal the other engines run in parallel; the rules wait for the dependency map."""
+    async with stack_factory(settings) as stack:
+        project = await stack.project("P10 rules on Temporal")
+        intake = await stack.zip_intake(project, _zip_of(RULED))
+        await _save(stack, project, RULES, 0)
+        scan = await stack.scan_and_wait(project, intake["snapshot_id"])
+        run = {e["engine"]: e for e in scan["engines"]}["architecture"]
+        assert run["state"] == "SUCCEEDED", run
+        assert run["findings_count"] == 2
+        graph = {e["engine"]: e for e in scan["engines"]}["graph"]
+        assert graph["finished_at"] <= run["started_at"]

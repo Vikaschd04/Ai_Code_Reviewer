@@ -190,7 +190,9 @@ it is structural only, and the page says so.
 
 - `architecture_models` (per snapshot): inferred components and layers, version.
 - `architecture_rules` (per project): declared layers, allowed and forbidden dependencies;
-  versioned and audited.
+  versioned and audited. **Implemented** as `architecture_rule_versions` (ADR 0019): append-only
+  canonical documents; breaches are findings of the `architecture` engine rather than a separate
+  table, so they share the issue lifecycle, triage and exports.
 - `architecture_metrics`: per component and per snapshot.
 - `architecture_findings`: smells, violations, performance and scalability signals, joined to
   issue lifecycle.

@@ -89,13 +89,16 @@ async def list_issues(
         project = await get_scoped(
             session, principal, Project, project_id, not_found="project_not_found"
         )
-        base = select(Issue).where(Issue.project_id == project.id)
+        # The check (engine) scopes everything, counts included; the counts ignore the other
+        # filters so that each facet shows what choosing it would list.
+        scope = [Issue.project_id == project.id]
+        if engine:
+            scope.append(Issue.engine == engine)
+        base = select(Issue).where(*scope)
         by_status = dict(
             (
                 await session.execute(
-                    select(Issue.status, func.count())
-                    .where(Issue.project_id == project.id)
-                    .group_by(Issue.status)
+                    select(Issue.status, func.count()).where(*scope).group_by(Issue.status)
                 )
             ).all()
         )
@@ -103,7 +106,7 @@ async def list_issues(
             (
                 await session.execute(
                     select(Issue.recheck_state, func.count())
-                    .where(Issue.project_id == project.id)
+                    .where(*scope)
                     .group_by(Issue.recheck_state)
                 )
             ).all()
@@ -115,8 +118,6 @@ async def list_issues(
             query = query.where(Issue.recheck_state.in_(recheck_state))
         if severity:
             query = query.where(Issue.severity.in_(severity))
-        if engine:
-            query = query.where(Issue.engine == engine)
         if q:
             escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             query = query.where(
