@@ -188,6 +188,10 @@ Derived copies scanned by checks are not listed as uploads, not counted in proje
 
 Every review plans the engine `architecture` with the project's newest rules (NOT_APPLICABLE with `error_code` `no_rules` otherwise). Its findings use rule ids `arch.layers` and `arch.forbid.<key>`, category maintainability, the rule's severity, guidance from the rule, and `details` (`rule_sha256`, `rules_version`, `target`, parts and layers). The run's `diagnostics` hold `rule_hashes`, `rules_version`, parts per layer, unassigned and overlapping parts, dependencies checked, uses allowed by exception, expired exceptions and notes. `GET /v1/projects/{id}/issues?engine=` now also scopes `by_status` and `by_recheck`.
 
+## Implemented in P10 slice 3 (architecture smells, ADR 0020)
+
+Every review runs the engine `smells` after the graph step (no new endpoints). Findings use rule ids `crp.arch.cycle`, `crp.arch.unstable-dependency` and `crp.arch.hub` (catalog `crp-rules-v4`, category maintainability, labelled potential): one per part, at the part's first file with the evidence, with a specific `title` and `details` (`component`, `anchor_key`, `evidence: potential`, the part's files, and per smell the cycle and cut, the less stable parts with instabilities, or fan-in and fan-out with the quartiles). The run's `diagnostics` hold the thresholds and `parts_affected` per smell. Issues of part-level findings follow their part when the anchor file changes (issue event `moved`); comparisons pair them by `anchor_key`. `GET /v1/snapshots/{id}/architecture` adds `summary.generated_files` (generated code left out of the model) and a note.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

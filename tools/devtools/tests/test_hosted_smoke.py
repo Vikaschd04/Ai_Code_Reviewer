@@ -31,7 +31,9 @@ TERMINAL = {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}
 # Core checks succeed; the platform packs have no SAP/Salesforce files here and the project has
 # no architecture rules, and both say so.
 EXPECTED_ENGINES = {
-    **dict.fromkeys(("structure", "graph", "pmd", "eslint", "opengrep", "trivy"), "SUCCEEDED"),
+    **dict.fromkeys(
+        ("structure", "graph", "pmd", "eslint", "opengrep", "trivy", "smells"), "SUCCEEDED"
+    ),
     "pmd-apex": "NOT_APPLICABLE",
     "frameworks": "NOT_APPLICABLE",
     "architecture": "NOT_APPLICABLE",

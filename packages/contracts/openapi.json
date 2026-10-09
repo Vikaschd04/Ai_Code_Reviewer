@@ -1970,6 +1970,12 @@
             "title": "Dependencies",
             "type": "integer"
           },
+          "generated_files": {
+            "default": 0,
+            "description": "Generated files (gensrc, generated-sources) left out of the model",
+            "title": "Generated Files",
+            "type": "integer"
+          },
           "not_counted": {
             "description": "Graph edges not counted (unresolved, external)",
             "title": "Not Counted",

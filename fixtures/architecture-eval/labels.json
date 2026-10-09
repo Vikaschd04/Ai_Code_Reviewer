@@ -1,0 +1,91 @@
+{
+  "schema": "crp-arch-eval-v1",
+  "cases": {
+    "java-cycle": {
+      "description": "Java: packages order and billing use each other (cycle); shared is used by both; a test file closes another cycle and is left out.",
+      "expected": [
+        {
+          "rule": "crp.arch.cycle",
+          "path": "src/main/java/com/acme/order/OrderService.java"
+        },
+        {
+          "rule": "crp.arch.cycle",
+          "path": "src/main/java/com/acme/billing/Invoice.java"
+        }
+      ]
+    },
+    "java-layered": {
+      "description": "Java: web uses service uses domain; no cycle, dependencies point toward stability.",
+      "expected": []
+    },
+    "ts-cycle": {
+      "description": "TypeScript: cart and pricing folders import each other; cartTotals does not take part.",
+      "expected": [
+        {
+          "rule": "crp.arch.cycle",
+          "path": "src/cart/cart.ts"
+        },
+        {
+          "rule": "crp.arch.cycle",
+          "path": "src/pricing/price.ts"
+        }
+      ]
+    },
+    "ts-unstable": {
+      "description": "TypeScript: core is used by a, b and c (instability 0.25) and uses experimental (0.5), which is less stable.",
+      "expected": [
+        {
+          "rule": "crp.arch.unstable-dependency",
+          "path": "src/core/core.ts"
+        }
+      ]
+    },
+    "ts-stable": {
+      "description": "TypeScript: core is used by a, b and c and uses only model, which nothing else changes (stable).",
+      "expected": []
+    },
+    "java-hub": {
+      "description": "Java: hub is used by four packages and uses four others, in a system of nine packages.",
+      "expected": [
+        {
+          "rule": "crp.arch.hub",
+          "path": "src/main/java/com/acme/hub/Hub.java"
+        }
+      ]
+    },
+    "java-facade": {
+      "description": "Java: api is used by six packages but uses only one: widely used, not a hub.",
+      "expected": []
+    },
+    "sap-commerce-extension": {
+      "description": "SAP Commerce extension: service and dao packages in src use each other (cycle); the generated model in gensrc also closes a cycle with service and is left out.",
+      "expected": [
+        {
+          "rule": "crp.arch.cycle",
+          "path": "bin/custom/acmecore/src/com/acme/core/service/OrderService.java"
+        },
+        {
+          "rule": "crp.arch.cycle",
+          "path": "bin/custom/acmecore/src/com/acme/core/dao/OrderDao.java"
+        }
+      ]
+    },
+    "salesforce-lwc-cycle": {
+      "description": "Salesforce LWC: cartStore and pricingUtils import each other through c/ modules; cartPanel uses cartStore only.",
+      "expected": [
+        {
+          "rule": "crp.arch.cycle",
+          "path": "force-app/main/default/lwc/cartStore/cartStore.js"
+        },
+        {
+          "rule": "crp.arch.cycle",
+          "path": "force-app/main/default/lwc/pricingUtils/pricingUtils.js"
+        }
+      ]
+    },
+    "salesforce-lwc-acyclic": {
+      "description": "Salesforce LWC: cartPanel uses cartStore, which uses pricingUtils; no cycle.",
+      "expected": []
+    }
+  }
+}

@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from crp_analysis.lifecycle import (
     Prior,
     RunView,
+    anchor_key,
     classify_absence,
     observed_ruleset,
     rule_hashes,
@@ -288,8 +289,21 @@ async def compare_scans(
     groups: dict[str, list[ComparisonItem]] = {
         name: [] for name in ("new", "unchanged", *(s.value.lower() for s in RecheckState))
     }
+    # Part-level findings (anchor_key) whose anchor file changed are the same finding.
+    anchored = {
+        (f.engine, f.rule_id, key): fp
+        for fp, (f, _) in base_findings.items()
+        if fp not in target_findings and (key := anchor_key(f.details)) is not None
+    }
+    paired: dict[str, str] = {}
+    for fp, (f, _) in target_findings.items():
+        key = anchor_key(f.details)
+        if fp not in base_findings and key is not None:
+            base_fp = anchored.pop((f.engine, f.rule_id, key), None)
+            if base_fp is not None:
+                paired[fp] = base_fp
     for fp, (f, path) in target_findings.items():
-        other = base_findings.get(fp)
+        other = base_findings.get(paired.get(fp, fp))
         groups["unchanged" if other else "new"].append(
             ComparisonItem(
                 fingerprint=fp,
@@ -314,7 +328,7 @@ async def compare_scans(
         for engine, r in target_runs.items()
     }
     for fp, (f, path) in base_findings.items():
-        if fp in target_findings:
+        if fp in target_findings or fp in paired.values():
             continue
         base_run = runs[base_scan.id].get(f.engine)
         target_run = target_runs.get(f.engine)

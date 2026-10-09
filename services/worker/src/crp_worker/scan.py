@@ -27,8 +27,9 @@ with workflow.unsafe.imports_passed_through():
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from crp_analysis import structure
-    from crp_analysis.architecture.model import build_model
+    from crp_analysis.architecture.model import ArchitectureModel, build_model
     from crp_analysis.architecture.rules import RulesError, RuleSet, from_document
+    from crp_analysis.architecture.smells import RULES as SMELL_RULES
     from crp_analysis.engines.architecture import RULESET_ID as ARCHITECTURE_RULESET
     from crp_analysis.engines.architecture import ArchitectureRulesAdapter
     from crp_analysis.engines.architecture import (
@@ -45,6 +46,10 @@ with workflow.unsafe.imports_passed_through():
     from crp_analysis.engines.frameworks import FrameworkRulesAdapter
     from crp_analysis.engines.opengrep import OpengrepAdapter
     from crp_analysis.engines.pmd import APEX, PmdAdapter
+    from crp_analysis.engines.smells import RULESET_ID as SMELLS_RULESET
+    from crp_analysis.engines.smells import ArchitectureSmellsAdapter
+    from crp_analysis.engines.smells import engine_version as smells_version
+    from crp_analysis.engines.smells import ruleset_sha256 as smells_ruleset_sha256
     from crp_analysis.engines.trivy import TrivyAdapter
     from crp_analysis.graph.extract import FileFacts, graph_extractor_version
     from crp_analysis.normalize import NormalizedFinding, normalize
@@ -194,6 +199,7 @@ def default_adapters(settings: Settings) -> dict[str, EngineAdapter]:
         # Intended architecture (P10): bound per review to the project's rules and the
         # dependency map of the same review.
         "architecture": ArchitectureRulesAdapter(),
+        "smells": ArchitectureSmellsAdapter(),
     }
 
 
@@ -277,6 +283,12 @@ class ScanActivities:
                     run.ruleset_id = "crp-graph-v1"
                     availability_reason = None
                     available = True
+                elif engine == "smells":
+                    run.engine_version = smells_version(graph_extractor_version())
+                    run.ruleset_id = SMELLS_RULESET
+                    run.ruleset_sha256 = smells_ruleset_sha256()
+                    run.enabled_rules = list(SMELL_RULES)
+                    available, availability_reason = True, None
                 elif engine == "architecture":
                     rules = await self._architecture_rules(session, scan.project_id)
                     run.engine_version = architecture_version(graph_extractor_version())
@@ -381,8 +393,8 @@ class ScanActivities:
                 await self._snapshot_files(session, scan) if task.engine == "graph" else []
             )
             bound: EngineAdapter | None = None
-            if task.engine == "architecture":
-                bound = await self._bind_architecture(session, scan, run)
+            if task.engine in AFTER_GRAPH:
+                bound = await self._bind_after_graph(session, scan, run)
             await self._event(
                 session, task.scan_id, "engine_started", engine=task.engine, files=len(files)
             )
@@ -414,11 +426,11 @@ class ScanActivities:
             return await self._publish_graph(
                 task, run_id, meta, sources, snapshot_files, graph_run, scope, keys
             )
-        if task.engine == "architecture" and bound is None:
+        if task.engine in AFTER_GRAPH and bound is None:
             outcome = EngineOutcome(
                 state=EngineState.FAILED,
                 engine_version=None,
-                ruleset_id=ARCHITECTURE_RULESET,
+                ruleset_id=self._adapters[task.engine].ruleset_id,
                 ruleset_sha256=None,
                 problems=[
                     FileProblem(f.path, CoverageOutcome.NOT_ATTEMPTED.value, _NO_MAP) for f in files
@@ -480,17 +492,11 @@ class ScanActivities:
             return None
         return None if rules.empty else (version, rules)
 
-    async def _bind_architecture(
-        self, session: AsyncSession, scan: Scan, run: EngineRun
-    ) -> ArchitectureRulesAdapter | None:
-        """The rules recorded when the review started, bound to the snapshot's current
-        dependency map (None: no usable map, so nothing can be checked)."""
-        recorded = (run.diagnostics or {}).get("rules_version_id")
-        version = (
-            await session.get(ArchitectureRuleVersion, UUID(str(recorded))) if recorded else None
-        )
-        if version is None or version.project_id != scan.project_id:
-            return None
+    async def _dependency_map(
+        self, session: AsyncSession, scan: Scan
+    ) -> tuple[ArchitectureModel, dict[str, str]] | None:
+        """The snapshot's current dependency map as the architecture model, with the files the
+        map could not read (None: no usable map, so nothing can be checked)."""
         build = (
             await session.execute(
                 select(GraphBuild).where(
@@ -520,9 +526,38 @@ class ScanActivities:
                 )
             ).all()
         }
+        return build_model(rows.nodes, rows.edges, rows.other_edges), unreadable
+
+    async def _bind_after_graph(
+        self, session: AsyncSession, scan: Scan, run: EngineRun
+    ) -> EngineAdapter | None:
+        """The architecture rules (recorded when the review started) or the smells, bound to
+        the snapshot's current dependency map."""
+        version: ArchitectureRuleVersion | None = None
+        if run.engine == "architecture":
+            recorded = (run.diagnostics or {}).get("rules_version_id")
+            version = (
+                await session.get(ArchitectureRuleVersion, UUID(str(recorded)))
+                if recorded
+                else None
+            )
+            if version is None or version.project_id != scan.project_id:
+                return None
+        loaded = await self._dependency_map(session, scan)
+        if loaded is None:
+            return None
+        model, unreadable = loaded
+        if run.engine == "smells":
+            return ArchitectureSmellsAdapter().bind(
+                model,
+                version=run.engine_version or smells_version(graph_extractor_version()),
+                unreadable=unreadable,
+            )
+        if version is None:
+            return None
         return ArchitectureRulesAdapter().bind(
             from_document(version.document),
-            build_model(rows.nodes, rows.edges, rows.other_edges),
+            model,
             today=datetime.now(UTC).date(),
             version=run.engine_version or architecture_version(graph_extractor_version()),
             rules_version=version.version,

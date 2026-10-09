@@ -50,6 +50,8 @@ test("write, check and save architecture rules; breaches become issues", async (
   await page.getByTestId("snapshot-link").click();
   const upload = page.url();
   await review(page);
+  // Architecture smells (P10 slice 3) run on every review; this fixture has none to report.
+  await expect(page.getByTestId("check-smells")).toContainText("Architecture smells");
 
   await page.goto(`/#/projects/${project}?tab=architecture`);
   const card = page.getByTestId("architecture-rules");

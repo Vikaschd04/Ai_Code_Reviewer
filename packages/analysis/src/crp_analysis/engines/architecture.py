@@ -18,7 +18,7 @@ from pathlib import Path
 
 from crp_analysis import policy as scope_policy
 from crp_analysis import structure
-from crp_analysis.architecture.model import ArchitectureModel
+from crp_analysis.architecture.model import ArchitectureModel, is_generated
 from crp_analysis.architecture.rules import LAYERS_RULE, RuleSet, Violation, evaluate
 from crp_analysis.engines.base import (
     Availability,
@@ -46,10 +46,12 @@ def engine_version(graph_extractor: str) -> str:
 
 
 def is_source(path: str, language: str | None) -> bool:
-    """Files the rules can apply to: parsed by the dependency map and not test code."""
+    """Files architecture checks apply to: parsed by the dependency map, not test or generated
+    code."""
     return (
         structure.grammar_for(path, language) is not None
         and scope_policy.classify(path).category != "test"
+        and not is_generated(path)
     )
 
 

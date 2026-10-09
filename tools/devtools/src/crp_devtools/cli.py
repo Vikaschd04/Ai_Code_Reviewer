@@ -221,6 +221,29 @@ def cmd_ai_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_arch_eval(_: argparse.Namespace) -> int:
+    from crp_analysis.architecture.evaluation import evaluate
+
+    paths = _paths()
+    result = evaluate(paths.repo / "fixtures" / "architecture-eval")
+    out = paths.repo / ".local" / "arch-eval" / "report.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    report = result.to_json()
+    out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"crp-dev: {result.cases} labelled cases; report written to {out.relative_to(paths.repo)}"
+    )
+    print(f"{'smell':<32} {'TP':>3} {'FP':>3} {'FN':>3} {'precision':>9} {'recall':>7}")
+    for rule, score in result.scores.items():
+        print(
+            f"{rule:<32} {score.true_positives:>3} {score.false_positives:>3} "
+            f"{score.false_negatives:>3} {score.precision!s:>9} {score.recall!s:>7}"
+        )
+    for mismatch in result.mismatches:
+        print(f"  {mismatch}")
+    return 1 if result.mismatches else 0
+
+
 def cmd_ocr_eval(args: argparse.Namespace) -> int:
     from crp_devtools import ocr_eval
 
@@ -312,6 +335,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--live", action="store_true", help="use the configured provider (CRP_AI_*)"
     )
     aieval.set_defaults(func=cmd_ai_eval)
+    sub.add_parser(
+        "arch-eval", help="labelled architecture smell evaluation (fixtures/architecture-eval)"
+    ).set_defaults(func=cmd_arch_eval)
     return parser
 
 

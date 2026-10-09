@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from crp_analysis import policy
+from crp_analysis.architecture.smells import RULES as SMELL_RULES
 from crp_analysis.catalog import all_rules, lookup
 from crp_analysis.engines.eslint import EslintAdapter
 from crp_analysis.engines.frameworks import RULES as FRAMEWORK_RULES
@@ -204,6 +205,7 @@ def test_every_enabled_rule_has_a_catalog_entry() -> None:
     assert {f"frameworks:{r}" for r in FRAMEWORK_RULES} == {
         k for k in catalog if k.startswith("frameworks:")
     }
+    assert {f"smells:{r}" for r in SMELL_RULES} == {k for k in catalog if k.startswith("smells:")}
     for info in catalog.values():
         assert info.explanation and info.recommendation and info.severity_rationale and info.url
 

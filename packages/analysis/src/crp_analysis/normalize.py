@@ -115,7 +115,8 @@ def normalize(engine: str, root: Path, findings: list[RawFinding]) -> list[Norma
                 fingerprint=fingerprint,
                 correlation_key=correlation,
                 family=family,
-                title=guidance.title if guidance and not info.in_catalog else info.title,
+                title=raw.title
+                or (guidance.title if guidance and not info.in_catalog else info.title),
                 category=raw.category or info.category.value,
                 severity=raw.severity or info.severity.value,
                 in_catalog=info.in_catalog or guidance is not None,

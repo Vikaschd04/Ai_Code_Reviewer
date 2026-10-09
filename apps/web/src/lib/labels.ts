@@ -53,6 +53,12 @@ export const CHECKS: Record<string, CheckInfo> = {
     description: "SAP Commerce extension dependencies and Salesforce API versions in metadata.",
     tool: "refactorX framework packs",
   },
+  smells: {
+    name: "Architecture smells",
+    description:
+      "Cycles between parts, dependencies on less stable parts and hub-like parts (potential: from the code structure).",
+    tool: "refactorX architecture smells",
+  },
   architecture: {
     name: "Architecture rules",
     description: "Dependencies that break your team's layers or forbidden-dependency rules.",
@@ -69,6 +75,7 @@ export const CHECK_ORDER = [
   "trivy",
   "pmd-apex",
   "frameworks",
+  "smells",
   "architecture",
 ];
 export const FINDING_CHECKS = [
@@ -78,6 +85,7 @@ export const FINDING_CHECKS = [
   "trivy",
   "pmd-apex",
   "frameworks",
+  "smells",
   "architecture",
 ];
 

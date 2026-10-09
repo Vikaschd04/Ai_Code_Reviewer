@@ -1,0 +1,5 @@
+<extensioninfo>
+  <extension name="acmecore">
+    <requires-extension name="commerceservices"/>
+  </extension>
+</extensioninfo>

@@ -4,12 +4,13 @@ Date: 9 October 2026. Environment: macOS arm64, Python 3.14, PostgreSQL 18.6, Te
 server, PMD 7.27.0, ESLint 10.11.0, Opengrep 1.30.0, Trivy 0.69.3. Decision record:
 [ADR 0018](../adr/0018_ARCHITECTURE_METRICS.md).
 
-Status: **IN_PROGRESS.** Slices 1 and 2 are delivered and verified: the architecture model and
-structural metrics with Structure health (slice 1), and intended architecture as code with breaches
-as tracked issues (slice 2, [ADR 0019](../adr/0019_ARCHITECTURE_RULES.md)). Slices 3–8 are planned
+Status: **IN_PROGRESS.** Slices 1–3 are delivered and verified: the architecture model and
+structural metrics with Structure health (slice 1), intended architecture as code with breaches as
+tracked issues (slice 2, [ADR 0019](../adr/0019_ARCHITECTURE_RULES.md)), and the structural smell
+catalog (slice 3, [ADR 0020](../adr/0020_ARCHITECTURE_SMELLS.md)). Still planned
 (docs/ROADMAP.md):
 
-3. smell, performance and scalability catalogs;
+3. performance and scalability catalogs (the rest of the catalogs);
 4. Git-history hotspots;
 5. runtime evidence;
 6. recommendations;
@@ -113,3 +114,59 @@ as tracked issues (slice 2, [ADR 0019](../adr/0019_ARCHITECTURE_RULES.md)). Slic
   judged and is counted as not counted in Structure health.
 - Rules are not read from uploads (uploads are untrusted); teams keep the exported YAML in their
   repository and import it.
+
+## Slice 3 — structural smell catalog (9 October 2026)
+
+| Deliverable (P10 prompt) | Delivered | Where |
+|---|---|---|
+| 4. Catalog: structural smells with evidence class | Cyclic dependency, unstable dependency, hub-like part; labelled *potential*; one finding per part; sourced rationale in the catalog (`crp-rules-v4`) | `crp_analysis/architecture/smells.py`, `engines/smells.py`, `rules/catalog.json` |
+| Generated and test code handled | Generated code (`gensrc`, `generated`, `generated-sources`, `__generated__`, `*.generated.*`) and test code left out of the model and counted | `architecture/model.py`, `metrics.py` |
+| Tracked findings that never fake a fix | `anchor_key` on part-level findings: issues and comparisons follow the part when its anchor file changes | `crp_worker/lifecycle.py`, `sources/changes.py`, `routes/reports.py` |
+| Salesforce coverage | LWC `c/<name>` imports resolved (graph extractor v3) | `graph/resolve.py` |
+| Evaluation | 10 hand-labelled synthetic cases; `crp-dev arch-eval` | `fixtures/architecture-eval`, `architecture/evaluation.py` |
+
+### Mandatory tests that apply to slice 3
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Catalog accuracy: positive and negative fixtures | Per smell: Java, TypeScript, SAP Commerce extension with `gensrc`, Salesforce LWC; negatives include layered code, stable dependencies, a widely used facade (not a hub), an acyclic LWC chain | PASS, see the evaluation | `fixtures/architecture-eval` (10 cases: cycle 4 positive / 6 negative, unstable 1 / 9, hub 1 / 9) |
+| Precision and recall per smell | `uv run crp-dev arch-eval` | Cycle: 8 TP, 0 FP, 0 FN (precision 1.0, recall 1.0). Unstable dependency: 1, 0, 0 (1.0, 1.0). Hub: 1, 0, 0 (1.0, 1.0). Synthetic set: it shows the detectors meet their specification, not real-project usefulness | `.local/arch-eval/report.json`; `test_labelled_evaluation_set_has_no_mismatches` |
+| Hand-computed fixtures | Three-part cycle with cut c → a (1 import); instability 0.25 → 0.50 flagged at the import; 1 of 4 parts below 30% and a 0.056 difference within the delta not flagged; hub with fan-in 4, fan-out 4, upper quartiles 1; fewer than 8 parts or a fan-out of 2 not flagged | PASS | `test_architecture_smells.py` (11) |
+| Generated and test code | A generated `gensrc` model class and a test class each close a cycle | Not reported; counted as generated and test files | same; SAP Commerce evaluation case |
+| Real review and lifecycle | Java upload with a hub (9 packages) and a two-package cycle; second upload breaks the cycle and adds a new first file to the hub package | PASS. 3 findings (hub at `Hub.java`, cycle at each import, line 3); the hub issue moves to `AHelper.java` with event "the part's anchor file changed" and stays OPEN; both cycle issues RESOLVED (VERIFIED_ABSENT) | `test_architecture_smells_on_real_reviews` |
+| Scale | Pure computation on random (worst-case) graphs | 1,000 files: 0.1 s and 3 MB. 10,000 files: 0.7 s and 35 MB. 50,000 files with 400,000 dependencies: 6.2 s and 196 MB, 2,128 findings (one per affected part) | ADR 0020 |
+
+### Checks (slice 3)
+
+| Check | Command | Outcome |
+|---|---|---|
+| Lint, format, types and contracts | `make check` | exit 0 |
+| Types for Linux | `uv run mypy --platform linux` | no issues |
+| Tests | `caffeinate -i make test` | exit 0: 569 pytest (slice 3 added 12) + 29 vitest, 11 min 23 s. A first run had one failure: the slice 1 test still expected graph extractor v2; updated to v3 and rerun clean |
+| Browser E2E | `caffeinate -i make test-e2e` | exit 0: 20/20 in 4.6 minutes (the rules journey also checks that "Architecture smells" runs) |
+| Smell evaluation | `uv run crp-dev arch-eval` | 10 cases, no mismatches |
+
+### Findings during the slice
+
+- **Duplicate warnings inside cycles:** the evaluation flagged an unstable dependency between two
+  LWC bundles that already form a cycle. Comparing stability inside a cycle is not meaningful (the
+  parts change together), so those dependencies are now left to the cycle smell.
+- **One issue per file did not scale for people:** the worst-case tangle produced 50,108
+  findings with one per participating file. Smells are now one per part (2,128 on the same graph),
+  with the part's files listed in the message.
+- **Quadratic message building:** the cycle detector rebuilt the cut and the member list for
+  every file; on 50,000 files it did not finish in 10 minutes. Both are now computed once per
+  cycle.
+- **Generic titles:** catalog titles replaced the specific ones ("Hub-like part" instead of
+  "Hub-like part: com.acme.hub"); findings can now carry their own title.
+- **Salesforce blind spot:** LWC `c/` imports were not followed, so cycles between components
+  were invisible; they are now resolved.
+
+### Limitations (slice 3)
+
+- Thresholds are refactorX's (instability difference 0.1, 30% share, upper quartile and at least
+  3 for hubs, 8 parts); they are not Arcan's benchmark-based thresholds.
+- Not yet detected: god component, dead or isolated code, shared persistence, chatty
+  interfaces, framework-specific smells beyond SAP extension cycles.
+- Apex classes are not in the dependency map, so Salesforce smells cover LWC only.
+- Accuracy on real projects is not measured (no expert-labelled real projects yet).

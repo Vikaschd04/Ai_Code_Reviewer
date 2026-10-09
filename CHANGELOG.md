@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — P10 architecture smells (9 October 2026)
+
+- **Architecture smells** on every review (ADR 0020), reported as issues and labelled *potential* (found in the code structure):
+  - **Dependency cycle** between parts, with the cheapest way to break it;
+  - **Unstable dependency**: a part that relies on parts which change more easily than itself;
+  - **Hub-like part**: used by many parts and using many parts.
+- One issue per part (not per file), at the part's first file with the evidence; the issue follows the part if that file changes, so a moved anchor is never shown as "fixed".
+- Generated code (for example SAP Commerce `gensrc`) is left out of the architecture model like test code, and counted.
+- Salesforce Lightning Web Components: `c/<name>` imports are now followed, so cycles between components are found.
+- Measured: precision and recall 1.0 for each smell on a labelled set of 10 synthetic cases (Java, TypeScript, SAP Commerce, Salesforce; `crp-dev arch-eval`); 50,000 files in about 6 seconds. Real-project accuracy is not yet measured.
+
 ## Unreleased — P10 architecture rules (9 October 2026)
 
 - **Architecture rules** on the project's Architecture tab (ADR 0019): describe how your code should be organised — layers from top to bottom, dependencies that are never allowed, and exceptions with a reason and an expiry date. Start from an example, **check the rules on the latest upload** before saving, and see which parts fall in which layer.

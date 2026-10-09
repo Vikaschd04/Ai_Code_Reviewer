@@ -183,6 +183,12 @@ it is structural only, and the page says so.
   - cycles with the cheapest cut (exact up to 16 edges, Eades–Lin–Smyth beyond);
   - `GET /v1/snapshots/{id}/architecture`;
   - Structure health UI with a dependency matrix.
+- **Slice 2 (9 October 2026, ADR 0019):** intended architecture as code (layers, forbid rules,
+  expiring exceptions; versioned YAML); breaches as tracked issues with per-rule rechecks.
+- **Slice 3 (9 October 2026, ADR 0020):** structural smells — cyclic dependency, unstable
+  dependency, hub-like part — one issue per part (potential), generated code left out, LWC `c/`
+  imports resolved; labelled evaluation set (`crp-dev arch-eval`). God component, dead code,
+  shared persistence and chatty interfaces are not yet detected.
 - **Computed on request** from the graph; the tables below are still the plan for persisted models
   and trends.
 
@@ -195,7 +201,8 @@ it is structural only, and the page says so.
   table, so they share the issue lifecycle, triage and exports.
 - `architecture_metrics`: per component and per snapshot.
 - `architecture_findings`: smells, violations, performance and scalability signals, joined to
-  issue lifecycle.
+  issue lifecycle. **Implemented** for smells and rule breaches as findings of the `smells` and
+  `architecture` engines (ADR 0019, ADR 0020); part-level findings carry `anchor_key`.
 - `behaviour_stats`: from commits (requires history).
 - `runtime_imports`: trace or APM files, mapped spans.
 - `recommendations`: with status, evidence and remediation links.

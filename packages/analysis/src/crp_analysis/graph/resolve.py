@@ -20,6 +20,7 @@ call/usage edges and types provided by dependencies are not resolved.
 from __future__ import annotations
 
 import posixpath
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
@@ -134,6 +135,9 @@ def _is_jdk(name: str) -> bool:
     return name.startswith(_JDK_ROOTS) or any(
         name == p or name.startswith(p + ".") for p in _JDK_JAVAX
     )
+
+
+_LWC_MODULE = re.compile(r"^c/([A-Za-z][A-Za-z0-9_]*)$")
 
 
 def _npm_package(spec: str) -> str:
@@ -579,6 +583,9 @@ class _Builder:
             if found is not None:
                 return self.file_node(found), "resolved", "relative module path"
             return None, "unresolved", "relative target not found in this snapshot"
+        lwc = self.lwc_target(spec, path)
+        if lwc is not None:
+            return lwc
         if spec.startswith("node:") or _npm_package(spec) in NODE_BUILTINS:
             name = spec.removeprefix("node:").split("/", 1)[0]
             return (
@@ -610,6 +617,32 @@ class _Builder:
         if not chain:
             return target, "unresolved", "bare package with no package.json above the file"
         return target, "unresolved", "package not declared in any package.json above the file"
+
+    def lwc_target(self, spec: str, path: str) -> tuple[str | None, str, str] | None:
+        """Salesforce Lightning Web Components import sibling bundles as ``c/<name>``: the
+        bundle's main module ``lwc/<name>/<name>.js`` (or ``.ts``) next to the importing one;
+        otherwise a single bundle of that name anywhere in the snapshot."""
+        match = _LWC_MODULE.match(spec)
+        parts = path.split("/")
+        if match is None or "lwc" not in parts[:-1]:
+            return None
+        name = match.group(1)
+        root = "/".join(parts[: len(parts) - 1 - parts[-2::-1].index("lwc")])
+        for extension in (".js", ".ts"):
+            candidate = f"{root}/{name}/{name}{extension}"
+            if candidate in self.known:
+                return self.file_node(candidate), "resolved", "Salesforce LWC module (same folder)"
+        others = sorted(
+            p
+            for p in self.known
+            if p.endswith((f"/lwc/{name}/{name}.js", f"/lwc/{name}/{name}.ts"))
+        )
+        if len(others) == 1:
+            return self.file_node(others[0]), "inferred", "Salesforce LWC module (another folder)"
+        reason = (
+            "LWC module not found in this snapshot" if not others else "LWC module is ambiguous"
+        )
+        return None, "unresolved", reason
 
     def tsconfig_target(self, spec: str, config: TsConfig) -> tuple[str | None, str, bool]:
         root = config.base_url if config.base_url is not None else config.directory

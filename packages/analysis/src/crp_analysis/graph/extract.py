@@ -15,7 +15,7 @@ from tree_sitter import Node, Parser
 
 from crp_analysis.structure import _language, extractor_version, grammar_for
 
-GRAPH_EXTRACTOR = "crp-graph-extract-v2"  # v2: abstract types marked (P10 metrics)
+GRAPH_EXTRACTOR = "crp-graph-extract-v3"  # v2: abstract types; v3: LWC c/ modules resolved
 MAX_REFERENCES_PER_FILE = 2000
 _WS = re.compile(r"\s+")
 _GENERIC = re.compile(r"<.*$", re.DOTALL)

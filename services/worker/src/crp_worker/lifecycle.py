@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from crp_analysis.lifecycle import (
     Prior,
     RunView,
+    anchor_key,
     classify_absence,
     observed_ruleset,
     rule_hashes,
@@ -195,6 +196,44 @@ async def _moves(
     return moves
 
 
+async def _anchor_moves(
+    session: AsyncSession, findings: list[tuple[Finding, str]], issues: dict[str, Issue]
+) -> dict[str, tuple[Issue, str]]:
+    """Part-level findings (``details.anchor_key``, ADR 0020) follow their part: when the part's
+    anchor file changes, its issue moves to the new file instead of being fixed and reopened."""
+    present = {finding.fingerprint for finding, _ in findings}
+    wanted: dict[tuple[str, str, str], tuple[str, str]] = {}
+    for finding, path in findings:
+        key = anchor_key(finding.details)
+        if key is not None and finding.fingerprint not in issues:
+            wanted[(finding.engine, finding.rule_id, key)] = (finding.fingerprint, path)
+    rules = {(engine, rule) for engine, rule, _ in wanted}
+    candidates = [
+        issue
+        for fp, issue in issues.items()
+        if fp not in present and (issue.engine, issue.rule_id) in rules
+    ]
+    if not candidates:
+        return {}
+    keys: dict[UUID, str] = {}
+    for issue_id, details in (
+        await session.execute(
+            select(Finding.issue_id, Finding.details)
+            .where(Finding.issue_id.in_([issue.id for issue in candidates]))
+            .order_by(Finding.created_at)
+        )
+    ).all():
+        if (key := anchor_key(details)) is not None and issue_id is not None:
+            keys[issue_id] = key  # the newest observation wins
+    moves: dict[str, tuple[Issue, str]] = {}
+    for issue in candidates:
+        key = keys.get(issue.id)
+        target = wanted.pop((issue.engine, issue.rule_id, key), None) if key else None
+        if target is not None:
+            moves[target[0]] = (issue, target[1])
+    return moves
+
+
 async def apply_lifecycle(
     session: AsyncSession, scan: Scan, final: ScanState, runs: list[EngineRun]
 ) -> dict[str, object]:
@@ -229,6 +268,21 @@ async def apply_lifecycle(
         issues[new_fp] = moved
         events.append(
             _event(moved, scan.id, "moved", "the file was renamed", path=[old_path, new_path])
+        )
+        counts["moved"] += 1
+    for new_fp, (moved, new_path) in (await _anchor_moves(session, rows, issues)).items():
+        old_path = moved.path
+        issues.pop(moved.fingerprint, None)
+        moved.fingerprint, moved.path = new_fp, new_path
+        issues[new_fp] = moved
+        events.append(
+            _event(
+                moved,
+                scan.id,
+                "moved",
+                "the part's anchor file changed",
+                path=[old_path, new_path],
+            )
         )
         counts["moved"] += 1
     present: set[str] = set()

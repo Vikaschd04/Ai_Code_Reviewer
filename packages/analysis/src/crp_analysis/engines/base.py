@@ -65,6 +65,7 @@ class RawFinding:
     guidance: Guidance | None = None
     details: dict[str, object] | None = None
     identity: str | None = None  # stable text used instead of the source line for fingerprints
+    title: str | None = None  # a specific title for this finding (the catalog's is generic)
 
 
 @dataclass(frozen=True, slots=True)

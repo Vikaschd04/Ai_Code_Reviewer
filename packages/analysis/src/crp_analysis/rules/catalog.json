@@ -1,5 +1,5 @@
 {
- "catalog_version": "crp-rules-v3",
+ "catalog_version": "crp-rules-v4",
  "rules": {
   "eslint:@typescript-eslint/no-unused-vars": {
    "category": "maintainability",
@@ -1079,6 +1079,42 @@
    "severity_rationale": "Creates many intermediate strings.",
    "title": "String concatenation with += in a loop or repeatedly",
    "url": "https://docs.pmd-code.org/pmd-doc-7.27.0/pmd_rules_java_performance.html#usestringbufferforstringappends"
+  },
+  "smells:crp.arch.cycle": {
+   "category": "maintainability",
+   "engine": "smells",
+   "explanation": "Parts of the code (Java packages or folders) depend on each other in a circle, so none of them can be changed, tested or released without the others. Potential: found in the code structure, not confirmed at run time.",
+   "family": "maintainability.dependency-cycle",
+   "recommendation": "Break the cycle where it is cheapest (the finding names those dependencies): move the shared code into a part both may use, or invert one dependency with an interface owned by the part that should stay independent.",
+   "rule_id": "crp.arch.cycle",
+   "severity": "medium",
+   "severity_rationale": "Cycles tie parts together and spread every change across them (R. C. Martin's Acyclic Dependencies Principle); they rarely break anything on their own.",
+   "title": "Dependency cycle between parts",
+   "url": "https://docs.arcan.tech/2.8.0/architectural_smells/"
+  },
+  "smells:crp.arch.hub": {
+   "category": "maintainability",
+   "engine": "smells",
+   "explanation": "A part is used by many parts and uses many parts, so changes reach it from all sides and spread from it to all sides. Potential: found in the code structure.",
+   "family": "maintainability.hub",
+   "recommendation": "Split the part by responsibility so that each piece has fewer users and fewer dependencies; the busiest files named in the finding are where to start.",
+   "rule_id": "crp.arch.hub",
+   "severity": "medium",
+   "severity_rationale": "Hubs concentrate change risk and coordination between teams; they rarely break anything on their own.",
+   "title": "Hub-like part",
+   "url": "https://docs.arcan.tech/2.8.0/architectural_smells/"
+  },
+  "smells:crp.arch.unstable-dependency": {
+   "category": "maintainability",
+   "engine": "smells",
+   "explanation": "A part depends on parts that change more easily than itself (higher instability: more outgoing than incoming dependencies), so their changes ripple into it and into everything that depends on it. Potential: found in the code structure.",
+   "family": "maintainability.unstable-dependency",
+   "recommendation": "Depend in the direction of stability: put the needed contract in a stable part (an interface the unstable part implements), or make the dependency part more stable.",
+   "rule_id": "crp.arch.unstable-dependency",
+   "severity": "low",
+   "severity_rationale": "Breaks R. C. Martin's Stable Dependencies Principle; raises the cost of change rather than causing faults.",
+   "title": "Depends on a less stable part",
+   "url": "https://docs.arcan.tech/2.8.0/architectural_smells/"
   }
  }
 }

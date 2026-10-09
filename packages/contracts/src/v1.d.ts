@@ -2529,6 +2529,12 @@ export interface components {
              */
             dependencies: number;
             /**
+             * Generated Files
+             * @description Generated files (gensrc, generated-sources) left out of the model
+             * @default 0
+             */
+            generated_files: number;
+            /**
              * Not Counted
              * @description Graph edges not counted (unresolved, external)
              */

@@ -1453,6 +1453,9 @@ class ArchitectureSummary(ApiModel):
     zone_of_pain: int
     zone_of_uselessness: int
     test_files: int = Field(description="Test files left out of the model")
+    generated_files: int = Field(
+        default=0, description="Generated files (gensrc, generated-sources) left out of the model"
+    )
     not_counted: int = Field(description="Graph edges not counted (unresolved, external)")
     average_distance: float | None
 

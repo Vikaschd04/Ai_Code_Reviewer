@@ -15,6 +15,7 @@ from sqlalchemy.orm import aliased
 from crp_analysis.lifecycle import (
     Prior,
     RunView,
+    anchor_key,
     classify_absence,
     observed_ruleset,
     rule_hashes,
@@ -116,6 +117,7 @@ async def findings_of(session: AsyncSession, scan_id: UUID) -> list[FindingRef]:
             f.severity,
             f.title,
             rule_sha256=observed_ruleset(f.details, None),
+            anchor_key=anchor_key(f.details),
         )
         for f, path in rows.all()
     ]
@@ -165,6 +167,7 @@ async def with_text(
             if f.path in texts and f.start_line
             else None,
             f.rule_sha256,
+            f.anchor_key,
         )
         for f in findings
     ]

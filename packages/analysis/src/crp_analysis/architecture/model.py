@@ -1,8 +1,9 @@
 """The architecture model of one graph build: files, types and file-level dependencies (P10).
 
-Built from plain graph rows (``crp_core.db.graph_reads``) so that Structure health and the
-architecture rules read exactly the same model. Test code is marked (scope policy) and left out
-by both. Edges to modules, external packages or unresolved targets are counted, not modelled.
+Built from plain graph rows (``crp_core.db.graph_reads``) so that Structure health, the
+architecture rules and the smells read exactly the same model. Test code (scope policy) and
+generated code are marked and left out by all of them. Edges to modules, external packages or
+unresolved targets are counted, not modelled.
 """
 
 from __future__ import annotations
@@ -12,7 +13,8 @@ from dataclasses import dataclass, field
 
 from crp_analysis import policy as scope_policy
 from crp_analysis.architecture.metrics import CodeFile, CodeType, Dependency
-from crp_core.domain.states import GraphNodeKind
+from crp_analysis.graph.resolve import GraphData
+from crp_core.domain.states import EdgeClassification, GraphNodeKind
 
 
 @dataclass(slots=True)
@@ -21,6 +23,18 @@ class ArchitectureModel:
     types: list[CodeType] = field(default_factory=list)
     dependencies: list[Dependency] = field(default_factory=list)
     not_counted: int = 0
+
+
+GENERATED_DIRECTORIES = frozenset(
+    {"gensrc", "generated", "generated-sources", "generated-test-sources", "__generated__"}
+)
+
+
+def is_generated(path: str) -> bool:
+    """Generated sources by location (SAP Commerce ``gensrc``, Maven ``generated-sources``,
+    ``__generated__``) or name (``*.generated.*``): not part of the team's design."""
+    parts = path.split("/")
+    return any(part in GENERATED_DIRECTORIES for part in parts[:-1]) or ".generated." in parts[-1]
 
 
 def path_of(key: str) -> str | None:
@@ -55,7 +69,13 @@ def build_model(
             if isinstance(fqn, str) and fqn.endswith(f".{label}"):
                 packages.setdefault(path, fqn[: -len(label) - 1])
     model.files = [
-        CodeFile(path, count, packages.get(path), scope_policy.classify(path).category == "test")
+        CodeFile(
+            path,
+            count,
+            packages.get(path),
+            scope_policy.classify(path).category == "test",
+            is_generated(path),
+        )
         for path, count in sorted(lines.items())
     ]
     not_counted = other_edges
@@ -74,3 +94,25 @@ def build_model(
         model.dependencies.append(Dependency(source, target, line=line))
     model.not_counted = not_counted
     return model
+
+
+COUNTED = (EdgeClassification.RESOLVED.value, EdgeClassification.INFERRED.value)
+
+
+def model_from_graph(graph: GraphData, line_counts: dict[str, int | None]) -> ArchitectureModel:
+    """The model of an in-memory dependency map (evaluation and tests), read exactly like the
+    stored one: file, type and package nodes; resolved and inferred edges with a target."""
+    kinds = {GraphNodeKind.FILE.value, GraphNodeKind.TYPE.value, GraphNodeKind.PACKAGE.value}
+    nodes = [
+        (node.key, node.kind, node.label, node.attributes, line_counts.get(node.path or ""))
+        for node in graph.nodes.values()
+        if node.kind in kinds
+    ]
+    edges: list[tuple[str, str, int | None]] = []
+    other = 0
+    for edge in graph.edges:
+        if edge.classification in COUNTED and edge.target is not None:
+            edges.append((edge.source, edge.target, edge.start_line))
+        else:
+            other += 1
+    return build_model(nodes, edges, other)

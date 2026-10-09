@@ -167,6 +167,7 @@ class FindingRef:
     title: str
     text: str | None = None  # normalized evidence line; needed only for renamed files
     rule_sha256: str | None = None  # the rule's own hash, for engines that report one
+    anchor_key: str | None = None  # part-level findings follow their part across files
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,5 +201,20 @@ def diff_findings(
             unchanged.append((finding, other))
         else:
             new.append(finding)
+    # Part-level findings whose anchor file changed are the same finding, not fixed plus new.
+    anchored: dict[tuple[str, str, str], FindingRef] = {
+        (f.engine, f.rule_id, f.anchor_key): f
+        for f in base_list
+        if f.anchor_key is not None and not matched[f.id]
+    }
+    still_new: list[FindingRef] = []
+    for finding in new:
+        part = finding.anchor_key
+        other = anchored.pop((finding.engine, finding.rule_id, part), None) if part else None
+        if other is not None:
+            matched[other.id] += 1
+            unchanged.append((finding, other))
+        else:
+            still_new.append(finding)
     absent = tuple(f for f in base_list if not matched[f.id])
-    return FindingDiff(tuple(new), tuple(unchanged), absent)
+    return FindingDiff(tuple(still_new), tuple(unchanged), absent)

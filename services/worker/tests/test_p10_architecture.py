@@ -55,7 +55,7 @@ async def test_architecture_metrics_from_a_real_review(settings: Settings) -> No
         assert scan["state"] in {"SUCCEEDED", "PARTIAL"}
         data: dict[str, Any] = await stack.ok("GET", f"/v1/snapshots/{snapshot}/architecture")
         assert data["algorithm"] == "crp-architecture-metrics-v1"
-        assert "crp-graph-extract-v2" in data["extractor"] and data["notes"]
+        assert "crp-graph-extract-v3" in data["extractor"] and data["notes"]
         by_key = {c["key"]: c for c in data["components"]}
         rows = {
             key: (
@@ -283,3 +283,78 @@ async def test_architecture_rules_run_after_the_graph_on_temporal(
         assert run["findings_count"] == 2
         graph = {e["engine"]: e for e in scan["engines"]}["graph"]
         assert graph["finished_at"] <= run["started_at"]
+
+
+# -- architecture smells (P10 slice 3; ADR 0020) ------------------------------------------------
+
+S = "src/main/java/com/acme"
+SMELLY = {
+    f"{S}/hub/Hub.java": "package com.acme.hub;\n\n"
+    + "".join(f"import com.acme.p{i}.P{i};\n" for i in range(1, 5))
+    + "\npublic class Hub {\n"
+    + "".join(f"    P{i} p{i};\n" for i in range(1, 5))
+    + "}\n",
+    **{
+        f"{S}/p{i}/P{i}.java": f"package com.acme.p{i};\n\npublic class P{i} {{ }}\n"
+        for i in range(1, 5)
+    },
+    **{
+        f"{S}/u{i}/U{i}.java": f"package com.acme.u{i};\n\nimport com.acme.hub.Hub;\n\n"
+        f"public class U{i} {{ Hub hub; }}\n"
+        for i in range(1, 5)
+    },
+    f"{S}/x/X.java": "package com.acme.x;\n\nimport com.acme.y.Y;\n\npublic class X { Y y; }\n",
+    f"{S}/y/Y.java": "package com.acme.y;\n\nimport com.acme.x.X;\n\npublic class Y { X x; }\n",
+}
+# The cycle is broken, and a new first file of the hub package moves the hub's anchor.
+CLEANED = {
+    **SMELLY,
+    f"{S}/y/Y.java": "package com.acme.y;\n\npublic class Y { }\n",
+    f"{S}/hub/AHelper.java": "package com.acme.hub;\n\npublic class AHelper { }\n",
+}
+
+
+async def test_architecture_smells_on_real_reviews(settings: Settings) -> None:
+    async with lite_stack(settings) as stack:
+        project = await stack.project("P10 smells")
+        first = await stack.zip_intake(project, _zip_of(SMELLY))
+        scan = await stack.scan_and_wait(project, first["snapshot_id"])
+        run = {e["engine"]: e for e in scan["engines"]}["smells"]
+        assert run["state"] == "SUCCEEDED", run
+        assert run["diagnostics"]["parts_affected"] == {
+            "crp.arch.cycle": 2,
+            "crp.arch.unstable-dependency": 0,
+            "crp.arch.hub": 1,
+        }
+        findings = {
+            (f["rule_id"], f["path"], f["start_line"])
+            for f in await stack.findings(scan["id"])
+            if f["engine"] == "smells"
+        }
+        assert findings == {
+            ("crp.arch.hub", f"{S}/hub/Hub.java", None),
+            ("crp.arch.cycle", f"{S}/x/X.java", 3),
+            ("crp.arch.cycle", f"{S}/y/Y.java", 3),
+        }
+        page = await stack.ok("GET", f"/v1/projects/{project}/issues?engine=smells&limit=50")
+        issues = {(i["rule_id"], i["path"]): i for i in page["items"]}
+        hub = issues[("crp.arch.hub", f"{S}/hub/Hub.java")]
+        assert hub["title"] == "Hub-like part: com.acme.hub" and hub["status"] == "OPEN"
+
+        second = await stack.zip_intake(project, _zip_of(CLEANED))
+        await stack.scan_and_wait(project, second["snapshot_id"])
+        page = await stack.ok("GET", f"/v1/projects/{project}/issues?engine=smells&limit=50")
+        after = {i["id"]: i for i in page["items"]}
+        # The hub's issue follows the part to its new first file instead of "fixed" + "new".
+        moved = after[hub["id"]]
+        assert (moved["path"], moved["status"]) == (f"{S}/hub/AHelper.java", "OPEN")
+        assert moved["recheck_state"] == "VERIFIED_PRESENT" and len(after) == 3
+        detail = await stack.ok("GET", f"/v1/issues/{hub['id']}")
+        assert any(
+            e["kind"] == "moved" and e["reason"] == "the part's anchor file changed"
+            for e in detail["events"]
+        )
+        # The broken cycle is verified gone for both parts.
+        for key in (("crp.arch.cycle", f"{S}/x/X.java"), ("crp.arch.cycle", f"{S}/y/Y.java")):
+            gone = after[issues[key]["id"]]
+            assert (gone["status"], gone["recheck_state"]) == ("RESOLVED", "VERIFIED_ABSENT")

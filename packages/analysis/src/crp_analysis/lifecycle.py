@@ -38,6 +38,13 @@ def rule_hashes(diagnostics: Mapping[str, object] | None) -> dict[str, str] | No
     return {str(k): v for k, v in value.items() if isinstance(v, str)}
 
 
+def anchor_key(details: Mapping[str, object] | None) -> str | None:
+    """The stable key of a part-level finding (architecture smells, ADR 0020): the finding is
+    anchored at one file of the part, and follows the part when that file changes."""
+    value = (details or {}).get("anchor_key")
+    return value if isinstance(value, str) else None
+
+
 def observed_ruleset(details: Mapping[str, object] | None, run_sha256: str | None) -> str | None:
     """The rule configuration a finding was observed under: its rule's own hash when the engine
     reports one (``details.rule_sha256``), else the run's rule-set hash."""

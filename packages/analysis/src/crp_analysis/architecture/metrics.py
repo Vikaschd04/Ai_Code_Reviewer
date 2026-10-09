@@ -1,7 +1,8 @@
 """Structural architecture metrics (P10 slice 1; ADR 0018) computed from the snapshot graph.
 
 Components are Java packages (from the types a file declares) and, for JavaScript/TypeScript and
-everything else, the folder a file is in. Test code is left out of the model and counted.
+everything else, the folder a file is in. Test and generated code are left out of the model and
+counted.
 
 Per component (R. C. Martin, "Agile Software Development", 2002, ch. 20), with files standing in
 for classes:
@@ -45,6 +46,7 @@ class CodeFile:
     lines: int | None
     package: str | None = None  # Java package of the file's types
     test: bool = False
+    generated: bool = False  # generated sources (e.g. SAP Commerce gensrc): not the team's design
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +103,7 @@ class ArchitectureMetrics:
     edges: list[ComponentEdge] = field(default_factory=list)
     cycles: list[Cycle] = field(default_factory=list)
     test_files: int = 0
+    generated_files: int = 0
     dependencies_counted: int = 0
 
 
@@ -109,6 +112,50 @@ def component_of(file: CodeFile) -> tuple[str, str]:
     if file.package:
         return file.package, "package"
     return posixpath.dirname(file.path) or ".", "folder"
+
+
+@dataclass(frozen=True, slots=True)
+class FileDependency:
+    """One file using another part: a file there, or a whole package (on-demand import)."""
+
+    source_path: str
+    target: str  # a file path, or a package name
+    source_component: str
+    target_component: str
+    line: int | None  # first evidence line in the source file
+
+
+def file_dependencies(
+    files: Iterable[CodeFile], dependencies: Iterable[Dependency]
+) -> tuple[dict[str, str], list[FileDependency]]:
+    """(file -> part, dependencies between different parts), test and generated code left out.
+    One entry per (source file, target), anchored at its first evidence line."""
+    component: dict[str, str] = {}
+    for file in files:
+        if not file.test and not file.generated:
+            component[file.path] = component_of(file)[0]
+    parts = set(component.values())
+    pairs: dict[tuple[str, str], FileDependency] = {}
+    for dep in dependencies:
+        source = component.get(dep.source_path)
+        if source is None:
+            continue
+        if dep.target_path is not None:
+            target, label = component.get(dep.target_path), dep.target_path
+        elif dep.target_package is not None and dep.target_package in parts:
+            target, label = dep.target_package, dep.target_package
+        else:
+            continue
+        if target is None or target == source:
+            continue
+        known = pairs.get((dep.source_path, label))
+        if known is None or (
+            dep.line is not None and (known.line is None or dep.line < known.line)
+        ):
+            pairs[(dep.source_path, label)] = FileDependency(
+                dep.source_path, label, source, target, dep.line
+            )
+    return component, [pairs[key] for key in sorted(pairs)]
 
 
 def _round(value: float | None) -> float | None:
@@ -132,6 +179,9 @@ def compute(
     for file in files:
         if file.test:
             result.test_files += 1
+            continue
+        if file.generated:
+            result.generated_files += 1
             continue
         key, kind = component_of(file)
         component[file.path] = key

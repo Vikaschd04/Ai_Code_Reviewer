@@ -584,6 +584,11 @@ async def architecture_metrics(
         )
     if result.test_files:
         notes.append(f"{result.test_files} test files are left out of the components.")
+    if result.generated_files:
+        notes.append(
+            f"{result.generated_files} generated files (such as gensrc) are left out of the "
+            "components."
+        )
     components = sorted(
         result.components,
         key=lambda c: (-(c.distance if c.distance is not None else -1), -c.lines, c.key),
@@ -601,6 +606,7 @@ async def architecture_metrics(
             zone_of_pain=sum(c.zone == "pain" for c in result.components),
             zone_of_uselessness=sum(c.zone == "uselessness" for c in result.components),
             test_files=result.test_files,
+            generated_files=result.generated_files,
             not_counted=not_counted,
             average_distance=round(sum(distances) / len(distances), 3) if distances else None,
         ),

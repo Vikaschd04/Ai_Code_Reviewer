@@ -37,7 +37,7 @@ from functools import cache
 
 import yaml
 
-from crp_analysis.architecture.metrics import CodeFile, Dependency, component_of
+from crp_analysis.architecture.metrics import CodeFile, Dependency, file_dependencies
 
 SCHEMA = "crp-architecture-rules-v1"
 LAYERS_RULE = "arch.layers"
@@ -506,10 +506,7 @@ def evaluate(
     today: date,
 ) -> Evaluation:
     result = Evaluation(rule_hashes=rules.rule_hashes())
-    component: dict[str, str] = {}
-    for file in files:
-        if not file.test:
-            component[file.path] = component_of(file)[0]
+    component, pairs = file_dependencies(files, dependencies)
     parts = sorted(set(component.values()))
     order = {item.name: index for index, item in enumerate(rules.layers)}
     members: dict[str, set[str]] = defaultdict(set)
@@ -538,27 +535,11 @@ def evaluate(
         else:
             active.append(allow)
 
-    # One finding per (source file, target), anchored at its first evidence line.
-    part_set = set(parts)
-    pairs: dict[tuple[str, str], tuple[str, str, int | None]] = {}
-    for dep in dependencies:
-        source = component.get(dep.source_path)
-        if source is None:
-            continue
-        if dep.target_path is not None:
-            target, label = component.get(dep.target_path), dep.target_path
-        elif dep.target_package is not None and dep.target_package in part_set:
-            target, label = dep.target_package, dep.target_package
-        else:
-            continue
-        if target is None or target == source:
-            continue
-        known = pairs.get((dep.source_path, label))
-        if known is None or (dep.line is not None and (known[2] is None or dep.line < known[2])):
-            pairs[(dep.source_path, label)] = (source, target, dep.line)
     result.dependencies_checked = len(pairs)
 
-    for (path, label), (source, target, line) in sorted(pairs.items()):
+    for pair in pairs:
+        path, label, line = pair.source_path, pair.target, pair.line
+        source, target = pair.source_component, pair.target_component
         source_layer, target_layer = result.layer_of.get(source), result.layer_of.get(target)
         forbidden = next(
             (
