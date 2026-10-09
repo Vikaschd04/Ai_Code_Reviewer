@@ -4,6 +4,7 @@ import {
   toApiError,
   type AiPolicy,
   type AiRun,
+  type ArchitectureMetrics,
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
@@ -1077,6 +1078,19 @@ export async function openWorkspacePullRequest(
 ): Promise<Workspace["pull_request"]["opened"][number]> {
   const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/pull-request", {
     params: { path: { change_set_id: workspaceId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Components, structural metrics and cycles of an upload's current architecture map (P10). */
+export async function fetchArchitecture(
+  snapshotId: string,
+  signal?: Sig,
+): Promise<ArchitectureMetrics> {
+  const { data, error, response } = await api.GET("/v1/snapshots/{snapshot_id}/architecture", {
+    params: { path: { snapshot_id: snapshotId } },
+    signal: signal ?? null,
   });
   if (data) return data;
   throw toApiError(response, error);

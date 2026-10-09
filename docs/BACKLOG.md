@@ -31,7 +31,7 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P09-01 | Tier 0 type-check/parse in the workspace | No project code loaded — **DONE** (TypeScript in workspace checks; ADR 0017) |
 | P09-02 | Tier 1 safe compile in a sandbox (Java `-proc:none`, npm `--ignore-scripts`) | Malicious processor/script not executed; egress blocked |
 | P09-03 | Tier 2 builds/tests in microVMs, bring-your-own CI, Salesforce/SAP profiles | Containment tests; results bound to hashes |
-| P10-01 | Architecture model and structural metrics with views | Hand-computed metric fixtures |
+| P10-01 | Architecture model and structural metrics with views | Hand-computed metric fixtures — **DONE** for package/folder components, Martin metrics, cycles and the dependency matrix (ADR 0018); C4-style views follow with P10-02 |
 | P10-02 | Intended-architecture rules as code | Violations with lifecycle |
 | P10-03 | Smell, performance and scalability catalogs (incl. SAP/Salesforce) | Positive/negative fixtures per row |
 | P10-04 | Git-history hotspots and change coupling; runtime evidence import | Not-available honesty; span mapping |
@@ -107,4 +107,12 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P09-F1 | Run the Tier 0 type-check in the P05 single-fix ladder (the "build" step becomes "type-checked" for TypeScript fixes) | A fix that breaks types fails the ladder; Java still "not compiled" |
 | P09-F2 | Show customer CI results (check runs and statuses) on fix and workspace pull requests | Read through the P06 client; fake and live GitHub |
 | P09-F3 | Several TypeScript projects in one upload (project references, nested tsconfig files) | Each file checked with its nearest tsconfig |
+
+## Follow-ups discovered in P10
+
+| ID | Task | Acceptance anchor |
+|---|---|---|
+| P10-F1 | Cache architecture metrics per graph build and keep them per review for trends | Same values; trend across reviews |
+| P10-F2 | Framework-aware components (SAP Commerce extensions, Salesforce packages and objects) | Mapped from P04 packs; fixtures per platform |
+| P10-F3 | Cyclomatic complexity per component (Tree-sitter) | Hand-counted fixture |
 

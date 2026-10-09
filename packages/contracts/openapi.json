@@ -1049,6 +1049,355 @@
         "title": "AiUsageResponse",
         "type": "object"
       },
+      "ArchitectureComponent": {
+        "additionalProperties": false,
+        "properties": {
+          "abstract_types": {
+            "title": "Abstract Types",
+            "type": "integer"
+          },
+          "abstractness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Abstract types / types; null without types",
+            "title": "Abstractness"
+          },
+          "afferent": {
+            "description": "Ca: files outside that depend on this component",
+            "title": "Afferent",
+            "type": "integer"
+          },
+          "distance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "|A + I - 1|; null when A or I is undefined",
+            "title": "Distance"
+          },
+          "efferent": {
+            "description": "Ce: files inside that depend on other components",
+            "title": "Efferent",
+            "type": "integer"
+          },
+          "fan_in": {
+            "title": "Fan In",
+            "type": "integer"
+          },
+          "fan_out": {
+            "title": "Fan Out",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "in_cycle": {
+            "title": "In Cycle",
+            "type": "boolean"
+          },
+          "instability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ce / (Ca + Ce); null without dependencies",
+            "title": "Instability"
+          },
+          "key": {
+            "description": "Java package or folder",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "package",
+              "folder"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          },
+          "types": {
+            "title": "Types",
+            "type": "integer"
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pain",
+                  "uselessness"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "files",
+          "lines",
+          "types",
+          "abstract_types",
+          "afferent",
+          "efferent",
+          "fan_in",
+          "fan_out",
+          "instability",
+          "abstractness",
+          "distance",
+          "zone",
+          "in_cycle"
+        ],
+        "title": "ArchitectureComponent",
+        "type": "object"
+      },
+      "ArchitectureCycle": {
+        "additionalProperties": false,
+        "properties": {
+          "component_count": {
+            "title": "Component Count",
+            "type": "integer"
+          },
+          "components": {
+            "description": "Up to 50 members (see component_count)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "cut": {
+            "description": "Dependencies to remove; up to 50, lightest first",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureEdge"
+            },
+            "title": "Cut",
+            "type": "array"
+          },
+          "cut_count": {
+            "title": "Cut Count",
+            "type": "integer"
+          },
+          "cut_weight": {
+            "description": "File-level dependencies to change for the whole cut",
+            "title": "Cut Weight",
+            "type": "integer"
+          },
+          "edge_count": {
+            "title": "Edge Count",
+            "type": "integer"
+          },
+          "edges": {
+            "description": "Up to 50, heaviest first",
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "exact": {
+            "description": "False when the cut is a heuristic (large cycles)",
+            "title": "Exact",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "components",
+          "component_count",
+          "edges",
+          "edge_count",
+          "cut",
+          "cut_count",
+          "cut_weight",
+          "exact"
+        ],
+        "title": "ArchitectureCycle",
+        "type": "object"
+      },
+      "ArchitectureEdge": {
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "weight": {
+            "description": "Distinct file-level dependencies",
+            "title": "Weight",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "weight"
+        ],
+        "title": "ArchitectureEdge",
+        "type": "object"
+      },
+      "ArchitectureMetricsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "build_id": {
+            "format": "uuid",
+            "title": "Build Id",
+            "type": "string"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureComponent"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "cycles": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureCycle"
+            },
+            "title": "Cycles",
+            "type": "array"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "edges_truncated": {
+            "title": "Edges Truncated",
+            "type": "boolean"
+          },
+          "extractor": {
+            "title": "Extractor",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ArchitectureSummary"
+          }
+        },
+        "required": [
+          "build_id",
+          "extractor",
+          "algorithm",
+          "summary",
+          "components",
+          "edges",
+          "edges_truncated",
+          "cycles",
+          "notes"
+        ],
+        "title": "ArchitectureMetricsResponse",
+        "type": "object"
+      },
+      "ArchitectureSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "average_distance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Distance"
+          },
+          "component_edges": {
+            "title": "Component Edges",
+            "type": "integer"
+          },
+          "components": {
+            "title": "Components",
+            "type": "integer"
+          },
+          "components_in_cycles": {
+            "title": "Components In Cycles",
+            "type": "integer"
+          },
+          "cycles": {
+            "title": "Cycles",
+            "type": "integer"
+          },
+          "dependencies": {
+            "description": "Distinct file-level dependencies between components",
+            "title": "Dependencies",
+            "type": "integer"
+          },
+          "not_counted": {
+            "description": "Graph edges not counted (unresolved, external)",
+            "title": "Not Counted",
+            "type": "integer"
+          },
+          "test_files": {
+            "description": "Test files left out of the model",
+            "title": "Test Files",
+            "type": "integer"
+          },
+          "zone_of_pain": {
+            "title": "Zone Of Pain",
+            "type": "integer"
+          },
+          "zone_of_uselessness": {
+            "title": "Zone Of Uselessness",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "components",
+          "dependencies",
+          "component_edges",
+          "cycles",
+          "components_in_cycles",
+          "zone_of_pain",
+          "zone_of_uselessness",
+          "test_files",
+          "not_counted",
+          "average_distance"
+        ],
+        "title": "ArchitectureSummary",
+        "type": "object"
+      },
       "ArtifactProbeResult": {
         "additionalProperties": false,
         "properties": {
@@ -15864,6 +16213,90 @@
         "summary": "Get Snapshot",
         "tags": [
           "snapshots"
+        ]
+      }
+    },
+    "/v1/snapshots/{snapshot_id}/architecture": {
+      "get": {
+        "description": "Components (Java packages and folders), Martin metrics, dependencies and cycles with the\ncheapest dependencies to cut, computed from the upload's current graph (P10; ADR 0018).",
+        "operationId": "architecture_metrics_v1_snapshots__snapshot_id__architecture_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchitectureMetricsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Architecture Metrics",
+        "tags": [
+          "graph"
         ]
       }
     },

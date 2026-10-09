@@ -1436,6 +1436,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/snapshots/{snapshot_id}/architecture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Architecture Metrics
+         * @description Components (Java packages and folders), Martin metrics, dependencies and cycles with the
+         *     cheapest dependencies to cut, computed from the upload's current graph (P10; ADR 0018).
+         */
+        get: operations["architecture_metrics_v1_snapshots__snapshot_id__architecture_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/snapshots/{snapshot_id}/compare": {
         parameters: {
             query?: never;
@@ -2059,6 +2080,161 @@ export interface components {
              * @default true
              */
             usage_reported: boolean;
+        };
+        /** ArchitectureComponent */
+        ArchitectureComponent: {
+            /** Abstract Types */
+            abstract_types: number;
+            /**
+             * Abstractness
+             * @description Abstract types / types; null without types
+             */
+            abstractness: number | null;
+            /**
+             * Afferent
+             * @description Ca: files outside that depend on this component
+             */
+            afferent: number;
+            /**
+             * Distance
+             * @description |A + I - 1|; null when A or I is undefined
+             */
+            distance: number | null;
+            /**
+             * Efferent
+             * @description Ce: files inside that depend on other components
+             */
+            efferent: number;
+            /** Fan In */
+            fan_in: number;
+            /** Fan Out */
+            fan_out: number;
+            /** Files */
+            files: number;
+            /** In Cycle */
+            in_cycle: boolean;
+            /**
+             * Instability
+             * @description Ce / (Ca + Ce); null without dependencies
+             */
+            instability: number | null;
+            /**
+             * Key
+             * @description Java package or folder
+             */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "package" | "folder";
+            /** Lines */
+            lines: number;
+            /** Types */
+            types: number;
+            /** Zone */
+            zone: ("pain" | "uselessness") | null;
+        };
+        /** ArchitectureCycle */
+        ArchitectureCycle: {
+            /** Component Count */
+            component_count: number;
+            /**
+             * Components
+             * @description Up to 50 members (see component_count)
+             */
+            components: string[];
+            /**
+             * Cut
+             * @description Dependencies to remove; up to 50, lightest first
+             */
+            cut: components["schemas"]["ArchitectureEdge"][];
+            /** Cut Count */
+            cut_count: number;
+            /**
+             * Cut Weight
+             * @description File-level dependencies to change for the whole cut
+             */
+            cut_weight: number;
+            /** Edge Count */
+            edge_count: number;
+            /**
+             * Edges
+             * @description Up to 50, heaviest first
+             */
+            edges: components["schemas"]["ArchitectureEdge"][];
+            /**
+             * Exact
+             * @description False when the cut is a heuristic (large cycles)
+             */
+            exact: boolean;
+        };
+        /** ArchitectureEdge */
+        ArchitectureEdge: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /**
+             * Weight
+             * @description Distinct file-level dependencies
+             */
+            weight: number;
+        };
+        /** ArchitectureMetricsResponse */
+        ArchitectureMetricsResponse: {
+            /** Algorithm */
+            algorithm: string;
+            /**
+             * Build Id
+             * Format: uuid
+             */
+            build_id: string;
+            /** Components */
+            components: components["schemas"]["ArchitectureComponent"][];
+            /** Cycles */
+            cycles: components["schemas"]["ArchitectureCycle"][];
+            /** Edges */
+            edges: components["schemas"]["ArchitectureEdge"][];
+            /** Edges Truncated */
+            edges_truncated: boolean;
+            /** Extractor */
+            extractor: string;
+            /** Notes */
+            notes: string[];
+            summary: components["schemas"]["ArchitectureSummary"];
+        };
+        /** ArchitectureSummary */
+        ArchitectureSummary: {
+            /** Average Distance */
+            average_distance: number | null;
+            /** Component Edges */
+            component_edges: number;
+            /** Components */
+            components: number;
+            /** Components In Cycles */
+            components_in_cycles: number;
+            /** Cycles */
+            cycles: number;
+            /**
+             * Dependencies
+             * @description Distinct file-level dependencies between components
+             */
+            dependencies: number;
+            /**
+             * Not Counted
+             * @description Graph edges not counted (unresolved, external)
+             */
+            not_counted: number;
+            /**
+             * Test Files
+             * @description Test files left out of the model
+             */
+            test_files: number;
+            /** Zone Of Pain */
+            zone_of_pain: number;
+            /** Zone Of Uselessness */
+            zone_of_uselessness: number;
         };
         /** ArtifactProbeResult */
         ArtifactProbeResult: {
@@ -10175,6 +10351,73 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    architecture_metrics_v1_snapshots__snapshot_id__architecture_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchitectureMetricsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

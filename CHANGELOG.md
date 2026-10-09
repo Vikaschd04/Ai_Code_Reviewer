@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — P10 structure health (9 October 2026)
+
+- **Structure health** on the Architecture tab (ADR 0018): the parts of your code (Java packages and folders, test code left out), which parts depend on which, and R. C. Martin's measures — who uses a part (Ca), what it uses (Ce), instability, abstractness and distance from the balance line. Anything not measurable shows "—", never zero.
+- **Cycles** between parts are found, each with the cheapest set of imports to remove to break it (exact for small cycles, a proven heuristic for large tangles). Parts that are "hard to change" (concrete and depended on by at least 3 files) or "unused abstractions" are flagged with a plain reason. A dependency matrix of the most connected parts is in the details.
+- Fast enough for large projects: 50,000 files with 400,000 dependencies in about 7 seconds. API `GET /v1/snapshots/{id}/architecture`.
+- The architecture map now records abstract classes and interfaces (graph extractor v2); uploads mapped before show abstractness as not measurable until reviewed again.
+
 ## Unreleased — P09 Tier 0 type-check (9 October 2026)
 
 - **Check my changes** now type-checks TypeScript (ADR 0017). The platform's own pinned TypeScript compiler (5.9.3) reads the upload's and the changed copy's TypeScript files and shows "No new type errors" or "N new type errors" (each with file and line), plus type errors your changes fixed. Moved lines do not count as new.

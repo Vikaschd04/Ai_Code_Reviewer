@@ -171,6 +171,12 @@ Review states: QUEUED, CAPTURING, SCANNING, PUBLISHING, SUCCEEDED, PARTIAL, FAIL
 
 Derived copies scanned by checks are not listed as uploads, not counted in project overviews and not offered to AI by default; their `change_set` scans never change issues and are not listed under Reviews.
 
+## Implemented in P10 (architecture metrics, ADR 0018)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/snapshots/{id}/architecture | viewer | From the current graph build: `summary` (components, dependencies, component edges, cycles, components in cycles, zone of pain, zone of uselessness, test files left out, edges not counted, average distance), `components` (key, kind package/folder, files, lines, types, abstract types, Ca, Ce, fan-in, fan-out, instability, abstractness, distance — null when not measurable —, zone, in cycle; sorted by distance), up to 400 `edges` (`edges_truncated`), `cycles` (members, heaviest edges and lightest cut items up to 50 each, full counts, `cut_weight`, `exact`), `notes`, `extractor`, `algorithm`. 404 `graph_not_built`; 409 `graph_build_failed` |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

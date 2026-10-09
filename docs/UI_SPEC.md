@@ -96,6 +96,15 @@ The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in ligh
 - **Upload page → Compare tab:** choose another upload; counts (added, changed, removed, moved), the list of changed files, and each file side by side or inline.
 - The editor and grammars load only on these pages. Code is inert text. Checked in light, dark and mobile (390 px, no horizontal page scroll; on phones the issue table shows severity, result and **Edit** under the title) by `apps/web/e2e/p08-workspace.spec.ts`, screenshots `p08-*.png`.
 
+## Implemented in P10 (architecture metrics)
+
+- **Upload → Architecture tab → Structure health** (under the architecture map): "How tangled and how flexible the parts of your code are (Java packages and folders). Measured from the code; nothing is guessed."
+  - **Tiles:** Parts, Cycles, Hard to change, Unused abstractions; warnings use a tone and an icon.
+  - **Cycles:** members, then "Cut: a → b (2 imports)", marked approximate for large tangles. When there are none: "No cycles between parts."
+  - **Needs attention:** the part, badges (In a cycle, Hard to change, Unused abstraction) and a one-line reason.
+  - **Collapsed:** "All parts and their measurements" (Ca, Ce, instability, abstractness, distance; — when not measurable; a definitions note after R. C. Martin) and a "Dependency matrix" of the 12 most connected parts, with cycle cells tinted and titled.
+- Checked in light and mobile (390 px, no horizontal page scroll) by `apps/web/e2e/p02-analysis.spec.ts`, screenshots `p10-structure-health*.png`.
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

@@ -7,15 +7,22 @@ and report truncation; nothing returns an entire large graph.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 from sqlalchemy import case, func, or_, select, text
 
+from crp_analysis.architecture.metrics import ALGORITHM, ComponentEdge, compute
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
+    ArchitectureComponent,
+    ArchitectureCycle,
+    ArchitectureEdge,
+    ArchitectureMetricsResponse,
+    ArchitectureSummary,
     FrameworkPack,
     GraphBuildResponse,
     GraphEdgeResponse,
@@ -28,6 +35,7 @@ from crp_api.schemas import (
     ModuleDependency,
     ModuleSummary,
 )
+from crp_api.services import architecture
 from crp_api.services.scope import decode_offset, encode_offset, get_scoped
 from crp_core.db.models import FileEntry, GraphBuild, GraphEdge, GraphNode, Snapshot
 from crp_core.db.session import transaction
@@ -538,4 +546,83 @@ async def node_impact(
         unresolved_edges_in_build=build.unresolved_count,
         files_with_parse_problems=problems,
         caveats=caveats,
+    )
+
+
+_EDGE_LIMIT = 400
+_CYCLE_LIMIT = 50
+
+
+def _component_edge(edge: ComponentEdge) -> ArchitectureEdge:
+    return ArchitectureEdge(source=edge.source, target=edge.target, weight=edge.weight)
+
+
+@router.get(
+    "/snapshots/{snapshot_id}/architecture",
+    response_model=ArchitectureMetricsResponse,
+    responses={**_ERRORS, 409: {"model": ErrorResponse}},
+)
+async def architecture_metrics(
+    snapshot_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> ArchitectureMetricsResponse:
+    """Components (Java packages and folders), Martin metrics, dependencies and cycles with the
+    cheapest dependencies to cut, computed from the upload's current graph (P10; ADR 0018)."""
+    async with transaction(container.session_factory) as session:
+        build = await _usable(session, principal, snapshot_id)
+        files, types, dependencies, not_counted = await architecture.load_model(session, build)
+        known = architecture.abstract_known(build)
+        build_id, extractor = build.id, build.extractor
+    result = await asyncio.to_thread(compute, files, types, dependencies, abstract_known=known)
+    distances = [c.distance for c in result.components if c.distance is not None]
+    notes = []
+    if not known:
+        notes.append(
+            "Abstractness needs a newer architecture map; review the upload again to see it."
+        )
+    if result.test_files:
+        notes.append(f"{result.test_files} test files are left out of the components.")
+    components = sorted(
+        result.components,
+        key=lambda c: (-(c.distance if c.distance is not None else -1), -c.lines, c.key),
+    )
+    return ArchitectureMetricsResponse(
+        build_id=build_id,
+        extractor=extractor,
+        algorithm=ALGORITHM,
+        summary=ArchitectureSummary(
+            components=len(result.components),
+            dependencies=result.dependencies_counted,
+            component_edges=len(result.edges),
+            cycles=len(result.cycles),
+            components_in_cycles=sum(c.in_cycle for c in result.components),
+            zone_of_pain=sum(c.zone == "pain" for c in result.components),
+            zone_of_uselessness=sum(c.zone == "uselessness" for c in result.components),
+            test_files=result.test_files,
+            not_counted=not_counted,
+            average_distance=round(sum(distances) / len(distances), 3) if distances else None,
+        ),
+        components=[
+            ArchitectureComponent.model_validate(c, from_attributes=True) for c in components
+        ],
+        edges=[_component_edge(e) for e in result.edges[:_EDGE_LIMIT]],
+        edges_truncated=len(result.edges) > _EDGE_LIMIT,
+        cycles=[
+            ArchitectureCycle(
+                components=c.components[:_CYCLE_LIMIT],
+                component_count=len(c.components),
+                edges=[
+                    _component_edge(e)
+                    for e in sorted(c.edges, key=lambda e: -e.weight)[:_CYCLE_LIMIT]
+                ],
+                edge_count=len(c.edges),
+                cut=[
+                    _component_edge(e) for e in sorted(c.cut, key=lambda e: e.weight)[:_CYCLE_LIMIT]
+                ],
+                cut_count=len(c.cut),
+                cut_weight=sum(e.weight for e in c.cut),
+                exact=c.exact,
+            )
+            for c in result.cycles
+        ],
+        notes=notes,
     )

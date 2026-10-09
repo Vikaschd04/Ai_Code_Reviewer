@@ -175,6 +175,17 @@ it is structural only, and the page says so.
 - **Report.** Measured numbers and dataset limits in the phase reports. No unmeasured accuracy
   claims.
 
+## Implementation status
+
+- **Slice 1 (9 October 2026, ADR 0018):**
+  - components from Java packages and folders;
+  - Martin metrics with evidence-gated zones;
+  - cycles with the cheapest cut (exact up to 16 edges, Eades–Lin–Smyth beyond);
+  - `GET /v1/snapshots/{id}/architecture`;
+  - Structure health UI with a dependency matrix.
+- **Computed on request** from the graph; the tables below are still the plan for persisted models
+  and trends.
+
 ## Data model sketch (to be fixed in P10's migration)
 
 - `architecture_models` (per snapshot): inferred components and layers, version.

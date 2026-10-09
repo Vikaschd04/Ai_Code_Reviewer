@@ -9,6 +9,7 @@ import {
 } from "../api/endpoints";
 import { Alert, Disclosure, Empty, Loading } from "../components/Common";
 import { FrameworkPanel } from "../components/Frameworks";
+import { ArchitectureHealth } from "../components/ArchitectureHealth";
 import { Icon } from "../components/Icon";
 import { StatusBadge } from "../components/Status";
 import { formatNumber, titleCase } from "../lib/format";
@@ -645,6 +646,7 @@ export function ArchitectureView({ snapshotId }: { snapshotId: string }) {
         ) : null}
         <Legend counts={data.edges_by_classification} />
       </section>
+      {build ? <ArchitectureHealth snapshotId={snapshotId} /> : null}
       <section className="card stack" aria-labelledby="modules-title">
         <h2 id="modules-title" className="card-title">
           Modules

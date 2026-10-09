@@ -15,7 +15,7 @@ from tree_sitter import Node, Parser
 
 from crp_analysis.structure import _language, extractor_version, grammar_for
 
-GRAPH_EXTRACTOR = "crp-graph-extract-v1"
+GRAPH_EXTRACTOR = "crp-graph-extract-v2"  # v2: abstract types marked (P10 metrics)
 MAX_REFERENCES_PER_FILE = 2000
 _WS = re.compile(r"\s+")
 _GENERIC = re.compile(r"<.*$", re.DOTALL)
@@ -46,6 +46,7 @@ class DeclaredType:
     kind: str
     line: int
     end_line: int
+    abstract: bool = False  # interfaces and abstract classes (abstractness metric, P10)
 
 
 @dataclass(slots=True)
@@ -171,8 +172,16 @@ def _java(root: Node, facts: FileFacts, lines: list[str]) -> None:
             if simple:
                 qualified = f"{outer}.{simple}" if outer else simple
                 start, end = _lines(node)
+                abstract = kind in {"interface_declaration", "annotation_type_declaration"} or (
+                    kind == "class_declaration"
+                    and any(
+                        child.type == "modifiers"
+                        and any(m.type == "abstract" for m in child.children)
+                        for child in node.children
+                    )
+                )
                 facts.types.append(
-                    DeclaredType(qualified, kind.removesuffix("_declaration"), start, end)
+                    DeclaredType(qualified, kind.removesuffix("_declaration"), start, end, abstract)
                 )
                 next_outer = qualified
                 for child in node.children:
@@ -225,7 +234,8 @@ def _js(root: Node, facts: FileFacts, lines: list[str]) -> None:
             if simple:
                 start, end = _lines(node)
                 label = "interface" if kind == "interface_declaration" else "class"
-                facts.types.append(DeclaredType(simple, label, start, end))
+                abstract = kind != "class_declaration"
+                facts.types.append(DeclaredType(simple, label, start, end, abstract))
                 next_outer = simple
                 for child in node.children:
                     if child.type == "class_heritage":

@@ -1405,3 +1405,65 @@ class FileComparison(ApiModel):
     before_sha256: str | None
     after_sha256: str | None
     note: str | None = Field(description="Why a side is missing (binary, not stored, absent)")
+
+
+class ArchitectureComponent(ApiModel):
+    key: str = Field(description="Java package or folder")
+    kind: Literal["package", "folder"]
+    files: int
+    lines: int
+    types: int
+    abstract_types: int
+    afferent: int = Field(description="Ca: files outside that depend on this component")
+    efferent: int = Field(description="Ce: files inside that depend on other components")
+    fan_in: int
+    fan_out: int
+    instability: float | None = Field(description="Ce / (Ca + Ce); null without dependencies")
+    abstractness: float | None = Field(description="Abstract types / types; null without types")
+    distance: float | None = Field(description="|A + I - 1|; null when A or I is undefined")
+    zone: Literal["pain", "uselessness"] | None
+    in_cycle: bool
+
+
+class ArchitectureEdge(ApiModel):
+    source: str
+    target: str
+    weight: int = Field(description="Distinct file-level dependencies")
+
+
+class ArchitectureCycle(ApiModel):
+    components: list[str] = Field(description="Up to 50 members (see component_count)")
+    component_count: int
+    edges: list[ArchitectureEdge] = Field(description="Up to 50, heaviest first")
+    edge_count: int
+    cut: list[ArchitectureEdge] = Field(
+        description="Dependencies to remove; up to 50, lightest first"
+    )
+    cut_count: int
+    cut_weight: int = Field(description="File-level dependencies to change for the whole cut")
+    exact: bool = Field(description="False when the cut is a heuristic (large cycles)")
+
+
+class ArchitectureSummary(ApiModel):
+    components: int
+    dependencies: int = Field(description="Distinct file-level dependencies between components")
+    component_edges: int
+    cycles: int
+    components_in_cycles: int
+    zone_of_pain: int
+    zone_of_uselessness: int
+    test_files: int = Field(description="Test files left out of the model")
+    not_counted: int = Field(description="Graph edges not counted (unresolved, external)")
+    average_distance: float | None
+
+
+class ArchitectureMetricsResponse(ApiModel):
+    build_id: UUID
+    extractor: str
+    algorithm: str
+    summary: ArchitectureSummary
+    components: list[ArchitectureComponent]
+    edges: list[ArchitectureEdge]
+    edges_truncated: bool
+    cycles: list[ArchitectureCycle]
+    notes: list[str]

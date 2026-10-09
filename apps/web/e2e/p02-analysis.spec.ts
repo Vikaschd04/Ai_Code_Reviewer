@@ -89,6 +89,29 @@ test("architecture graph with bounded neighborhood and impact", async ({ page })
   await page.getByTestId("upload-link").click();
   await page.getByRole("link", { name: "Architecture" }).click();
   await expect(page.getByTestId("architecture")).toBeVisible();
+  // Structure health (P10): parts, cycles and Martin metrics measured from the code.
+  const health = page.getByTestId("architecture-health");
+  await expect(health).toContainText("Structure health");
+  await expect(health.locator('[data-tile="Parts"] .tile-value')).not.toHaveText("0");
+  await health.getByText("All parts and their measurements").click();
+  await expect(
+    health.getByTestId("architecture-metrics").locator('[data-component="com.acme.core"]'),
+  ).toBeVisible();
+  await health.getByText("Dependency matrix", { exact: true }).click();
+  await expect(health.getByTestId("architecture-dsm")).toBeVisible();
+  await health.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/screens/p10-structure-health.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      "document.documentElement.scrollWidth - document.documentElement.clientWidth",
+    ),
+  ).toBe(0);
+  await page.screenshot({
+    path: "test-results/screens/p10-structure-health-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.getByText("Show module connections as a table").click();
   await expect(
     page.getByTestId("module-dependency").filter({ hasText: "app (Maven)" }).first(),

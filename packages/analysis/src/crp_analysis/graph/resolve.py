@@ -317,6 +317,8 @@ class _Builder:
             for declared in facts.types:
                 key = self.type_key(path, declared.name)
                 attributes: dict[str, object] = {"type_kind": declared.kind}
+                if declared.abstract:
+                    attributes["abstract"] = True
                 if path.endswith(JAVA_EXTENSIONS):
                     fqn = f"{facts.package}.{declared.name}" if facts.package else declared.name
                     self.java_index.setdefault(fqn, key)

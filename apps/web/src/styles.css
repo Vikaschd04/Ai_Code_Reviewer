@@ -3053,3 +3053,14 @@ button.tile[aria-pressed="true"] {
   border-radius: var(--radius-md);
   background: var(--surface);
 }
+
+/* Dependency matrix (P10): compact numeric cells; cycle cells tinted (with a title as text cue). */
+.dsm th,
+.dsm td {
+  padding: var(--space-1) var(--space-2);
+}
+
+.dsm td.dsm-cycle {
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  font-weight: var(--weight-semibold);
+}

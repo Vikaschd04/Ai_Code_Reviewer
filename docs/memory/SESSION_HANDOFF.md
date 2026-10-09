@@ -1,5 +1,9 @@
 # Session handoff
 
+9 October 2026 (P10 slice 1) — Pushed 810da38 (P09 Tier 0, CI green). Built architecture metrics: graph extractor v2 marks abstract types; `crp_analysis/architecture/metrics.py` (components = Java packages/folders, tests excluded; Martin Ca/Ce/I/A/D, evidence-gated zones; Tarjan cycles; exact cheapest cut ≤ 16 edges, weighted Eades–Lin–Smyth + restore beyond); `services/architecture.py` + `GET /v1/snapshots/{id}/architecture` (capped lists); UI `components/ArchitectureHealth.tsx` on the Architecture tab; ADR 0018, P10_REPORT. Found and fixed: O(E²) greedy cut (7 s → 0.2 s), misleading zone of pain for leaves, an `_edge` name clash in routes/graph.py.
+
+Next runnable task: P10 slice 2 — intended architecture as code (layers + allowed/forbidden dependencies, versioned and audited, YAML import/export), evaluated on every review with violations as lifecycle-tracked findings (engine `architecture`). Run `caffeinate -i make test-e2e` on this Mac.
+
 9 October 2026 (P09 Tier 0) — Owner: "continue". Ran `caffeinate -i make test-e2e` → 19/19 on 0330f3d; pushed 0330f3d + 39c388e. Built P09 slice 1: `engines/eslint-runner/typecheck.mjs` (pinned TypeScript 5.9.3, read-only, confined host, no plugins/types/extends outside), `crp_analysis/typecheck.py` (TypeChecker, compare, cache_key), workspace check `result.types` (base vs copy, cached by content hash in `typecheck/<key>.json`), UI type-check line, settings `CRP_TYPECHECK_*`, ADR 0017, P09_REPORT. Tiers 1–2 BLOCKED on the owner's compute decision (K-P09-01).
 
 Next runnable task: P09-F1 (type-check in the P05 ladder) or P10 slice 1 (architecture model and structural metrics: Martin metrics, cycles, size, with hand-computed fixtures; docs/ARCHITECTURE_INTELLIGENCE.md). Always run `caffeinate -i make test-e2e` on this Mac (it sleeps on battery).
