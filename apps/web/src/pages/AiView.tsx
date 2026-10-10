@@ -1,17 +1,10 @@
-import { useEffect, useState, type SubmitEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 
-import {
-  describeError,
-  type AiPolicy,
-  type AiRun,
-  type AiStatus,
-  type FileEntry,
-} from "../api/client";
+import { describeError, type AiPolicy, type AiRun, type AiStatus } from "../api/client";
 import {
   fetchAiPolicy,
   fetchAiStatus,
   listAiRuns,
-  listFiles,
   startAiRun,
   updateAiPolicy,
 } from "../api/endpoints";
@@ -23,8 +16,6 @@ import { formatNumber, formatRelative } from "../lib/format";
 import { navigate } from "../lib/router";
 import { useSession } from "../lib/session";
 import { useAsync } from "../lib/useAsync";
-
-const MAX_FILES = 5;
 
 function NotSetUp({ status }: { status: AiStatus }) {
   const { principal } = useSession();
@@ -214,129 +205,6 @@ function AskCard({ projectId }: { projectId: string }) {
   );
 }
 
-function ReviewFilesCard({ projectId, snapshotId }: { projectId: string; snapshotId: string }) {
-  const [query, setQuery] = useState("");
-  const [matches, setMatches] = useState<FileEntry[]>([]);
-  const [chosen, setChosen] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const text = query.trim();
-    const timer = window.setTimeout(() => {
-      if (!text) {
-        setMatches([]);
-        return;
-      }
-      listFiles(snapshotId, { disposition: "ANALYZABLE", q: text }, controller.signal).then(
-        (page) => {
-          setMatches(page.items.slice(0, 8));
-        },
-        () => {
-          setMatches([]);
-        },
-      );
-    }, 200);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [snapshotId, query]);
-
-  function start() {
-    setBusy(true);
-    setError(null);
-    startAiRun(projectId, { kind: "file_review", paths: chosen }).then(
-      (run) => {
-        navigate(`#/ai-runs/${run.id}`);
-      },
-      (caught: unknown) => {
-        setError(describeError(caught));
-        setBusy(false);
-      },
-    );
-  }
-
-  const full = chosen.length >= MAX_FILES;
-  return (
-    <section className="card stack" aria-labelledby="ai-files-title">
-      <div className="stack stack-xs">
-        <h2 id="ai-files-title" className="card-title">
-          <Icon name="scan" size={16} /> Review files with AI
-        </h2>
-        <p className="card-sub">
-          Look for bugs and risks the automatic checks may miss, in up to {MAX_FILES} files.
-        </p>
-      </div>
-      {chosen.length > 0 ? (
-        <ul className="chip-list" aria-label="Files to review">
-          {chosen.map((path) => (
-            <li key={path} className="chip mono">
-              {path}
-              <button
-                type="button"
-                className="icon-btn icon-btn-xs"
-                aria-label={`Remove ${path}`}
-                onClick={() => {
-                  setChosen(chosen.filter((item) => item !== path));
-                }}
-              >
-                <Icon name="x" size={12} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <input
-        type="search"
-        value={query}
-        placeholder="Find a file by name"
-        aria-label="Find a file to review"
-        disabled={full}
-        onChange={(event) => {
-          setQuery(event.target.value);
-        }}
-      />
-      {!full && matches.length > 0 ? (
-        <ul className="result-list" aria-label="Matching files">
-          {matches
-            .filter((file) => !chosen.includes(file.path))
-            .map((file) => (
-              <li key={file.id}>
-                <button
-                  type="button"
-                  className="result-item"
-                  onClick={() => {
-                    setChosen([...chosen, file.path]);
-                  }}
-                >
-                  <Icon name="file" size={14} />
-                  <span className="mono truncate">{file.path}</span>
-                </button>
-              </li>
-            ))}
-        </ul>
-      ) : null}
-      <div className="row">
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={chosen.length === 0 || busy}
-          onClick={start}
-        >
-          {busy
-            ? "Starting…"
-            : chosen.length > 1
-              ? `Review ${String(chosen.length)} files`
-              : "Review file"}
-        </button>
-      </div>
-      {error ? <Alert tone="bad">{error}</Alert> : null}
-    </section>
-  );
-}
-
 function RunsCard({ runs, status }: { runs: AiRun[]; status: AiStatus }) {
   const limit = status.month.token_limit;
   const share = limit > 0 ? Math.min(100, Math.round((status.month.tokens / limit) * 100)) : null;
@@ -385,8 +253,24 @@ function RunsCard({ runs, status }: { runs: AiRun[]; status: AiStatus }) {
   );
 }
 
-/** Project tab: AI status, the project's sharing decision, ask/review forms and past runs. */
-export function AiView({
+/** Settings: whether AI may be used for this project (admins decide), or why it is not set up. */
+export function AiSettings({ projectId }: { projectId: string }) {
+  const status = useAsync((signal) => fetchAiStatus(signal), []);
+  const loaded = useAsync((signal) => fetchAiPolicy(projectId, signal), [projectId]);
+  const [policy, setPolicy] = useState<AiPolicy | null>(null);
+  const current = policy ?? loaded.data;
+  const error = status.error ?? loaded.error;
+  if (error) return <Alert tone="bad">{error}</Alert>;
+  if (!status.data || !current) return <Loading />;
+  return status.data.available ? (
+    <PolicyCard status={status.data} policy={current} onChange={setPolicy} />
+  ) : (
+    <NotSetUp status={status.data} />
+  );
+}
+
+/** Insights: ask AI a question about the code, and earlier answers (only when AI is on). */
+export function AiQuestions({
   projectId,
   snapshotId,
 }: {
@@ -394,35 +278,16 @@ export function AiView({
   snapshotId: string | null;
 }) {
   const status = useAsync((signal) => fetchAiStatus(signal), []);
-  const loaded = useAsync((signal) => fetchAiPolicy(projectId, signal), [projectId]);
+  const policy = useAsync((signal) => fetchAiPolicy(projectId, signal), [projectId]);
   const runs = useAsync((signal) => listAiRuns(projectId, signal), [projectId]);
-  const [policy, setPolicy] = useState<AiPolicy | null>(null);
-  const current = policy ?? loaded.data;
-  const error = status.error ?? loaded.error ?? runs.error;
-  if (error) return <Alert tone="bad">{error}</Alert>;
-  if (!status.data || !current || !runs.data) return <Loading />;
-  const ready = status.data.available && current.enabled;
+  if (!status.data || !policy.data || !runs.data) return null;
+  const answers = runs.data.filter((run) => run.kind !== "advisor" && run.kind !== "fix");
+  const ready = status.data.available && policy.data.enabled && snapshotId !== null;
+  if (!ready && answers.length === 0) return null;
   return (
     <div className="stack">
-      {status.data.available ? (
-        <PolicyCard status={status.data} policy={current} onChange={setPolicy} />
-      ) : (
-        <NotSetUp status={status.data} />
-      )}
-      {ready && snapshotId ? (
-        <div className="split split-even">
-          <AskCard projectId={projectId} />
-          <ReviewFilesCard projectId={projectId} snapshotId={snapshotId} />
-        </div>
-      ) : null}
-      {ready && !snapshotId ? (
-        <Empty title="No code uploaded yet">
-          <p>Upload code to ask AI about it.</p>
-        </Empty>
-      ) : null}
-      {status.data.available || runs.data.length > 0 ? (
-        <RunsCard runs={runs.data} status={status.data} />
-      ) : null}
+      {ready ? <AskCard projectId={projectId} /> : null}
+      {answers.length > 0 ? <RunsCard runs={answers} status={status.data} /> : null}
     </div>
   );
 }

@@ -69,6 +69,8 @@ Retention: deleting a project removes its connection, reviews, deliveries' revie
 
 - Migration `0012` (P10 slice 2, ADR 0019): `architecture_rule_versions` (composite FK `(workspace_id, project_id) → projects`, cascade; `created_by` `SET NULL`; unique `(project_id, version)`, `version >= 1`): canonical rules `document` (JSON), `sha256` (64-hex CHECK), `source` (`editor`/`yaml`, CHECK), `note`, `created_at`. Append-only; the newest version applies to the next review. Engine runs of `architecture` record the version id, number and per-rule hashes in `diagnostics`; their findings carry the rule's hash in `details.rule_sha256`, which the issue lifecycle stores as `issues.last_seen_ruleset_sha256`.
 
+- Migration `0014` (ADR 0022): `ai_runs.kind` accepts `advisor`; `ai_runs.context` (JSON) freezes the advisor's recommendations, numbered facts and targets at the request. The checked plan is stored in `ai_runs.answer` (`type: plan`).
+
 - Migration `0013` (P12 slice 1, ADR 0021): `nfr_profile_versions` (composite FK `(workspace_id, project_id) → projects`, cascade; `created_by` `SET NULL`; unique `(project_id, version)`, `version >= 1`): canonical profile `document` (targets, regulations, platforms, attested answers), `sha256` (64-hex CHECK), `note`, `created_at`. Append-only; the newest version applies. The readiness view is computed on request, not stored.
 
 - P10 slice 3 (ADR 0020), no migration: findings of the `smells` engine carry `details.anchor_key` (the part); the issue lifecycle moves an issue to a new anchor file of the same part (event `moved`) instead of resolving it.

@@ -86,7 +86,7 @@ test("deletes a project from its page and from the projects list", async ({ page
   await createProject(page, first);
   await page
     .getByRole("navigation", { name: "Sections" })
-    .getByRole("link", { name: "Overview" })
+    .getByRole("link", { name: "Settings" })
     .click();
   await page.getByRole("button", { name: "Delete project" }).click();
   const dialog = page.getByRole("dialog", { name: "Delete this project?" });

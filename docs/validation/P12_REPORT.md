@@ -6,7 +6,9 @@ server, PMD 7.27.0, ESLint 10.11.0, Opengrep 1.30.0, Trivy 0.69.3. Decision reco
 
 Status: **IN_PROGRESS.** Slice 1 is delivered and verified: the questionnaire, the NFR profile,
 evidence from declared libraries and files, gaps from tracked issues, the readiness view and the
-CSV and Markdown exports. Slices 2–6 are planned (prompts/P12_NFR_ASSESSMENT.md):
+CSV and Markdown exports. With the product simplification (ADR 0022), the insight engine and
+the advisor agent are also delivered: the agent part of slice 5, with live quality BLOCKED on the
+owner's key. Slices 2–4 and 6 are planned (prompts/P12_NFR_ASSESSMENT.md):
 
 2. configuration and infrastructure evidence;
 3. code-pattern evidence;
@@ -62,3 +64,46 @@ CSV and Markdown exports. Slices 2–6 are planned (prompts/P12_NFR_ASSESSMENT.m
 - Gap mapping is by rule category and family, deliberately conservative; a defect can affect more
   questions than it is mapped to.
 - The view is computed on request; it is not stored per review, so there are no trends yet.
+
+## Simplification, insights and the advisor agent (10 October 2026; ADR 0022)
+
+Owner request: keep only what users need, and let tools and agents together analyse the project
+against NFR guidelines and guide its improvement, without hallucination.
+Plan: [PRODUCT_SIMPLIFICATION.md](../PRODUCT_SIMPLIFICATION.md).
+
+| Deliverable | Delivered | Where |
+|---|---|---|
+| Fewer, clearer screens | Project tabs 11 → 6 (Overview, Issues, Insights, Fixes, Uploads, Settings); Insights views Recommendations, NFR questionnaire, Architecture; one "Fix this" card; AI file review and "Coming soon" removed from view; old links redirect | `pages/ProjectPage.tsx`, `pages/InsightsView.tsx`, `components/Fixes.tsx`, `App.tsx` |
+| Tools: recommendations by area | 15 issue guidelines (every catalog rule maps), 5 missing-mechanism guidelines (only after a review, only when the upload shows nothing, skipped when the team explained), per-area target requests, area health | `crp_analysis/insights/engine.py` |
+| Agent: improvement plan | AI run kind `advisor` with a frozen evidence pack; `submit_plan`; deterministic citation and number checks; removed steps listed | `crp_analysis/insights/advisor.py`, `ai/results.py`, worker `ai_run.py`, migration 0014 |
+| Start fixing | A recommendation opens the fix workspace narrowed to its issues | `issue` filter on the workspace issue list; `#/workspaces/{id}?issues=` |
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Every catalog rule is covered, first match wins | 98 rules; precedence cases (secrets before other security, SAP extension cycles as architecture, retired API as platform) | PASS | `test_every_catalog_rule_lands_in_one_recommendation` |
+| Recommendations follow the evidence | Severity → priority, summaries ("2 open issues in 2 files (1 critical, 1 high)"), resolved issues ignored, missing mechanisms only when absent, team answers respected, area states | PASS | `test_insights.py` (4) |
+| No hallucination in plans | Steps with unknown ids only, quotes that do not match the file, or invented numbers are removed; names like SHA-256 allowed; a summary with invented numbers is withheld; repository text cannot close the prompt's fences | PASS | `test_advisor.py` (3) |
+| Real stack | The nfr-mixed upload is reviewed and gives the injection, defects, diagnostics and targets recommendations; no "missing" claims for mechanisms the upload shows. The agent is off by default (409, no model request). After the admin switches AI on, the fake model's plan keeps 2 grounded steps and removes "Add a web application firewall" (no evidence) and "Fix all 4242 issues" (invented number). Start fixing narrows the workspace to the recommendation's issues | PASS | `test_insights_advisor.py` |
+| Browser | Six tabs; Overview health and next steps; recommendation steps; Start fixing to a focused workspace; AI switched on in Settings; plan with 2 steps and "2 suggestions removed for lack of evidence"; light, dark, 390 px | PASS | `e2e/insights.spec.ts`; `insights*.png` |
+| Journeys updated to the new navigation | AI settings in Settings and questions in Insights (p03); GitHub connection in Settings and reviews in Uploads, pull request from a workspace (p06); AI switch in Settings (p08); tour through Insights (ui-tour). The single-fix journey (p05) was removed with its UI entry; the P05 backend tests remain | See checks below | `e2e/*.spec.ts` |
+
+Checks for this work:
+
+| Check | Command | Outcome |
+|---|---|---|
+| Lint, format, types and contracts | `make check` | exit 0 |
+| Tests | `caffeinate -i make test` | exit 0: 585 pytest (8 new) + 30 vitest, 14 min 38 s |
+| Browser E2E | `caffeinate -i make test-e2e` | exit 0: 21/21 in 3.5 minutes (insights journey added, p05 single-fix journey removed). A first run had 3 failures from the new navigation in specs not yet updated (project deletion now under Settings, SAP architecture now under Insights, and a wrong test id in the GitHub journey); fixed and rerun clean |
+
+Findings during this work:
+
+- The first Overview screenshot clipped the area labels in the narrow health card; it now uses a
+  list there and tiles only on the Insights page.
+- Three separate "Tell us your targets" cards pushed real problems down; they are now one card
+  after the problem recommendations.
+- An `eval()` reported by ESLint and Opengrep counts as two tracked issues; recommendations
+  count what the Issues tab shows.
+
+Limitations: the advisor's real-world quality is unmeasured until the owner adds an AI key (as
+for P03). The checks guarantee that every kept step is backed by the tools' evidence, not that
+the plan is the best one.

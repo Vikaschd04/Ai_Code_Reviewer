@@ -150,8 +150,8 @@ export function AiFindingCheck({ projectId, findingId }: { projectId: string; fi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const runs = earlier.data ?? [];
-  const canAsk = status.data?.available === true && policy.data !== null;
-  if (!canAsk && runs.length === 0) return null;
+  const canAsk = status.data?.available === true && policy.data?.enabled === true;
+  if (!canAsk && runs.length === 0) return null; // AI off and no earlier opinions: nothing to show
   return (
     <section className="card stack" aria-labelledby="ai-check-title" data-testid="ai-check">
       <div className="stack stack-xs">

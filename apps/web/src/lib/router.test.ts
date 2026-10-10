@@ -13,18 +13,28 @@ describe("parseRoute", () => {
       id: ID,
       tab: "overview",
       check: null,
+      view: null,
     });
     expect(parseRoute(`#/projects/${ID}?tab=source`)).toEqual({
       name: "project",
       id: ID,
       tab: "source",
       check: null,
+      view: null,
     });
     expect(parseRoute(`#/projects/${ID}?tab=issues&check=architecture`)).toEqual({
       name: "project",
       id: ID,
       tab: "issues",
       check: "architecture",
+      view: null,
+    });
+    expect(parseRoute(`#/projects/${ID}?tab=insights&view=nfr`)).toEqual({
+      name: "project",
+      id: ID,
+      tab: "insights",
+      check: null,
+      view: "nfr",
     });
     expect(parseRoute(`#/scans/${ID}`)).toEqual({ name: "scan", id: ID, tab: "findings" });
     expect(parseRoute(`#/findings/${ID}`)).toEqual({ name: "finding", id: ID });
@@ -67,6 +77,7 @@ describe("fix workspaces", () => {
       tab: "issues",
       path: null,
       line: null,
+      issues: [],
     });
     expect(parseRoute(`#/workspaces/${ID}?tab=edit&path=src%2Fa%20b.ts&line=12`)).toEqual({
       name: "workspace",
@@ -74,6 +85,7 @@ describe("fix workspaces", () => {
       tab: "edit",
       path: "src/a b.ts",
       line: 12,
+      issues: [],
     });
   });
 
@@ -93,6 +105,20 @@ describe("fix workspaces", () => {
       tab: "edit",
       path: "web/src/cart & co.ts",
       line: 7,
+      issues: [],
+    });
+  });
+
+  it("carries the issues of a recommendation and drops anything that is not an id", () => {
+    const other = "3f2c8f1e-0000-4000-8000-000000000002";
+    const href = workspaceHref(ID, "issues", null, null, [ID, other]);
+    expect(parseRoute(href)).toMatchObject({
+      name: "workspace",
+      tab: "issues",
+      issues: [ID, other],
+    });
+    expect(parseRoute(`#/workspaces/${ID}?issues=${ID},nope,..%2F`)).toMatchObject({
+      issues: [ID],
     });
   });
 });

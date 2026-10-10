@@ -105,6 +105,35 @@ The sidebar no longer lists "Fix workbench" under *Coming soon*. Checked in ligh
   - **Collapsed:** "All parts and their measurements" (Ca, Ce, instability, abstractness, distance; — when not measurable; a definitions note after R. C. Martin) and a "Dependency matrix" of the 12 most connected parts, with cycle cells tinted and titled.
 - Checked in light and mobile (390 px, no horizontal page scroll) by `apps/web/e2e/p02-analysis.spec.ts`, screenshots `p10-structure-health*.png`.
 
+## Simplified navigation and Insights (10 October 2026; ADR 0022, docs/PRODUCT_SIMPLIFICATION.md)
+
+This section supersedes the per-phase tab lists above where they differ.
+
+- **Project tabs (six):** Overview, Issues, Insights, Fixes, Uploads, Settings. Settings is shown
+  to members only. Old links (`?tab=architecture`, `nfr`, `ai`, `workspaces`, `github`,
+  `reviews`, `upload`, …) redirect to the new tab, and to the right Insights view.
+- **Overview:** "Latest review" (findings by severity, files reviewed) and "Health and next
+  steps": the six areas with a plain state (Needs attention, Could be better, No problems found,
+  Not enough evidence) and the three most important recommendations.
+- **Insights:** views Recommendations (default), NFR questionnaire, Architecture.
+  - Recommendations: "Health by area" tiles; "Improvement plan" (optional, labelled AI). It shows
+    ordered steps with area, effort and what each is based on, plus "N suggestions removed for
+    lack of evidence" (collapsed, with reasons) and a provenance note.
+  - Recommendation cards: priority, area, what was found, why it matters, "How to improve it"
+    steps, the issues behind it (collapsed) and "Start fixing". Start fixing is primary only for
+    high priority; it opens a fix workspace narrowed to those issues ("Showing the issues of one
+    recommendation", with "Show all issues").
+  - Target requests are grouped into one "Tell us your targets" card. "Ask about this code" shows
+    only when AI is on for the project.
+- **Fixes:** fix workspaces; earlier single fixes collapsed and shown only if any exist. The
+  finding page offers one "Fix this" card (fix workspace). Its AI second opinion shows only when
+  AI is on, or when earlier opinions exist.
+- **Uploads:** upload (and, in local development, the folder runner), the uploads, the reviews,
+  and GitHub reviews when a repository is connected.
+- **Settings:** AI for this project, the GitHub connection, and deleting the project.
+- The sidebar has no "Coming soon" list; capabilities stay on System status for operators.
+- Checked in light, dark and 390 px by `e2e/insights.spec.ts` (screenshots `insights*.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

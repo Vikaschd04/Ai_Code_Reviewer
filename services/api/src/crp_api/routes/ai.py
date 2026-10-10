@@ -18,6 +18,7 @@ from crp_api import __version__
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
+    AdvisorPlan,
     AiAnchorResponse,
     AiAnswerResponse,
     AiFindingResponse,
@@ -209,6 +210,12 @@ def _fix_result(answer: dict[str, object]) -> AiFixResult:
     )
 
 
+def _plan(answer: dict[str, object]) -> AdvisorPlan:
+    return AdvisorPlan.model_validate(
+        {k: answer[k] for k in ("summary", "steps", "rejected", "abstained", "uncertainty")}
+    )
+
+
 def run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
     return AiRunResponse(
         id=run.id,
@@ -232,9 +239,10 @@ def run_response(run: AiRun, findings: list[AiFinding]) -> AiRunResponse:
         usage=AiUsageResponse.model_validate(run.usage) if run.usage else None,
         answer=(
             AiAnswerResponse.model_validate(run.answer)
-            if run.answer and run.kind != AiRunKind.FIX.value
+            if run.answer and run.kind not in {AiRunKind.FIX.value, AiRunKind.ADVISOR.value}
             else None
         ),
+        plan=_plan(run.answer) if run.answer and run.kind == AiRunKind.ADVISOR.value else None,
         change_set_id=run.change_set_id,
         fix=_fix_result(run.answer) if run.answer and run.kind == AiRunKind.FIX.value else None,
         steps=[AiStepResponse.model_validate(step) for step in run.steps or []],

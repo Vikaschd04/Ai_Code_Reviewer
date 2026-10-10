@@ -40,13 +40,6 @@ type Session =
 
 type Section = "dashboard" | "projects" | "operations" | "github";
 
-const PLANNED_ICONS: Record<string, IconName> = {
-  architecture_graph: "graph",
-  ai_investigation: "sparkles",
-  fix_workbench: "wrench",
-  git_integration: "branch",
-};
-
 const LINKS: { id: Section; label: string; href: string; icon: IconName }[] = [
   { id: "dashboard", label: "Overview", href: "#/", icon: "dashboard" },
   { id: "projects", label: "Projects", href: "#/projects", icon: "projects" },
@@ -115,7 +108,6 @@ function Sidebar({
   principal: Principal | null;
 }) {
   const current = sectionOf(route);
-  const planned = capabilities.filter((c) => c.state === "planned");
   const aiAvailable = capabilities.some(
     (c) => c.id === "ai_investigation" && c.state === "available",
   );
@@ -176,21 +168,6 @@ function Sidebar({
           </div>
         ) : null}
       </nav>
-      {planned.length > 0 ? (
-        <div className="sidebar-planned">
-          <div className="nav-group-label">Coming soon</div>
-          <ul className="nav" aria-label="Coming soon">
-            {planned.map((capability) => (
-              <li key={capability.id}>
-                <span className="nav-planned" aria-disabled="true" title={capability.reason}>
-                  <Icon name={PLANNED_ICONS[capability.id] ?? "info"} />
-                  {capability.label}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
       <div className="sidebar-footer">
         <Icon name="lock" size={12} />{" "}
         {aiAvailable
@@ -251,7 +228,13 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
       );
     case "project":
       return (
-        <ProjectPage key={route.id} projectId={route.id} tab={route.tab} check={route.check} />
+        <ProjectPage
+          key={route.id}
+          projectId={route.id}
+          tab={route.tab}
+          check={route.check}
+          view={route.view}
+        />
       );
     case "snapshot":
       return <SnapshotPage key={route.id} snapshotId={route.id} tab={route.tab} />;
@@ -274,6 +257,7 @@ function Page({ route, principal }: { route: Route; principal: Principal | null 
             tab={route.tab}
             path={route.path}
             line={route.line}
+            focus={route.issues}
           />
         </Suspense>
       );

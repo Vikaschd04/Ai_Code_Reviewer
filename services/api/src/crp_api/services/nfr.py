@@ -12,8 +12,10 @@ from typing import Any
 from sqlalchemy import select
 
 from crp_analysis.catalog import lookup
-from crp_analysis.nfr.assessment import ACCEPTED, OPEN, TrackedIssue
-from crp_analysis.nfr.signals import LibraryUse
+from crp_analysis.nfr.assessment import ACCEPTED, OPEN, Assessment, TrackedIssue, assess
+from crp_analysis.nfr.profile import Profile, from_document
+from crp_analysis.nfr.questionnaire import load
+from crp_analysis.nfr.signals import Evidence, LibraryUse, detect
 from crp_core.db.models import (
     FileEntry,
     GraphBuild,
@@ -115,3 +117,29 @@ async def history(
         .limit(limit)
     )
     return [(version, name) for version, name in rows.all()]
+
+
+@dataclass(slots=True)
+class Gathered:
+    """Everything one project's NFR and insight views are computed from."""
+
+    versions: list[tuple[NfrProfileVersion, str | None]]
+    profile: Profile
+    basis: Basis | None
+    evidence: list[Evidence]
+    issues: list[TrackedIssue]
+    assessment: Assessment
+
+
+async def gather(session: Any, project_id: uuid.UUID) -> Gathered:
+    versions = await history(session, project_id)
+    profile = from_document(versions[0][0].document) if versions else Profile()
+    found = await basis(session, project_id)
+    evidence: list[Evidence] = []
+    if found is not None:
+        evidence = detect(
+            await paths(session, found.snapshot_id), await libraries(session, found.snapshot_id)
+        )
+    tracked = await issues(session, project_id)
+    assessment = assess(load(), evidence, tracked, profile, reviewed=found is not None)
+    return Gathered(versions, profile, found, evidence, tracked, assessment)

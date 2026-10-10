@@ -12,7 +12,6 @@ import {
   startScan,
   uploadArchive,
 } from "../api/endpoints";
-import { ArchitectureRules } from "../components/ArchitectureRules";
 import {
   Alert,
   CopyBlock,
@@ -32,11 +31,10 @@ import { reviewLabel, reviewNumbers } from "../lib/reviews";
 import { navigate } from "../lib/router";
 import { isLocalDevelopment, useSession } from "../lib/session";
 import { useAsync } from "../lib/useAsync";
-import { AiView } from "./AiView";
+import { AiSettings } from "./AiView";
 import { FixesView } from "./FixesView";
 import { GitHubView } from "./GitHubView";
-import { ArchitectureView } from "./ArchitectureView";
-import { NfrView } from "./NfrView";
+import { HealthSummary, InsightsView } from "./InsightsView";
 import { IssuesView } from "./IssuesView";
 import { WorkspacesView } from "./WorkspacesView";
 
@@ -44,10 +42,19 @@ type UploadPhase = "idle" | "uploading" | "validating" | "done";
 
 /** Old tab names still open the right tab (links from earlier versions). */
 const TAB_ALIASES: Record<string, string> = {
-  source: "upload",
+  source: "uploads",
   snapshots: "uploads",
-  scans: "reviews",
+  scans: "uploads",
+  upload: "uploads",
+  reviews: "uploads",
+  workspaces: "fixes",
+  github: "settings",
+  ai: "insights",
+  architecture: "insights",
+  nfr: "insights",
 };
+/** Old tabs that are now views of Insights. */
+const VIEW_ALIASES: Record<string, string> = { architecture: "architecture", nfr: "nfr" };
 
 async function waitForIntake(id: string): Promise<Intake> {
   for (let attempt = 0; attempt < 600; attempt++) {
@@ -365,14 +372,17 @@ export function ProjectPage({
   projectId,
   tab: requested,
   check = null,
+  view = null,
 }: {
   projectId: string;
   tab: string;
   check?: string | null;
+  view?: string | null;
 }) {
-  const { options } = useSession();
+  const { options, principal } = useSession();
   const [deleting, setDeleting] = useState(false);
   const tab = TAB_ALIASES[requested] ?? requested;
+  const insightsView = VIEW_ALIASES[requested] ?? view;
   const overview = useAsync((signal) => fetchProjectOverview(projectId, signal), [projectId]);
   const snapshots = useAsync((signal) => listSnapshots(projectId, signal), [projectId, tab]);
   const scans = useAsync((signal) => listScans(projectId, signal), [projectId, tab]);
@@ -385,6 +395,10 @@ export function ProjectPage({
   const latest = overview.data.latest_scan;
   const snapshot = overview.data.latest_snapshot;
   const base = `#/projects/${projectId}`;
+  const member =
+    principal?.workspaces.some(
+      (w) => w.workspace_id === project.workspace_id && w.role !== "viewer",
+    ) ?? false;
   return (
     <>
       <PageHeader
@@ -408,7 +422,7 @@ export function ProjectPage({
                 primary={false}
               />
             ) : null}
-            <a className="btn btn-primary" href={`${base}?tab=upload`}>
+            <a className="btn btn-primary" href={`${base}?tab=uploads`}>
               <Icon name="upload" size={16} /> Upload code
             </a>
           </>
@@ -419,47 +433,22 @@ export function ProjectPage({
         items={[
           { id: "overview", label: "Overview", href: base },
           { id: "issues", label: "Issues", href: `${base}?tab=issues` },
-          { id: "architecture", label: "Architecture", href: `${base}?tab=architecture` },
-          { id: "nfr", label: "NFR readiness", href: `${base}?tab=nfr` },
-          { id: "ai", label: "AI review", href: `${base}?tab=ai` },
-          { id: "workspaces", label: "Fix workspaces", href: `${base}?tab=workspaces` },
+          { id: "insights", label: "Insights", href: `${base}?tab=insights` },
           { id: "fixes", label: "Fixes", href: `${base}?tab=fixes` },
-          { id: "github", label: "GitHub", href: `${base}?tab=github` },
-          {
-            id: "reviews",
-            label: `Reviews (${overview.data.scan_count})`,
-            href: `${base}?tab=reviews`,
-          },
-          {
-            id: "uploads",
-            label: `Uploads (${overview.data.snapshot_count})`,
-            href: `${base}?tab=uploads`,
-          },
-          { id: "upload", label: "Upload code", href: `${base}?tab=upload` },
+          { id: "uploads", label: "Uploads", href: `${base}?tab=uploads` },
+          ...(member ? [{ id: "settings", label: "Settings", href: `${base}?tab=settings` }] : []),
         ]}
       />
       {tab === "issues" ? (
         <IssuesView key={check ?? ""} projectId={projectId} check={check} />
       ) : null}
-      {tab === "nfr" ? <NfrView projectId={projectId} /> : null}
-      {tab === "ai" ? <AiView projectId={projectId} snapshotId={snapshot?.id ?? null} /> : null}
-      {tab === "fixes" ? <FixesView projectId={projectId} /> : null}
-      {tab === "workspaces" ? (
-        <WorkspacesView projectId={projectId} hasUpload={snapshot !== null} />
+      {tab === "insights" ? (
+        <InsightsView projectId={projectId} snapshotId={snapshot?.id ?? null} view={insightsView} />
       ) : null}
-      {tab === "github" ? (
-        <GitHubView projectId={projectId} workspaceId={project.workspace_id} />
-      ) : null}
-      {tab === "architecture" ? (
+      {tab === "fixes" ? (
         <div className="stack">
-          <ArchitectureRules projectId={projectId} snapshotId={snapshot?.id ?? null} />
-          {snapshot ? (
-            <ArchitectureView snapshotId={snapshot.id} />
-          ) : (
-            <Empty title="No code uploaded yet">
-              <p>Upload code and review it to see its architecture.</p>
-            </Empty>
-          )}
+          <WorkspacesView projectId={projectId} hasUpload={snapshot !== null} />
+          <FixesView projectId={projectId} />
         </div>
       ) : null}
       {tab === "overview" ? (
@@ -476,6 +465,7 @@ export function ProjectPage({
                 <p className="small secondary">
                   {findingTotal(latest.summary) ?? 0} findings ·{" "}
                   {formatRelative(latest.finished_at ?? latest.created_at)}
+                  {snapshot ? ` · ${plural(snapshot.analyzable_count, "file")} reviewed` : ""}
                 </p>
                 <SeverityBars counts={severityCounts(latest.summary?.by_severity)} />
                 <div className="row">
@@ -494,7 +484,7 @@ export function ProjectPage({
                 ) : (
                   <>
                     <p>Upload a ZIP of your source code, then start a review.</p>
-                    <a className="btn btn-primary" href={`${base}?tab=upload`}>
+                    <a className="btn btn-primary" href={`${base}?tab=uploads`}>
                       Upload code
                     </a>
                   </>
@@ -502,25 +492,46 @@ export function ProjectPage({
               </Empty>
             )}
           </section>
-          <section className="card" aria-labelledby="about-title">
-            <h2 id="about-title" className="card-title">
-              About this project
+          <HealthSummary projectId={projectId} />
+        </div>
+      ) : null}
+      {tab === "uploads" ? (
+        <div className="stack">
+          <ZipUpload projectId={projectId} />
+          {isLocalDevelopment(options) ? <LocalRunner projectId={projectId} /> : null}
+          <section className="card stack" aria-labelledby="uploads-title">
+            <h2 id="uploads-title" className="card-title">
+              Uploads ({overview.data.snapshot_count})
             </h2>
-            <dl className="kv">
-              <dt>Created</dt>
-              <dd>{formatDate(project.created_at)}</dd>
-              <dt>Latest upload</dt>
-              <dd>
-                {snapshot ? <a href={`#/snapshots/${snapshot.id}`}>{snapshot.source_name}</a> : "—"}
-              </dd>
-              <dt>Files reviewed</dt>
-              <dd>{snapshot ? plural(snapshot.analyzable_count, "file") : "—"}</dd>
-              <dt>Code size</dt>
-              <dd>{formatBytes(snapshot?.total_bytes)}</dd>
-              <dt>Reviews</dt>
-              <dd>{overview.data.scan_count}</dd>
-            </dl>
-            <div className="card-footer">
+            {snapshots.error ? <Alert tone="bad">{snapshots.error}</Alert> : null}
+            {snapshots.data ? (
+              <UploadsTable snapshots={snapshots.data} projectId={projectId} />
+            ) : (
+              <Loading />
+            )}
+          </section>
+          <section className="card stack" aria-labelledby="reviews-title">
+            <h2 id="reviews-title" className="card-title">
+              Reviews ({overview.data.scan_count})
+            </h2>
+            {scans.error ? <Alert tone="bad">{scans.error}</Alert> : null}
+            {scans.data ? <ReviewsTable scans={scans.data} /> : <Loading />}
+          </section>
+          <GitHubView projectId={projectId} workspaceId={project.workspace_id} part="reviews" />
+        </div>
+      ) : null}
+      {tab === "settings" && member ? (
+        <div className="stack">
+          <AiSettings projectId={projectId} />
+          <GitHubView projectId={projectId} workspaceId={project.workspace_id} />
+          <section className="card stack" aria-labelledby="danger-title">
+            <h2 id="danger-title" className="card-title">
+              Delete this project
+            </h2>
+            <p className="card-sub">
+              Deletes its uploads, reviews, issues, workspaces and settings. This cannot be undone.
+            </p>
+            <div className="row">
               <button
                 type="button"
                 className="btn btn-sm btn-danger"
@@ -544,28 +555,6 @@ export function ProjectPage({
             />
           </section>
         </div>
-      ) : null}
-      {tab === "upload" ? (
-        <div className="stack">
-          <ZipUpload projectId={projectId} />
-          {isLocalDevelopment(options) ? <LocalRunner projectId={projectId} /> : null}
-        </div>
-      ) : null}
-      {tab === "uploads" ? (
-        <section className="card">
-          {snapshots.error ? <Alert tone="bad">{snapshots.error}</Alert> : null}
-          {snapshots.data ? (
-            <UploadsTable snapshots={snapshots.data} projectId={projectId} />
-          ) : (
-            <Loading />
-          )}
-        </section>
-      ) : null}
-      {tab === "reviews" ? (
-        <section className="card">
-          {scans.error ? <Alert tone="bad">{scans.error}</Alert> : null}
-          {scans.data ? <ReviewsTable scans={scans.data} /> : <Loading />}
-        </section>
       ) : null}
     </>
   );

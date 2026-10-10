@@ -222,13 +222,66 @@ def _fix(first: str) -> dict[str, Any]:
     )
 
 
+_RECOMMENDATION = re.compile(
+    r"^- (?P<id>[\w.-]+) \| (?P<area>\w+) \| (?P<priority>\w+) \| (?P<title>[^|]+)\|"
+)
+_FACT = re.compile(r"^- (?P<id>F\d+): Recommendation (?P<insight>[\w.-]+) ")
+
+
+def _plan(first: str) -> dict[str, Any]:
+    """Plan the first two recommendations from their facts, plus two claims the checks must remove:
+    one citing nothing known and one with a number that is not in the evidence."""
+    recommendations = [m for m in map(_RECOMMENDATION.match, first.splitlines()) if m]
+    fact_of = {m["insight"]: m["id"] for m in map(_FACT.match, first.splitlines()) if m}
+    steps: list[dict[str, Any]] = [
+        {
+            "title": f"{LABEL} Start with: {rec['title'].strip()}",
+            "area": rec["area"],
+            "rationale": f"{LABEL} The tools rank this {rec['priority']} priority; fix it first.",
+            "insight_ids": [rec["id"]],
+            "fact_ids": [fact_of[rec["id"]]] if rec["id"] in fact_of else [],
+            "effort": "medium",
+        }
+        for rec in recommendations[:2]
+    ]
+    steps += [
+        {
+            "title": f"{LABEL} Add a web application firewall",
+            "area": "security",
+            "rationale": f"{LABEL} Invented advice without evidence (the checks must remove it).",
+            "insight_ids": ["made.up"],
+            "fact_ids": ["F999"],
+            "effort": "large",
+        },
+        {
+            "title": f"{LABEL} Fix all 4242 issues",
+            "area": "reliability",
+            "rationale": f"{LABEL} Uses a number that is not in the evidence.",
+            "insight_ids": [recommendations[0]["id"]] if recommendations else [],
+            "fact_ids": [],
+            "effort": "large",
+        },
+    ]
+    return _tool_call(
+        "submit_plan",
+        {
+            "summary": f"{LABEL} A synthetic plan used to test the advisor pipeline.",
+            "steps": steps,
+            "abstained": not recommendations,
+            "uncertainty": "The test provider orders recommendations without judgement.",
+        },
+    )
+
+
 def respond(body: dict[str, Any]) -> dict[str, Any]:
     """The next chat completion for a request (pure function; the tests drive it via HTTP)."""
     messages = body.get("messages") or []
     tools = {t["function"]["name"] for t in body.get("tools") or []}
     first = _first_user_text(messages)
     results = [str(m.get("content") or "") for m in messages if m.get("role") == "tool"]
-    if "submit_fixes" in tools:
+    if "submit_plan" in tools:
+        call = _plan(first)
+    elif "submit_fixes" in tools:
         call = _fix(first)
     elif "submit_answer" in tools:
         call = _question(first, results)

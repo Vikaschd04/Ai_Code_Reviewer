@@ -1235,6 +1235,47 @@ export interface paths {
         patch: operations["update_connection_v1_projects__project_id__git_connection_patch"];
         trace?: never;
     };
+    "/v1/projects/{project_id}/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Insights
+         * @description What to improve, by area, with evidence and guided steps; and the latest advisor plan.
+         */
+        get: operations["get_insights_v1_projects__project_id__insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{project_id}/insights/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Plan
+         * @description Ask the advisor agent for an improvement plan (members; AI must be on for the project).
+         *     The recommendations and facts it may use are frozen now; every step is checked later.
+         */
+        post: operations["request_plan_v1_projects__project_id__insights_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/intakes": {
         parameters: {
             query?: never;
@@ -1815,6 +1856,87 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdvisorAnchor */
+        AdvisorAnchor: {
+            /** End Line */
+            end_line: number;
+            /** Path */
+            path: string;
+            /** Sha256 */
+            sha256: string | null;
+            /** Start Line */
+            start_line: number;
+            /** Status */
+            status: string;
+        };
+        /** AdvisorPlan */
+        AdvisorPlan: {
+            /** Abstained */
+            abstained: boolean;
+            /**
+             * Rejected
+             * @description Removed: no valid evidence or numbers
+             */
+            rejected: components["schemas"]["AdvisorRejected"][];
+            /** Steps */
+            steps: components["schemas"]["AdvisorStep"][];
+            /** Summary */
+            summary: string;
+            /** Uncertainty */
+            uncertainty: string;
+        };
+        /** AdvisorRejected */
+        AdvisorRejected: {
+            /** Reason */
+            reason: string;
+            /** Title */
+            title: string;
+        };
+        /** AdvisorState */
+        AdvisorState: {
+            /** Can Request */
+            can_request: boolean;
+            /**
+             * Enabled
+             * @description AI is switched on for the project and set up on the server
+             */
+            enabled: boolean;
+            /** @description The newest advisor run */
+            latest: components["schemas"]["AiRunResponse"] | null;
+            /**
+             * Reason
+             * @description Why the advisor agent is not available
+             */
+            reason: string | null;
+        };
+        /** AdvisorStep */
+        AdvisorStep: {
+            /**
+             * Anchors
+             * @description Code lines the step cites, verified
+             */
+            anchors: components["schemas"]["AdvisorAnchor"][];
+            /** Area */
+            area: string;
+            /**
+             * Dropped Ids
+             * @description Unknown ids the model cited (removed)
+             */
+            dropped_ids: string[];
+            /**
+             * Effort
+             * @enum {string}
+             */
+            effort: "small" | "medium" | "large";
+            /** Fact Ids */
+            fact_ids: string[];
+            /** Insight Ids */
+            insight_ids: string[];
+            /** Rationale */
+            rationale: string;
+            /** Title */
+            title: string;
+        };
         /** AiAnchorResponse */
         AiAnchorResponse: {
             /** End Line */
@@ -2098,6 +2220,8 @@ export interface components {
             limitations: string[];
             /** Model */
             model: string;
+            /** @description Advisor runs: the checked plan */
+            plan?: components["schemas"]["AdvisorPlan"] | null;
             /**
              * Project Id
              * Format: uuid
@@ -2636,6 +2760,32 @@ export interface components {
             target_layer: string | null;
             /** Title */
             title: string;
+        };
+        /** AreaHealthResponse */
+        AreaHealthResponse: {
+            /** Id */
+            id: string;
+            /**
+             * Insights
+             * @description Recommendations by priority
+             */
+            insights: {
+                [key: string]: number;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Questions
+             * @description NFR questions by status
+             */
+            questions: {
+                [key: string]: number;
+            };
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "attention" | "improve" | "no_problems" | "unknown";
         };
         /** ArtifactProbeResult */
         ArtifactProbeResult: {
@@ -4107,6 +4257,78 @@ export interface components {
             node: components["schemas"]["GraphNodeResponse"];
             /** Via */
             via: string;
+        };
+        /** InsightIssueRef */
+        InsightIssueRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Path */
+            path: string;
+            /** Severity */
+            severity: string;
+            /** Title */
+            title: string;
+        };
+        /** InsightResponse */
+        InsightResponse: {
+            /** Area */
+            area: string;
+            /** Id */
+            id: string;
+            /** Issue Count */
+            issue_count: number;
+            /**
+             * Issue Ids
+             * @description Open issues it covers, up to 50 (for fixing)
+             */
+            issue_ids: string[];
+            /**
+             * Issues
+             * @description Most severe open issues, up to 5
+             */
+            issues: components["schemas"]["InsightIssueRef"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "issues" | "missing" | "targets";
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "high" | "medium" | "low";
+            /**
+             * Questions
+             * @description NFR questions it answers
+             */
+            questions: string[];
+            /** Steps */
+            steps: string[];
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+            /** Why */
+            why: string;
+        };
+        /** InsightsResponse */
+        InsightsResponse: {
+            advisor: components["schemas"]["AdvisorState"];
+            /** Areas */
+            areas: components["schemas"]["AreaHealthResponse"][];
+            basis: components["schemas"]["NfrBasis"] | null;
+            /** Engine */
+            engine: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Recommendations */
+            recommendations: components["schemas"]["InsightResponse"][];
         };
         /** IntakeCreate */
         IntakeCreate: {
@@ -6849,6 +7071,7 @@ export interface operations {
                 severity?: string | null;
                 q?: string | null;
                 fixable?: boolean | null;
+                issue?: string[] | null;
                 limit?: number;
                 cursor?: string | null;
             };
@@ -10313,6 +10536,158 @@ export interface operations {
             };
             /** @description Unprocessable Content */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_insights_v1_projects__project_id__insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_plan_v1_projects__project_id__insights_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiRunResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

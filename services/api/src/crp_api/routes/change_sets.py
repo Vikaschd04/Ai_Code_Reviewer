@@ -806,6 +806,7 @@ async def list_issues(
     severity: Annotated[str | None, Query(max_length=16)] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     fixable: bool | None = None,
+    issue: Annotated[list[uuid.UUID] | None, Query(max_length=50)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     cursor: Annotated[str | None, Query(max_length=64)] = None,
 ) -> WorkspaceIssuePage:
@@ -822,6 +823,8 @@ async def list_issues(
             .join(FileEntry, FileEntry.id == Finding.file_entry_id)
             .where(Finding.scan_id == base_scan)
         )
+        if issue:
+            query = query.where(Finding.issue_id.in_(issue))
         if severity:
             query = query.where(Finding.severity == severity)
         if q:

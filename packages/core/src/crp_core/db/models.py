@@ -994,6 +994,8 @@ class AiRun(TimestampMixin, Base):
     state: Mapped[str] = mapped_column(String(24), nullable=False)
     question: Mapped[str | None] = mapped_column(Text)
     target_paths: Mapped[list[str] | None] = mapped_column(JsonDocument)
+    context: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
+    """Advisor runs: the recommendations, numbered facts and targets frozen at the request."""
     # Fix runs (P08): the workspace and the exact text of the file the candidates are made for.
     change_set_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
     target_sha256: Mapped[str | None] = mapped_column(String(64))

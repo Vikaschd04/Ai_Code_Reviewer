@@ -170,6 +170,15 @@ Residual risk: checks are source-level; an edited project can still fail to comp
 | Isolation | Rules, checks and exports are project-scoped (404 for other workspaces); members edit, viewers read | test_members_edit_rules_and_other_workspaces_see_nothing |
 | Nothing executed | Evaluation reads the dependency map the platform built from source; no project code or configuration runs | crp_analysis/engines/architecture.py |
 
+### Insights and the advisor agent (ADR 0022)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Tools decide, AI explains | Recommendations, priorities and counts come from the deterministic insight engine; the advisor only orders and explains them | test_insights.py |
+| No unsupported claims | Plan steps need a known recommendation or fact or a verified code anchor; numbers must appear in the cited evidence; a summary with unknown numbers is withheld; removals are shown with reasons | test_advisor.py, test_insights_and_a_checked_advisor_plan |
+| Repository text stays data | Facts quote issue titles and paths through the same fence neutralisation as other prompts; the system prompt forbids following instructions found in them | test_advisor_task_quotes_facts_and_keeps_repository_text_as_data |
+| Same AI gate | Off until the project's admin switches AI on; provider, monthly budget, accounting and cancellation as for other runs; nothing is sent when off | test_insights_and_a_checked_advisor_plan (no model request while off) |
+
 ### NFR readiness (P12 slice 1, ADR 0021)
 
 | Control | Implementation | Evidence |

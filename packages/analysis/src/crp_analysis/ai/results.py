@@ -245,3 +245,78 @@ SUBMIT_FIXES = ToolSpec(
         "required": ["summary", "candidates", "abstained"],
     },
 )
+
+
+# -- improvement plan (advisor; docs/PRODUCT_SIMPLIFICATION.md) ---------------------------------
+
+PlanArea = Literal[
+    "security", "reliability", "performance", "architecture", "operations", "experience"
+]
+
+
+class PlanStep(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    title: Annotated[str, Field(min_length=3, max_length=200)]
+    area: PlanArea
+    rationale: Annotated[str, Field(min_length=1, max_length=2000)]
+    insight_ids: Annotated[list[Annotated[str, Field(max_length=80)]], Field(max_length=8)] = []
+    fact_ids: Annotated[list[Annotated[str, Field(max_length=12)]], Field(max_length=12)] = []
+    anchors: Annotated[list[Anchor], Field(max_length=4)] = []
+    effort: Literal["small", "medium", "large"]
+
+
+class SubmittedPlan(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    summary: Annotated[str, Field(min_length=1, max_length=3000)]
+    steps: Annotated[list[PlanStep], Field(max_length=10)] = []
+    abstained: bool = False
+    uncertainty: Annotated[str, Field(max_length=2000)] = ""
+
+
+SUBMIT_PLAN = ToolSpec(
+    "submit_plan",
+    "Submit the improvement plan: ordered steps, each citing the recommendation ids and fact ids "
+    "it is based on (and code lines you read, with the exact quoted code). Use only numbers that "
+    "appear in the facts you cite. Abstain when the facts do not support a plan.",
+    {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string", "description": "Two or three plain sentences"},
+            "steps": {
+                "type": "array",
+                "maxItems": 10,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Short imperative title"},
+                        "area": {
+                            "type": "string",
+                            "enum": [
+                                "security",
+                                "reliability",
+                                "performance",
+                                "architecture",
+                                "operations",
+                                "experience",
+                            ],
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "description": "Why this step, in this order, from the cited facts",
+                        },
+                        "insight_ids": {"type": "array", "items": {"type": "string"}},
+                        "fact_ids": {"type": "array", "items": {"type": "string"}},
+                        "anchors": {"type": "array", "items": _ANCHOR_SCHEMA, "maxItems": 4},
+                        "effort": {"type": "string", "enum": ["small", "medium", "large"]},
+                    },
+                    "required": ["title", "area", "rationale", "insight_ids", "fact_ids", "effort"],
+                },
+            },
+            "abstained": {"type": "boolean"},
+            "uncertainty": {"type": "string"},
+        },
+        "required": ["summary", "steps", "abstained"],
+    },
+)

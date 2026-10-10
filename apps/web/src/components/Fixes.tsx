@@ -184,17 +184,17 @@ export function WorkspaceCard({
     <section className="card stack" aria-labelledby="ws-card-title" data-testid="workspace-card">
       <div className="stack stack-xs">
         <h2 id="ws-card-title" className="card-title">
-          <Icon name="code" size={16} /> Fix in a workspace
+          <Icon name="wrench" size={16} /> Fix this
         </h2>
         <p className="card-sub">
-          Edit this file together with other fixes, check them all at once and download one patch or
-          only the changed files.
+          Fix it by hand, automatically where a safe fix exists, or with AI suggestions; then check
+          your changes and download a patch or open a pull request. Your upload never changes.
         </p>
       </div>
       <div className="row">
         <button
           type="button"
-          className="btn btn-ghost"
+          className="btn btn-primary"
           disabled={busy}
           data-testid="workspace-open"
           onClick={() => {
@@ -217,7 +217,7 @@ export function WorkspaceCard({
               );
           }}
         >
-          <Icon name="code" size={15} /> {busy ? "Opening…" : "Open in workspace"}
+          <Icon name="code" size={15} /> {busy ? "Opening…" : "Fix in a workspace"}
         </button>
       </div>
       {error ? <Alert tone="bad">{error}</Alert> : null}

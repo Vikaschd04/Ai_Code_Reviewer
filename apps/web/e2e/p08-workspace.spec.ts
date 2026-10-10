@@ -71,7 +71,7 @@ test("fix in bulk and by hand, re-check, compare and download", async ({ page })
 
   // AI suggestions (labelled test provider): off until a project admin switches AI on; each
   // suggestion is checked like an automatic fix and only checked ones can be applied.
-  await page.goto(`/#/projects/${project}?tab=ai`);
+  await page.goto(`/#/projects/${project}?tab=settings`);
   await page.getByLabel(/I am allowed to share this project's code/).check();
   await page.getByRole("button", { name: "Switch on AI review" }).click();
   await expect(page.getByTestId("ai-policy")).toHaveAttribute("data-enabled", "true");
@@ -163,7 +163,7 @@ test("fix in bulk and by hand, re-check, compare and download", async ({ page })
 
   // The upload itself is unchanged and the workspace copy is not listed as an upload.
   await page.goto(`/#/projects/${project}?tab=uploads`);
-  await expect(page.getByRole("link", { name: /^Uploads \(1\)$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Uploads (1)" })).toBeVisible();
 
   // Compare two uploads of the project.
   await page.goto(`/#/projects/${project}?tab=upload`);

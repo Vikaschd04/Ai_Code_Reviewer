@@ -362,8 +362,18 @@ function FixResultNote({ result }: { result: WorkspaceFixResult }) {
   );
 }
 
-function IssueQueue({ workspace, onChange }: { workspace: Workspace; onChange: SetWorkspace }) {
-  const [query, setQuery] = useState<WorkspaceIssueQuery>({});
+function IssueQueue({
+  workspace,
+  onChange,
+  focus = [],
+}: {
+  workspace: Workspace;
+  onChange: SetWorkspace;
+  focus?: string[];
+}) {
+  const [query, setQuery] = useState<WorkspaceIssueQuery>(
+    focus.length > 0 ? { issues: focus } : {},
+  );
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Pages loaded with "Show more" belong to one first page; a new first page drops them.
@@ -431,6 +441,20 @@ function IssueQueue({ workspace, onChange }: { workspace: Workspace; onChange: S
           </p>
         </div>
       </div>
+      {query.issues?.length ? (
+        <div className="row" data-testid="workspace-focus">
+          <span className="small">Showing the issues of one recommendation.</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => {
+              setQuery({ ...query, issues: undefined });
+            }}
+          >
+            Show all issues
+          </button>
+        </div>
+      ) : null}
       <form
         className="row"
         role="search"
@@ -1692,11 +1716,13 @@ export function WorkspacePage({
   tab,
   path,
   line,
+  focus = [],
 }: {
   workspaceId: string;
   tab: string;
   path: string | null;
   line: number | null;
+  focus?: string[];
 }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1764,7 +1790,7 @@ export function WorkspacePage({
       {tab === "issues" ? (
         <div className="stack">
           <CheckCard workspace={workspace} onChange={setWorkspace} />
-          <IssueQueue workspace={workspace} onChange={setWorkspace} />
+          <IssueQueue workspace={workspace} onChange={setWorkspace} focus={focus} />
         </div>
       ) : null}
       {tab === "changes" ? (

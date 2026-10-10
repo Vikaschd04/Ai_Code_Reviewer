@@ -200,6 +200,15 @@ Every review runs the engine `smells` after the graph step (no new endpoints). F
 | PUT /v1/projects/{id}/nfr/profile | member | Body: `document` (`targets`, `regulations`, `platforms`, `answers` by question id with `text`, `not_applicable`, `reason`), optional `note`, `base_version`. Adds the next version unless identical; returns the recomputed view. 409 `version_conflict`; 422 `invalid_profile` with `details.problems`; 400 for request ranges |
 | GET /v1/projects/{id}/nfr/export?format=csv\|md | viewer | `nfr-readiness.csv` (one row per question) or `nfr-readiness.md` (report with the basis, the profile version and per-question details; states that compliance is not certified) |
 
+## Implemented with the simplification (insights and advisor, ADR 0022)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/projects/{id}/insights | viewer | `basis`, `areas` (six areas: id, name, `state` attention/improve/no_problems/unknown, recommendations by priority, NFR questions by status), `recommendations` (id, area, `kind` issues/missing/targets, `priority`, title, summary, why, steps, NFR questions, `issue_count`, 5 most severe `issues`, up to 50 `issue_ids`), `advisor` (`enabled`, `reason`, `can_request`, `latest` advisor run with its `plan`), `engine` |
+| POST /v1/projects/{id}/insights/plan | member | Starts an AI run of kind `advisor` with the recommendations, numbered facts and targets frozen in the run. 409 `ai_policy_disabled` / `ai_unavailable` / `no_review`; 429 monthly limit; 503 workflow unavailable |
+| GET /v1/ai-runs/{id} (advisor) | viewer | `plan`: `summary`, `steps` (title, area, rationale, effort, `insight_ids`, `fact_ids`, verified `anchors`, `dropped_ids`), `rejected` (title, reason), `abstained`, `uncertainty`; `answer` is null |
+| GET /v1/change-sets/{id}/issues?issue= | viewer | Repeatable `issue` (up to 50 issue ids) narrows the queue to those issues ("Start fixing") |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

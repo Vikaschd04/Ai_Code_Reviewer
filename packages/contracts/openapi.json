@@ -1,6 +1,220 @@
 {
   "components": {
     "schemas": {
+      "AdvisorAnchor": {
+        "additionalProperties": false,
+        "properties": {
+          "end_line": {
+            "title": "End Line",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "start_line": {
+            "title": "Start Line",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "start_line",
+          "end_line",
+          "status",
+          "sha256"
+        ],
+        "title": "AdvisorAnchor",
+        "type": "object"
+      },
+      "AdvisorPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "abstained": {
+            "title": "Abstained",
+            "type": "boolean"
+          },
+          "rejected": {
+            "description": "Removed: no valid evidence or numbers",
+            "items": {
+              "$ref": "#/components/schemas/AdvisorRejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisorStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "uncertainty": {
+            "title": "Uncertainty",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "steps",
+          "rejected",
+          "abstained",
+          "uncertainty"
+        ],
+        "title": "AdvisorPlan",
+        "type": "object"
+      },
+      "AdvisorRejected": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "reason"
+        ],
+        "title": "AdvisorRejected",
+        "type": "object"
+      },
+      "AdvisorState": {
+        "additionalProperties": false,
+        "properties": {
+          "can_request": {
+            "title": "Can Request",
+            "type": "boolean"
+          },
+          "enabled": {
+            "description": "AI is switched on for the project and set up on the server",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiRunResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest advisor run"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the advisor agent is not available",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "enabled",
+          "reason",
+          "can_request",
+          "latest"
+        ],
+        "title": "AdvisorState",
+        "type": "object"
+      },
+      "AdvisorStep": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors": {
+            "description": "Code lines the step cites, verified",
+            "items": {
+              "$ref": "#/components/schemas/AdvisorAnchor"
+            },
+            "title": "Anchors",
+            "type": "array"
+          },
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "dropped_ids": {
+            "description": "Unknown ids the model cited (removed)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Dropped Ids",
+            "type": "array"
+          },
+          "effort": {
+            "enum": [
+              "small",
+              "medium",
+              "large"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
+          "fact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fact Ids",
+            "type": "array"
+          },
+          "insight_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Insight Ids",
+            "type": "array"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "area",
+          "rationale",
+          "effort",
+          "insight_ids",
+          "fact_ids",
+          "anchors",
+          "dropped_ids"
+        ],
+        "title": "AdvisorStep",
+        "type": "object"
+      },
       "AiAnchorResponse": {
         "additionalProperties": false,
         "properties": {
@@ -769,6 +983,17 @@
           "model": {
             "title": "Model",
             "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisorPlan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Advisor runs: the checked plan"
           },
           "project_id": {
             "format": "uuid",
@@ -2099,6 +2324,54 @@
           "message"
         ],
         "title": "ArchitectureViolationResponse",
+        "type": "object"
+      },
+      "AreaHealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "insights": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Recommendations by priority",
+            "title": "Insights",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "questions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "NFR questions by status",
+            "title": "Questions",
+            "type": "object"
+          },
+          "state": {
+            "enum": [
+              "attention",
+              "improve",
+              "no_problems",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "state",
+          "insights",
+          "questions"
+        ],
+        "title": "AreaHealthResponse",
         "type": "object"
       },
       "ArtifactProbeResult": {
@@ -6503,6 +6776,182 @@
           "via"
         ],
         "title": "ImpactItem",
+        "type": "object"
+      },
+      "InsightIssueRef": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "severity",
+          "path"
+        ],
+        "title": "InsightIssueRef",
+        "type": "object"
+      },
+      "InsightResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "issue_count": {
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "issue_ids": {
+            "description": "Open issues it covers, up to 50 (for fixing)",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Issue Ids",
+            "type": "array"
+          },
+          "issues": {
+            "description": "Most severe open issues, up to 5",
+            "items": {
+              "$ref": "#/components/schemas/InsightIssueRef"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "issues",
+              "missing",
+              "targets"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "questions": {
+            "description": "NFR questions it answers",
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "area",
+          "kind",
+          "priority",
+          "title",
+          "summary",
+          "why",
+          "steps",
+          "questions",
+          "issue_count",
+          "issues",
+          "issue_ids"
+        ],
+        "title": "InsightResponse",
+        "type": "object"
+      },
+      "InsightsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "advisor": {
+            "$ref": "#/components/schemas/AdvisorState"
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/AreaHealthResponse"
+            },
+            "title": "Areas",
+            "type": "array"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NfrBasis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/InsightResponse"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "engine",
+          "basis",
+          "areas",
+          "recommendations",
+          "advisor"
+        ],
+        "title": "InsightsResponse",
         "type": "object"
       },
       "IntakeCreate": {
@@ -11959,6 +12408,27 @@
           },
           {
             "in": "query",
+            "name": "issue",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Issue"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -16487,6 +16957,194 @@
         "summary": "Connect Repository",
         "tags": [
           "code reviews"
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/insights": {
+      "get": {
+        "description": "What to improve, by area, with evidence and guided steps; and the latest advisor plan.",
+        "operationId": "get_insights_v1_projects__project_id__insights_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Insights",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/insights/plan": {
+      "post": {
+        "description": "Ask the advisor agent for an improvement plan (members; AI must be on for the project).\nThe recommendations and facts it may use are frozen now; every step is checked later.",
+        "operationId": "request_plan_v1_projects__project_id__insights_plan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Request Plan",
+        "tags": [
+          "insights"
         ]
       }
     },

@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — a simpler refactorX, with insights and an advisor (10 October 2026)
+
+- **Simpler project page:** six tabs instead of eleven — Overview, Issues, Insights, Fixes,
+  Uploads, Settings. Old links still work.
+- **Overview** shows the latest review plus "Health and next steps": six areas (Security,
+  Reliability, Performance and scalability, Architecture and maintainability, Operations and
+  monitoring, Experience and portability) and the three most important things to do.
+- **Insights** brings recommendations, the NFR questionnaire and the architecture together. Each
+  recommendation says what was found, why it matters and how to improve it, with the issues
+  behind it. **Start fixing** opens a fix workspace with just those issues.
+- **Improvement plan (AI, optional):** when AI is on for the project, the advisor orders the
+  recommendations into a plan. Every step must cite the tools' evidence; steps without it, or
+  with numbers not in the evidence, are removed and listed.
+- **One way to fix:** the finding page offers "Fix this" (a fix workspace). AI settings, the GitHub
+  connection and deleting a project are under Settings; GitHub reviews are under Uploads.
+- **Removed from view:** the sidebar's "Coming soon" list and AI "review selected files".
+  Earlier single fixes stay available, collapsed under Fixes.
+
 ## Unreleased — P12 NFR readiness (10 October 2026)
 
 - New project tab **NFR readiness** (ADR 0021): the non-functional requirements questionnaire (9 aspects, 23 questions, mapped to ISO/IEC 25010:2023) answered for your project.

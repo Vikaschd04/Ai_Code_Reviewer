@@ -42,3 +42,17 @@ A fourth run kind, `fix`, asks for up to `CRP_AI_FIX_MAX_CANDIDATES` (default 3)
 - Only candidates that pass can be applied, by a person, as an `ai` change with the finding recorded.
 - Model agreement never counts as verification, and live quality is not measured until the owner's key is configured.
 
+## Improvement plan — the advisor agent (ADR 0022)
+
+- **Kind `advisor`**, prompt `rx-ai-advisor-v1`, final tool `submit_plan`. The request freezes the
+  insight engine's recommendations, a numbered fact sheet and the team's targets in
+  `ai_runs.context`. The agent may read code with the same read-only, masked tools.
+- **Grounding checks** (`crp_analysis/insights/advisor.py`) run before the plan is stored:
+  - a step needs a known recommendation, a known fact or a verified code anchor;
+  - unknown ids are dropped;
+  - numbers must appear in the cited evidence;
+  - a summary with unknown numbers is withheld.
+- Removed steps are stored with their reason and shown collapsed.
+- The same policy gate, budgets, accounting and cancellation as other runs apply. The labelled
+  fake model proposes two grounded steps, one without evidence and one with an invented number;
+  tests assert both are removed.

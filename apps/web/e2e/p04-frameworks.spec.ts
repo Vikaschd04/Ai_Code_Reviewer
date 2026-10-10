@@ -40,6 +40,10 @@ test("SAP Commerce: platform support, findings and bean wiring", async ({ page }
   await page.getByTestId("project-link").click();
   await page
     .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Insights" })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Insights views" })
     .getByRole("link", { name: "Architecture" })
     .click();
   await expect(page.getByTestId("frameworks")).toBeVisible();

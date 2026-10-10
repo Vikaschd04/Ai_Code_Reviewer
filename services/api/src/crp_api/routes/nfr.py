@@ -18,13 +18,12 @@ from fastapi.responses import PlainTextResponse
 from crp_analysis.nfr.assessment import (
     STATUS_LABELS,
     Assessment,
-    assess,
     to_csv,
     to_markdown,
 )
-from crp_analysis.nfr.profile import TARGETS, Profile, ProfileError, from_document
+from crp_analysis.nfr.profile import TARGETS, ProfileError, from_document
 from crp_analysis.nfr.questionnaire import load
-from crp_analysis.nfr.signals import Evidence, detect
+from crp_analysis.nfr.signals import Evidence
 from crp_api.auth.dependencies import Container, CurrentPrincipal
 from crp_api.errors import ApiError, ErrorResponse
 from crp_api.schemas import (
@@ -72,18 +71,8 @@ def _evidence(items: list[Evidence]) -> list[NfrEvidenceItem]:
 
 
 async def _compute(session: Any, project: Project) -> tuple[Assessment, Any, Any]:
-    versions = await nfr.history(session, project.id)
-    profile = from_document(versions[0][0].document) if versions else Profile()
-    found = await nfr.basis(session, project.id)
-    evidence: list[Evidence] = []
-    if found is not None:
-        evidence = detect(
-            await nfr.paths(session, found.snapshot_id),
-            await nfr.libraries(session, found.snapshot_id),
-        )
-    tracked = await nfr.issues(session, project.id)
-    result = assess(load(), evidence, tracked, profile, reviewed=found is not None)
-    return result, found, (versions, profile)
+    gathered = await nfr.gather(session, project.id)
+    return gathered.assessment, gathered.basis, (gathered.versions, gathered.profile)
 
 
 def _response(

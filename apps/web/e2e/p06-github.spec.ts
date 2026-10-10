@@ -45,7 +45,7 @@ async function noOverflow(page: Page) {
   expect(overflow).toBe(0);
 }
 
-test("GitHub: verified linking, reviews, a published check and a fix pull request", async ({
+test("GitHub: verified linking, reviews, a published check and a workspace pull request", async ({
   page,
   request,
 }) => {
@@ -70,20 +70,33 @@ test("GitHub: verified linking, reviews, a published check and a fix pull reques
   await createProject(page, `P06 GitHub ${Date.now()}`);
   await page
     .getByRole("navigation", { name: "Sections" })
-    .getByRole("link", { name: "GitHub" })
+    .getByRole("link", { name: "Settings" })
     .click();
   await page.getByTestId("github-connect-repo").getByRole("combobox").selectOption({ label: REPO });
   await page.getByRole("button", { name: "Connect and review" }).click();
+  await expect(page.getByTestId("github-repository")).toContainText(REPO);
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Uploads" })
+    .click();
   const rows = page.getByTestId("code-review-row");
   await expect(rows.first()).toContainText("main at", { timeout: 30_000 });
   await expect(rows.first()).toContainText("Complete", { timeout: 180_000 });
 
   // Allow posting a check and opening fix pull requests.
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Settings" })
+    .click();
   await page.getByTestId("setting-publish_checks").check();
   await page.getByTestId("setting-publish_pull_requests").check();
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
   await page.screenshot({ path: "test-results/screens/p06-project-github.png", fullPage: true });
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Uploads" })
+    .click();
 
   // A pull request arrives through a signed webhook.
   await control(request, "commit", {
@@ -129,8 +142,12 @@ test("GitHub: verified linking, reviews, a published check and a fix pull reques
   await page.screenshot({ path: "test-results/screens/p06-review-mobile.png", fullPage: true });
   await page.setViewportSize({ width: 1280, height: 800 });
 
-  // A fix for a finding of the default branch becomes a pull request.
+  // A checked fix workspace for a finding of the default branch becomes one pull request.
   await page.getByRole("link", { name: "Back to the project" }).click();
+  await page
+    .getByRole("navigation", { name: "Sections" })
+    .getByRole("link", { name: "Uploads" })
+    .click();
   await rows.filter({ hasText: "main at" }).getByRole("link").click();
   await page
     .getByTestId("review-new")
@@ -138,25 +155,6 @@ test("GitHub: verified linking, reviews, a published check and a fix pull reques
     .filter({ hasText: "Orders.java" })
     .getByRole("link", { name: "Strings compared with ==" })
     .click();
-  await page
-    .getByTestId("fix-card")
-    .getByRole("button", { name: /Prepare fix: Compare the text with equals/ })
-    .click();
-  await page.getByRole("button", { name: "Run checks" }).click();
-  await expect(page.getByTestId("fix-checks").locator('[data-step="checks"]')).toHaveAttribute(
-    "data-state",
-    "passed",
-    { timeout: 120_000 },
-  );
-  await page.getByTestId("fix-open-pull-request").click();
-  await expect(page.getByTestId("fix-pull-request")).toContainText(/Pull request #\d+ on GitHub/);
-  await page.screenshot({ path: "test-results/screens/p06-fix-pull-request.png", fullPage: true });
-  const after = await fakeState(request);
-  expect(after.pulls).toHaveLength(1);
-  expect(after.pulls[0]?.base).toBe("main");
-
-  // A checked fix workspace becomes one pull request with all its changes (P08).
-  await page.getByRole("link", { name: "Back to the finding" }).click();
   await page.getByTestId("workspace-open").click();
   await expect(page).toHaveURL(/#\/workspaces\//);
   await page.getByRole("link", { name: "Issues", exact: true }).click();
@@ -174,6 +172,6 @@ test("GitHub: verified linking, reviews, a published check and a fix pull reques
   );
   await page.screenshot({ path: "test-results/screens/p08-pull-request.png", fullPage: true });
   const delivered2 = await fakeState(request);
-  expect(delivered2.pulls).toHaveLength(2);
-  expect(delivered2.pulls[1]?.base).toBe("main");
+  expect(delivered2.pulls).toHaveLength(1);
+  expect(delivered2.pulls[0]?.base).toBe("main");
 });

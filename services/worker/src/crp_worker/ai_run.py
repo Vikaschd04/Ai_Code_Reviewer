@@ -56,6 +56,7 @@ with workflow.unsafe.imports_passed_through():
     from crp_analysis.engines.base import CancelToken, EngineAdapter
     from crp_analysis.fixes.ai_candidates import CheckedCandidate, check_candidates, locate_line
     from crp_analysis.fixes.validation import TargetFinding
+    from crp_analysis.insights.advisor import advisor_task, check_plan
     from crp_analysis.manifest import blob_key
     from crp_core.artifacts import ArtifactKey, ArtifactStore
     from crp_core.config import Settings
@@ -293,6 +294,15 @@ class DbSnapshotReader:
         ]
 
 
+def _targets(value: object) -> dict[str, object]:
+    return {str(k): v for k, v in value.items()} if isinstance(value, dict) else {}
+
+
+def _dict_list(value: object) -> list[dict[str, object]]:
+    """The dict entries of a JSON list (the advisor's frozen context)."""
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
 def _anchor_payload(anchor: Anchor, check: AnchorCheck) -> dict[str, Any]:
     return {
         "path": anchor.path,
@@ -427,6 +437,13 @@ class AiRunActivities:
 
     async def _task(self, run: AiRun, reader: DbSnapshotReader) -> Task:
         kind = AiRunKind(run.kind)
+        if kind is AiRunKind.ADVISOR:
+            context = run.context or {}
+            return advisor_task(
+                _dict_list(context.get("facts")),
+                _dict_list(context.get("recommendations")),
+                _targets(context.get("targets")),
+            )
         if kind is AiRunKind.QUESTION:
             return await question_task(reader, run.question or "")
         if kind is AiRunKind.FILE_REVIEW:
@@ -709,6 +726,21 @@ class AiRunActivities:
             limitations.append(
                 "Each suggestion was checked like an automatic fix (exact lines, change policy, "
                 "parse and the original check) on a copy; it was not compiled, built or tested."
+            )
+        if result.plan is not None and AiRunKind(run.kind) is AiRunKind.ADVISOR:
+            context = run.context or {}
+            recommendations = {
+                str(r["id"]): f"{r['title']}. {r['summary']}"
+                for r in _dict_list(context.get("recommendations"))
+            }
+            checked = await check_plan(
+                result.plan, _dict_list(context.get("facts")), recommendations, reader
+            )
+            answer = {"type": "plan", "text": checked.summary, **checked.to_json()}
+            limitations.append(
+                "Each step was checked against the tools' recommendations and facts and the cited "
+                "code; steps without valid evidence or with numbers not in the evidence were "
+                "removed."
             )
         if result.review is not None:
             review = result.review

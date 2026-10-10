@@ -7,6 +7,7 @@ import {
   type ArchitectureMetrics,
   type ArchitectureRules,
   type ArchitectureRulesCheck,
+  type Insights,
   type NfrAssessment,
   type NfrProfileDocument,
   type AiRunCreate,
@@ -961,6 +962,7 @@ export interface WorkspaceIssueQuery {
   q?: string | undefined;
   fixable?: boolean | undefined;
   cursor?: string | undefined;
+  issues?: string[] | undefined;
 }
 
 export async function listWorkspaceIssues(
@@ -977,6 +979,7 @@ export async function listWorkspaceIssues(
         ...(query.severity ? { severity: query.severity } : {}),
         ...(query.q ? { q: query.q } : {}),
         ...(query.fixable !== undefined ? { fixable: query.fixable } : {}),
+        ...(query.issues?.length ? { issue: query.issues } : {}),
         ...(query.cursor ? { cursor: query.cursor } : {}),
       },
     },
@@ -1090,6 +1093,25 @@ export async function openWorkspacePullRequest(
 }
 
 /** Components, structural metrics and cycles of an upload's current architecture map (P10). */
+/** Insights: recommendations by area from the tools, and the latest advisor plan. */
+export async function fetchInsights(projectId: string, signal?: Sig): Promise<Insights> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/insights", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Ask the advisor agent for an improvement plan (members; AI must be on for the project). */
+export async function requestPlan(projectId: string): Promise<AiRun> {
+  const { data, error, response } = await api.POST("/v1/projects/{project_id}/insights/plan", {
+    params: { path: { project_id: projectId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
 /** NFR readiness: every questionnaire question with evidence, open issues and team answers. */
 export async function fetchNfr(projectId: string, signal?: Sig): Promise<NfrAssessment> {
   const { data, error, response } = await api.GET("/v1/projects/{project_id}/nfr", {

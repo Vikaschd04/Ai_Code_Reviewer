@@ -907,9 +907,42 @@ class AiRunResponse(ApiModel):
     answer: AiAnswerResponse | None
     change_set_id: UUID | None = Field(default=None, description="Fix runs: their workspace")
     fix: AiFixResult | None = Field(default=None, description="Fix runs: checked candidates")
+    plan: AdvisorPlan | None = Field(default=None, description="Advisor runs: the checked plan")
     steps: list[AiStepResponse]
     limitations: list[str]
     findings: list[AiFindingResponse]
+
+
+class AdvisorAnchor(ApiModel):
+    path: str
+    start_line: int
+    end_line: int
+    status: str
+    sha256: str | None
+
+
+class AdvisorStep(ApiModel):
+    title: str
+    area: str
+    rationale: str
+    effort: Literal["small", "medium", "large"]
+    insight_ids: list[str]
+    fact_ids: list[str]
+    anchors: list[AdvisorAnchor] = Field(description="Code lines the step cites, verified")
+    dropped_ids: list[str] = Field(description="Unknown ids the model cited (removed)")
+
+
+class AdvisorRejected(ApiModel):
+    title: str
+    reason: str
+
+
+class AdvisorPlan(ApiModel):
+    summary: str
+    steps: list[AdvisorStep]
+    rejected: list[AdvisorRejected] = Field(description="Removed: no valid evidence or numbers")
+    abstained: bool
+    uncertainty: str
 
 
 class AiRunPage(ApiModel):
@@ -1760,3 +1793,52 @@ class NfrAssessmentResponse(ApiModel):
     can_edit: bool
     history: list[NfrProfileVersionSummary] = Field(description="Newest first, up to 50")
     targets: list[NfrTargetSpec]
+
+
+# -- insights (docs/PRODUCT_SIMPLIFICATION.md) -------------------------------------------------
+
+
+class InsightIssueRef(ApiModel):
+    id: UUID
+    title: str
+    severity: str
+    path: str
+
+
+class InsightResponse(ApiModel):
+    id: str
+    area: str
+    kind: Literal["issues", "missing", "targets"]
+    priority: Literal["high", "medium", "low"]
+    title: str
+    summary: str
+    why: str
+    steps: list[str]
+    questions: list[str] = Field(description="NFR questions it answers")
+    issue_count: int
+    issues: list[InsightIssueRef] = Field(description="Most severe open issues, up to 5")
+    issue_ids: list[UUID] = Field(description="Open issues it covers, up to 50 (for fixing)")
+
+
+class AreaHealthResponse(ApiModel):
+    id: str
+    name: str
+    state: Literal["attention", "improve", "no_problems", "unknown"]
+    insights: dict[str, int] = Field(description="Recommendations by priority")
+    questions: dict[str, int] = Field(description="NFR questions by status")
+
+
+class AdvisorState(ApiModel):
+    enabled: bool = Field(description="AI is switched on for the project and set up on the server")
+    reason: str | None = Field(description="Why the advisor agent is not available")
+    can_request: bool
+    latest: AiRunResponse | None = Field(description="The newest advisor run")
+
+
+class InsightsResponse(ApiModel):
+    project_id: UUID
+    engine: str
+    basis: NfrBasis | None
+    areas: list[AreaHealthResponse]
+    recommendations: list[InsightResponse]
+    advisor: AdvisorState

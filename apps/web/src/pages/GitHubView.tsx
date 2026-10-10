@@ -471,7 +471,17 @@ function ReviewList({ reviews }: { reviews: CodeReview[] }) {
 }
 
 /** Project tab: the connected GitHub repository, what is reviewed or posted, and its reviews. */
-export function GitHubView({ projectId, workspaceId }: { projectId: string; workspaceId: string }) {
+/** ``settings``: connect and configure the repository; ``reviews``: reviews of its branches and
+ * pull requests (shown with the project's uploads). */
+export function GitHubView({
+  projectId,
+  workspaceId,
+  part = "settings",
+}: {
+  projectId: string;
+  workspaceId: string;
+  part?: "settings" | "reviews";
+}) {
   const status = useAsync((signal) => fetchGitHubStatus(signal), []);
   const [refresh, setRefresh] = useState(0);
   const connection = useAsync(
@@ -501,7 +511,12 @@ export function GitHubView({ projectId, workspaceId }: { projectId: string; work
 
   if (status.error) return <Alert tone="bad">{status.error}</Alert>;
   if (connection.error) return <Alert tone="bad">{connection.error}</Alert>;
-  if (!status.data || !connection.data) return <Loading />;
+  if (!status.data || !connection.data) return part === "reviews" ? null : <Loading />;
+  if (part === "reviews") {
+    if (!connection.data.connected) return null;
+    if (reviews.error) return <Alert tone="bad">{reviews.error}</Alert>;
+    return reviews.data ? <ReviewList reviews={reviews.data} /> : <Loading />;
+  }
   if (!status.data.available && !connection.data.connected) {
     return (
       <section className="card" data-testid="github-not-set-up">
@@ -536,8 +551,6 @@ export function GitHubView({ projectId, workspaceId }: { projectId: string; work
         <RepositoryCard projectId={projectId} connection={connection.data} onChange={reload} />
         <SettingsCard projectId={projectId} connection={connection.data} onSaved={reload} />
       </div>
-      {reviews.error ? <Alert tone="bad">{reviews.error}</Alert> : null}
-      {reviews.data ? <ReviewList reviews={reviews.data} /> : <Loading />}
     </div>
   );
 }

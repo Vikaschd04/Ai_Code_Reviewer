@@ -300,8 +300,8 @@ export function AiRunPage({ runId }: { runId: string }) {
     <>
       <PageHeader
         eyebrow={
-          <a href={`#/projects/${run.project_id}?tab=ai`}>
-            <Icon name="arrowLeft" size={14} /> Back to AI review
+          <a href={`#/projects/${run.project_id}?tab=insights`}>
+            <Icon name="arrowLeft" size={14} /> Back to insights
           </a>
         }
         title={runTitle(run)}

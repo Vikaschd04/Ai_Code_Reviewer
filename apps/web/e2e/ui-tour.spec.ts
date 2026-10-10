@@ -98,7 +98,10 @@ test("demo sign-in, sample dry run and every review screen", async ({ page }) =>
   await page.getByRole("link", { name: "Issues", exact: true }).click();
   await expect(page.getByTestId("issue-row").first()).toBeVisible();
   await shot(page, "issues");
-  await page.getByRole("link", { name: "Architecture" }).click();
+  await page.getByRole("link", { name: "Insights", exact: true }).click();
+  await expect(page.getByTestId("recommendations")).toBeVisible();
+  await shot(page, "insights");
+  await page.getByRole("link", { name: "Architecture", exact: true }).click();
   await expect(page.getByTestId("architecture")).toBeVisible();
   await shot(page, "architecture");
   await page.getByRole("link", { name: /^Uploads/ }).click();
@@ -137,7 +140,7 @@ test("demo sign-in, sample dry run and every review screen", async ({ page }) =>
     .getByRole("link", { name: "Projects" })
     .click();
   await page.getByRole("link", { name: "Sample: Online store" }).first().click();
-  await page.getByRole("link", { name: /^Reviews/ }).click();
+  await page.getByRole("link", { name: "Uploads", exact: true }).click();
   await page.getByRole("link", { name: "Review 1" }).click();
   await expect(page.getByTestId("stage-publish")).toContainText(/Complete/);
   await shot(page, "review-mobile");
