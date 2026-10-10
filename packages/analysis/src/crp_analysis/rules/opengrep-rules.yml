@@ -229,3 +229,79 @@ rules:
       - metavariable-regex:
           metavariable: $X
           regex: (?i)^[a-z_]*(password|passwd|secret|token|apikey|api_key|cardnumber|card_number|cvv|iban)[a-z_]*$
+
+  # NFR code patterns (P12 slice 3): resilience and scalability of outgoing calls and threads.
+  - id: crp.java.resilience.rest-template-no-timeout
+    languages: [java]
+    severity: WARNING
+    message: RestTemplate is created without a request factory, so calls have no read timeout; a slow service blocks the calling thread indefinitely.
+    patterns:
+      - pattern: new RestTemplate()
+      - pattern-not-inside: |
+          $R = new RestTemplate();
+          ...
+          $R.setRequestFactory(...);
+      - pattern-not-inside: |
+          RestTemplate $R = new RestTemplate();
+          ...
+          $R.setRequestFactory(...);
+
+  - id: crp.java.resilience.http-client-no-timeout
+    languages: [java]
+    severity: WARNING
+    message: The HTTP client has no connect timeout; connections to an unreachable service wait for the operating system's TCP timeout.
+    pattern-either:
+      - pattern: HttpClient.newHttpClient()
+      - patterns:
+          - pattern: HttpClient.newBuilder(). ... .build()
+          - pattern-not: HttpClient.newBuilder(). ... .connectTimeout(...). ... .build()
+
+  - id: crp.java.resilience.url-connection-no-timeout
+    languages: [java]
+    severity: WARNING
+    message: The HttpURLConnection has no read timeout; a slow response blocks the calling thread indefinitely.
+    patterns:
+      - pattern: ($T) $URL.openConnection()
+      - pattern-not-inside: |
+          $C = ($T) $URL.openConnection();
+          ...
+          $C.setReadTimeout(...);
+      - pattern-not-inside: |
+          $TYPE $C = ($T) $URL.openConnection();
+          ...
+          $C.setReadTimeout(...);
+
+  - id: crp.js.resilience.axios-no-timeout
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: The axios client has no timeout (axios waits forever by default); a slow service holds the request open indefinitely.
+    pattern-either:
+      - pattern: axios.create()
+      - patterns:
+          - pattern: axios.create({...})
+          - pattern-not: "axios.create({..., timeout: $T, ...})"
+
+  - id: crp.java.reactive.blocking-call
+    languages: [java]
+    severity: WARNING
+    message: A blocking call inside a method that returns Mono or Flux; it ties up a non-blocking thread (Reactor rejects block() there) and stalls every request on it.
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              Mono<$R> $M(...) { ... }
+          - pattern-inside: |
+              Flux<$R> $M(...) { ... }
+      - pattern-either:
+          - pattern: $X.block()
+          - pattern: $X.block($D)
+          - pattern: $X.blockFirst()
+          - pattern: $X.blockLast()
+          - pattern: Thread.sleep(...)
+
+  - id: crp.java.concurrency.unbounded-thread-pool
+    languages: [java]
+    severity: INFO
+    message: A cached thread pool starts a new thread for every task when all threads are busy, without a limit; a load spike can exhaust threads and memory.
+    pattern-either:
+      - pattern: Executors.newCachedThreadPool()
+      - pattern: Executors.newCachedThreadPool($F)

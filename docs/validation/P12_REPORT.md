@@ -15,7 +15,7 @@ is delivered and verified; see its section below. Slices 3, 4 and 6 are planned
 (prompts/P12_NFR_ASSESSMENT.md):
 
 2. configuration and infrastructure evidence (delivered);
-3. code-pattern evidence;
+3. code-pattern evidence (delivered: timeouts, blocking reactive calls, unbounded thread pools);
 4. measured evidence import;
 5. AI NFR analyst (needs the owner's key);
 6. labelled evaluation per detector and per question state.
@@ -203,4 +203,32 @@ Checks for this change:
 
 Limitations: targets and regulations are no longer collected, so no checkpoint judges whether the
 evidence meets a stated target; checkpoint statuses describe the upload, not run-time behaviour.
+
+## Code-pattern evidence (slice 3, 10 October 2026)
+
+| Deliverable | Delivered | Where |
+|---|---|---|
+| Outgoing calls without timeouts | `new RestTemplate()` without a request factory set later; JDK `HttpClient.newHttpClient()` or a builder without `connectTimeout`; `HttpURLConnection` without `setReadTimeout` in the same method; `axios.create` without `timeout` — category reliability, family `reliability.no-timeout`, medium | `rules/opengrep-rules.yml`, catalog `crp-rules-v6` |
+| Blocking calls in reactive code | `block()`, `blockFirst()`, `blockLast()`, `Thread.sleep()` inside methods returning `Mono`/`Flux` — performance, medium | same |
+| Unbounded thread pools | `Executors.newCachedThreadPool()` — performance (scalability), low | same |
+| Checkpoints | Calls without timeouts put "Remote calls are protected" on the list to resolve even when resilience libraries are present; the others land in "No costly operations in hot code" | `insights/engine.py` |
+| Platform rows | Already covered by the packs: SAP Commerce unbounded FlexibleSearch and saves in loops, Salesforce SOQL/DML in loops (PMD Apex) | P04 |
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Positive and negative examples | 9 expected findings with exact lines in `nfr-code`; clients with timeouts or a timed request factory, `block()` outside reactive code, a bounded `ThreadPoolExecutor` and an axios client with a timeout stay silent; no new rule fires on the security fixture | PASS | `test_resilience_rules_fire_only_on_positive_examples`, `test_every_owned_rule_fires_on_positive_and_not_on_negative_examples` |
+| Catalog and checkpoints | Every new rule is catalogued with a sourced rationale and lands in a checkpoint | PASS | `test_every_catalog_rule_lands_in_one_checkpoint` |
+| Real review | `nfr-code` reviewed: "Remote calls are protected" needs attention with 6 issues (medium), "No costly operations in hot code" with 3; nothing from these rules in the negative files | PASS | `test_p12_code.py` |
+
+Checks for slice 3:
+
+| Check | Command | Outcome |
+|---|---|---|
+| Lint, format, types and contracts | `make check` | exit 0 |
+| Tests | `caffeinate -i make test` | exit 0: 601 pytest + 30 vitest, 8 min 39 s. The first run had 1 failure: a test pinned the owned Opengrep rule count at 18 (now 24 by design); updated, the same test now also checks the `nfr` rules' catalog entries, and the rerun was clean |
+| Browser E2E | `caffeinate -i make test-e2e` | exit 0: 21/21 in 2.9 minutes |
+
+Limitations: the rules see one file at a time — a timeout set in another class (a shared bean or
+`axios.defaults.timeout`) is not seen, so such findings can be resolved as false positives;
+statelessness (server-side sessions) is not checked yet; precision on real code is not measured.
 

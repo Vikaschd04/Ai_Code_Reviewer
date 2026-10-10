@@ -1,5 +1,9 @@
 # Session handoff
 
+10 October 2026 (P12 slice 3) — Owner: "continue". Pushed 281607a (checkpoints; CI green). Added 6 owned Opengrep rules (catalog v6): RestTemplate/JDK HttpClient/HttpURLConnection/axios without timeouts (family `reliability.no-timeout` → checkpoint `reliability.fault-tolerance`), blocking calls in Mono/Flux methods, `newCachedThreadPool` (→ `performance.code`); fixture `nfr-code`; `test_resilience_rules_fire_only_on_positive_examples`, `test_p12_code.py`. Results: `make check` 0; `make test` 601 pytest + 30 vitest; `make test-e2e` 21/21.
+
+Next runnable task: P12 evaluation — measure precision/recall of the `nfr` and code-pattern rules on real projects (owner to approve sample repositories), or statelessness checks (server-side sessions without a shared store), or P10 slice 4 (Git-history hotspots). Owner inputs: AI key, GitHub App, compute (also unlocks Terraform checks, K-P12-01).
+
 10 October 2026 (NFR checkpoints) — Owner: "remove the NFR questionnaire; give NFR insight for the uploaded project and help resolve NFR checkpoints". Did (ADR 0024): removed questionnaire/profile/assessment/exports, `/nfr` routes (404) and NfrView; built 28 checkpoints in six areas with honest statuses from issues, evidence and engine runs, stack-specific steps, "handled elsewhere" decisions (reusing `nfr_profile_versions`, no migration), recipes for all six `nfr` rules (workspace round trip fixes all 9 fixture issues), advisor on checkpoints (prompt v2), UI checkpoints view, docs. Results: `make check` 0; `make test` 599 pytest + 30 vitest; `make test-e2e` 21/21.
 
 Next runnable task: P12 slice 3 — code-pattern evidence (outgoing HTTP/DB calls without timeouts in Java/TypeScript, blocking calls in reactive code) as `nfr` findings feeding the "remote calls are protected" and performance checkpoints, with positive and negative fixtures. Owner inputs: AI key, GitHub App, compute (also unlocks Terraform checks, K-P12-01).

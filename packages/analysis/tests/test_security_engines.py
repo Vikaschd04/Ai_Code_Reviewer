@@ -19,6 +19,14 @@ pytestmark = pytest.mark.integration
 REPO = Path(__file__).resolve().parents[3]
 ENGINES = REPO / ".local" / "engines"
 SAP_PACK_RULES = set(sap_commerce.RULES) - {"crp.sap.extension.dependency-cycle"}
+NFR_CODE_RULES = {
+    "crp.java.resilience.rest-template-no-timeout",
+    "crp.java.resilience.http-client-no-timeout",
+    "crp.java.resilience.url-connection-no-timeout",
+    "crp.js.resilience.axios-no-timeout",
+    "crp.java.reactive.blocking-call",
+    "crp.java.concurrency.unbounded-thread-pool",
+}
 
 
 def _noop(_: str) -> None:
@@ -70,7 +78,8 @@ def test_every_owned_rule_fires_on_positive_and_not_on_negative_examples(tmp_pat
     assert outcome.engine_version == "1.30.0"
     assert outcome.state is EngineState.SUCCEEDED, outcome.error_message
     fired = {f.rule_id for f in outcome.findings}
-    expected = set(rule_ids()) - SAP_PACK_RULES  # SAP pack rules: see the SAP fixture test
+    # SAP pack and NFR code-pattern rules have their own fixtures (tests below).
+    expected = set(rule_ids()) - SAP_PACK_RULES - NFR_CODE_RULES
     assert fired == expected, f"rules without a positive example: {expected - fired}"
     assert not [f for f in outcome.findings if f.path.endswith("SafeService.java")], (
         "negative Java examples fired"
@@ -104,6 +113,30 @@ def test_sap_pack_rules_fire_only_on_positive_examples(tmp_path: Path) -> None:
     ]  # negatives: bound/paged query, saveAll, validate-only interceptor, abortable job,
     # configured endpoint, masked log line and generated Jalo sources (gensrc) stay silent
     assert {r for r, _, _ in found} == SAP_PACK_RULES
+
+
+def test_resilience_rules_fire_only_on_positive_examples(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, "nfr-code")
+    files = _files(root, (".java", ".ts"))
+    outcome = opengrep().run(root, files, cancel=CancelToken(), heartbeat=_noop)
+    assert outcome.state is EngineState.SUCCEEDED, outcome.error_message
+    found = sorted((f.rule_id, f.path.rsplit("/", 1)[-1], f.start_line) for f in outcome.findings)
+    assert found == [
+        ("crp.java.concurrency.unbounded-thread-pool", "UnsafeWorkers.java", 7),
+        ("crp.java.reactive.blocking-call", "UnsafeOrderHandler.java", 14),
+        ("crp.java.reactive.blocking-call", "UnsafeOrderHandler.java", 19),
+        ("crp.java.resilience.http-client-no-timeout", "UnsafeClients.java", 10),
+        ("crp.java.resilience.http-client-no-timeout", "UnsafeClients.java", 11),
+        ("crp.java.resilience.rest-template-no-timeout", "UnsafeClients.java", 9),
+        ("crp.java.resilience.url-connection-no-timeout", "UnsafeClients.java", 14),
+        ("crp.js.resilience.axios-no-timeout", "unsafeApi.ts", 3),
+        ("crp.js.resilience.axios-no-timeout", "unsafeApi.ts", 4),
+    ]  # negatives: clients with timeouts or a timed request factory, block() outside reactive
+    # code, a bounded ThreadPoolExecutor and an axios client with a timeout stay silent
+    assert {r for r, _, _ in found} == NFR_CODE_RULES
+    normalized = normalize("opengrep", root, outcome.findings)
+    assert {n.category for n in normalized} == {"reliability", "performance"}
+    assert all(n.in_catalog for n in normalized)
 
 
 def test_nosem_comments_cannot_suppress_platform_rules(tmp_path: Path) -> None:

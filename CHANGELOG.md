@@ -16,6 +16,9 @@
 - **Handled elsewhere:** when a mechanism lives outside the code (for example monitoring run by
   the platform), your team can say so; it is shown as your statement and can be undone.
 - Checks that did not run are shown as "Not checked", never as passed.
+- **Code patterns:** outgoing calls without timeouts (RestTemplate, the Java HTTP client,
+  HttpURLConnection, axios), blocking calls in reactive code and unbounded thread pools are now
+  reported, and feed the "remote calls are protected" and performance checkpoints.
 
 ## Unreleased — deployment and configuration checks (10 October 2026)
 

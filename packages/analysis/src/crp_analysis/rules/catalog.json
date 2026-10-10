@@ -1,5 +1,5 @@
 {
- "catalog_version": "crp-rules-v5",
+ "catalog_version": "crp-rules-v6",
  "rules": {
   "eslint:@typescript-eslint/no-unused-vars": {
    "category": "maintainability",
@@ -431,6 +431,18 @@
    "title": "OS command built from input (Runtime.exec)",
    "url": "https://cwe.mitre.org/data/definitions/78.html"
   },
+  "opengrep:crp.java.concurrency.unbounded-thread-pool": {
+   "category": "performance",
+   "engine": "opengrep",
+   "explanation": "Executors.newCachedThreadPool() creates a new thread whenever all threads are busy, with no upper limit.",
+   "family": "scalability.unbounded-threads",
+   "recommendation": "Use a ThreadPoolExecutor with a maximum size and a bounded queue (or virtual threads with a concurrency limit), sized from measured load.",
+   "rule_id": "crp.java.concurrency.unbounded-thread-pool",
+   "severity": "low",
+   "severity_rationale": "Under a load spike the pool can create thousands of threads and exhaust memory; low because short-lived workloads rarely hit it.",
+   "title": "Unbounded cached thread pool",
+   "url": "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/Executors.html#newCachedThreadPool()"
+  },
   "opengrep:crp.java.config.hardcoded-environment-url": {
    "category": "maintainability",
    "engine": "opengrep",
@@ -491,6 +503,54 @@
    "title": "Sensitive value written to a log",
    "url": "https://cwe.mitre.org/data/definitions/532.html"
   },
+  "opengrep:crp.java.reactive.blocking-call": {
+   "category": "performance",
+   "engine": "opengrep",
+   "explanation": "block(), blockFirst(), blockLast() or Thread.sleep() inside a method that returns Mono or Flux.",
+   "family": "performance.blocking-reactive",
+   "recommendation": "Compose instead of blocking (flatMap, zip); if a blocking API is unavoidable, wrap it with Mono.fromCallable(...).subscribeOn(Schedulers.boundedElastic()).",
+   "rule_id": "crp.java.reactive.blocking-call",
+   "severity": "medium",
+   "severity_rationale": "Reactive servers run many requests on a few non-blocking threads; blocking one stalls all requests on it, and Reactor rejects block() on those threads at run time.",
+   "title": "Blocking call in reactive code",
+   "url": "https://projectreactor.io/docs/core/release/reference/faq.html#faq.wrap-blocking"
+  },
+  "opengrep:crp.java.resilience.http-client-no-timeout": {
+   "category": "reliability",
+   "engine": "opengrep",
+   "explanation": "HttpClient.newHttpClient() or a builder without connectTimeout(...) does not time out connection attempts.",
+   "family": "reliability.no-timeout",
+   "recommendation": "Call connectTimeout(...) on the builder and set timeout(...) on each HttpRequest.",
+   "rule_id": "crp.java.resilience.http-client-no-timeout",
+   "severity": "medium",
+   "severity_rationale": "Connections to an unreachable host wait for the operating system's TCP timeout, often minutes, while threads and requests pile up.",
+   "title": "HTTP client without a connect timeout (java.net.http)",
+   "url": "https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/java/net/http/HttpClient.Builder.html#connectTimeout(java.time.Duration)"
+  },
+  "opengrep:crp.java.resilience.rest-template-no-timeout": {
+   "category": "reliability",
+   "engine": "opengrep",
+   "explanation": "new RestTemplate() uses SimpleClientHttpRequestFactory with the JDK's default timeouts: no read timeout and the system connect timeout.",
+   "family": "reliability.no-timeout",
+   "recommendation": "Build it with RestTemplateBuilder (connectTimeout, readTimeout) or pass a request factory with explicit timeouts; add retries with backoff and a circuit breaker for calls to other services.",
+   "rule_id": "crp.java.resilience.rest-template-no-timeout",
+   "severity": "medium",
+   "severity_rationale": "One slow or hanging service holds a request thread per call until the pool is exhausted, which spreads the outage to this service.",
+   "title": "HTTP client without timeouts (RestTemplate)",
+   "url": "https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/http/client/SimpleClientHttpRequestFactory.html"
+  },
+  "opengrep:crp.java.resilience.url-connection-no-timeout": {
+   "category": "reliability",
+   "engine": "opengrep",
+   "explanation": "The connection is opened without setReadTimeout(...) in the same method; the JDK default read timeout is zero, which means infinite.",
+   "family": "reliability.no-timeout",
+   "recommendation": "Call setConnectTimeout(...) and setReadTimeout(...) before connecting, or move to an HTTP client configured with timeouts.",
+   "rule_id": "crp.java.resilience.url-connection-no-timeout",
+   "severity": "medium",
+   "severity_rationale": "A slow response blocks the calling thread indefinitely.",
+   "title": "HttpURLConnection without a read timeout",
+   "url": "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/net/URLConnection.html#setReadTimeout(int)"
+  },
   "opengrep:crp.java.sql-injection.string-concat": {
    "category": "security",
    "engine": "opengrep",
@@ -526,6 +586,18 @@
    "severity_rationale": "Arbitrary command execution on the server if the input is attacker-controlled.",
    "title": "OS command built from input (child_process)",
    "url": "https://cwe.mitre.org/data/definitions/78.html"
+  },
+  "opengrep:crp.js.resilience.axios-no-timeout": {
+   "category": "reliability",
+   "engine": "opengrep",
+   "explanation": "axios.create() without a timeout option; axios' default timeout is 0, which means no timeout.",
+   "family": "reliability.no-timeout",
+   "recommendation": "Set timeout on the instance (for example 5000 ms) and handle the timeout error; retry only safe requests.",
+   "rule_id": "crp.js.resilience.axios-no-timeout",
+   "severity": "medium",
+   "severity_rationale": "A slow service keeps the request, and whatever waits for it, open indefinitely.",
+   "title": "axios client without a timeout",
+   "url": "https://axios-http.com/docs/req_config"
   },
   "opengrep:crp.js.secrets.hardcoded-jwt-secret": {
    "category": "security",

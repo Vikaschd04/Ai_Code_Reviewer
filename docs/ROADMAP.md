@@ -124,7 +124,9 @@ protection for the first time.
    offline misconfiguration checks after verification; Spring Boot, resilience and observability
    configuration); gaps as `nfr` findings.
 3. Code-pattern evidence for performance, reliability and scalability (timeouts, unbounded
-   queries, blocking calls, statelessness), with SAP Commerce and Salesforce rows.
+   queries, blocking calls, statelessness), with SAP Commerce and Salesforce rows. *Delivered
+   10 October 2026: timeouts, blocking reactive calls, unbounded thread pools; statelessness not
+   yet.*
 4. Measured evidence import shared with P10 slice 5 (load tests, traces, accessibility and DAST
    reports) — only if the owner wants checkpoints backed by measurements.
 5. Labelled evaluation per detector and per checkpoint status.

@@ -25,8 +25,8 @@ to. 28 checkpoints (`crp_analysis/insights/engine.py`):
 | Area | Checkpoints (goal) | Evidence that counts |
 |---|---|---|
 | Security | No secrets in the code; untrusted input cannot reach dangerous calls; libraries have no known vulnerabilities; data access is checked and connections are encrypted; containers and settings are configured securely; no weak cryptography or unsafe constructs | Trivy (vulnerabilities, secrets, Dockerfile/Kubernetes/Helm misconfigurations), Opengrep, PMD, ESLint, PMD Apex, the `nfr` engine (Actuator exposure); authentication libraries |
-| Reliability and availability | More than one instance runs; health checks restart and gate instances; releases and maintenance do not stop the service; remote calls are protected; database changes are versioned and recoverable; platform versions and jobs are supported; errors are handled; automated tests protect behaviour | `nfr` engine (replicas, probes, Recreate, `ddl-auto`), Actuator and health probe settings, disruption budgets, graceful shutdown, Resilience4j/retry/timeout settings and libraries, migrations, backups, multi-zone (Terraform), tests |
-| Performance and scalability | Containers declare CPU and memory requests and limits; database access stays efficient as data grows; no costly operations in hot code; capacity follows demand | Trivy capacity checks, PMD/PMD Apex/Opengrep rules (queries in loops, unbounded queries), pool size and caching, autoscalers (HPA, KEDA) |
+| Reliability and availability | More than one instance runs; health checks restart and gate instances; releases and maintenance do not stop the service; remote calls are protected (calls without timeouts need attention); database changes are versioned and recoverable; platform versions and jobs are supported; errors are handled; automated tests protect behaviour | `nfr` engine (replicas, probes, Recreate, `ddl-auto`), Actuator and health probe settings, disruption budgets, graceful shutdown, Resilience4j/retry/timeout settings and libraries, migrations, backups, multi-zone (Terraform), tests |
+| Performance and scalability | Containers declare CPU and memory requests and limits; database access stays efficient as data grows; no costly operations in hot code (including blocking calls in reactive code and unbounded thread pools); capacity follows demand | Trivy capacity checks, PMD/PMD Apex/Opengrep rules (queries in loops, unbounded queries, blocking reactive calls, cached thread pools), pool size and caching, autoscalers (HPA, KEDA) |
 | Operations and monitoring | Metrics and alerts are in place; incidents can be diagnosed; changes ship through an automated pipeline | Metrics libraries, alert rules and dashboards, structured logging, tracing, error tracking, CI pipelines, runbooks |
 | Architecture and maintainability | No cycles between parts; no hubs; stable parts do not depend on unstable ones; the code follows your architecture rules; code is easy to read and change | Architecture smells, architecture rules, code-quality rules |
 | Experience and portability | Accessibility is checked in the build (web UIs); APIs are described for their consumers (HTTP APIs) | Accessibility lint and axe libraries; OpenAPI files and generators |
@@ -71,6 +71,11 @@ first checkpoint that matches it by rule family, rule or engine; category catch-
   autoscalers considered), probes, rollout strategy, disruption budgets, autoscalers; Spring Boot
   Actuator, health probes, graceful shutdown, timeouts, pool sizes, Resilience4j; Terraform
   backups and multi-zone.
+- Code patterns (P12 slice 3, owned Opengrep rules): outgoing calls without timeouts
+  (`new RestTemplate()`, the JDK `HttpClient` without a connect timeout, `HttpURLConnection`
+  without a read timeout, `axios.create` without `timeout`), blocking calls in methods that return
+  `Mono`/`Flux`, unbounded cached thread pools. Platform rows come from the existing packs (SAP
+  Commerce unbounded FlexibleSearch and saves in loops; Salesforce SOQL and DML in loops).
 - Tracked issues of every engine (catalog rule families, categories and rules).
 - The review's engine runs: which checks ran, completed or failed.
 
@@ -80,7 +85,8 @@ Terraform scanner downloads remote modules, ADR 0023), load-test scripts.
 
 ## Evaluation
 
-- Every configuration rule has positive and negative examples (`fixtures/projects/nfr-config`);
+- Every configuration rule has positive and negative examples (`fixtures/projects/nfr-config`),
+  and so does every code-pattern rule (`fixtures/projects/nfr-code`);
   every recipe is shown to remove its issue on a re-check without breaking the file.
 - Checkpoint statuses are tested per status, including checks that did not run and reviews where
   the configuration checks were missing.

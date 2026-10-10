@@ -16,6 +16,7 @@ from crp_analysis.engines.pmd import APEX, ruleset_path
 from crp_analysis.engines.pmd import rule_ids as pmd_rule_ids
 from crp_analysis.inventory import build_inventory
 from crp_analysis.manifest import ManifestEntry
+from crp_analysis.nfr.config import RULES as NFR_RULES
 from crp_analysis.paths import CollisionTracker, safe_display
 from crp_analysis.structure import extract
 from crp_core.domain.states import FileDisposition, Severity
@@ -196,7 +197,7 @@ def test_every_enabled_rule_has_a_catalog_entry() -> None:
     )
     assert set(pmd_rule_ids()) == set(pmd_rules)
     opengrep = set(opengrep_rule_ids())
-    assert len(opengrep) == 18 and {f"opengrep:{r}" for r in opengrep} == {
+    assert len(opengrep) == 24 and {f"opengrep:{r}" for r in opengrep} == {
         k for k in catalog if k.startswith("opengrep:")
     }
     assert {f"pmd-apex:{r}" for r in pmd_rule_ids(APEX)} == {
@@ -206,6 +207,7 @@ def test_every_enabled_rule_has_a_catalog_entry() -> None:
         k for k in catalog if k.startswith("frameworks:")
     }
     assert {f"smells:{r}" for r in SMELL_RULES} == {k for k in catalog if k.startswith("smells:")}
+    assert {f"nfr:{r}" for r in NFR_RULES} == {k for k in catalog if k.startswith("nfr:")}
     for info in catalog.values():
         assert info.explanation and info.recommendation and info.severity_rationale and info.url
 

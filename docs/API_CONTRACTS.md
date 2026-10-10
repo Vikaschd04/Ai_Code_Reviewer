@@ -213,6 +213,8 @@ Every review runs the engine `smells` after the graph step (no new endpoints). F
 | PUT /v1/projects/{id}/insights/checkpoints/{checkpoint_id}/handled | member | Body `reason` (3–500 characters). Records that a missing mechanism is handled outside the code as a new decisions version (none when unchanged); returns the insights. 404 `checkpoint_not_found`; 422 `not_decidable` (checkpoints resolved through their issues) or `invalid_decision`; 409 `version_conflict` |
 | DELETE /v1/projects/{id}/insights/checkpoints/{checkpoint_id}/handled | member | Clears the decision; returns the insights |
 
+Code-pattern rules (P12 slice 3, engine `opengrep`, catalog `crp-rules-v6`): `crp.java.resilience.rest-template-no-timeout`, `crp.java.resilience.http-client-no-timeout`, `crp.java.resilience.url-connection-no-timeout`, `crp.js.resilience.axios-no-timeout` (family `reliability.no-timeout`, checkpoint `reliability.fault-tolerance`), `crp.java.reactive.blocking-call` and `crp.java.concurrency.unbounded-thread-pool` (checkpoint `performance.code`).
+
 Fix workspaces offer recipes for every `nfr` rule (`nfr:schema-validate`, `nfr:health-details-authorized`, `nfr:actuator-safe-exposure`, `nfr:rolling-update`, `nfr:two-replicas`, `nfr:readiness-probe`) through the existing fix endpoints.
 
 ## Implemented in P12 slice 2 (configuration evidence, ADR 0023)

@@ -279,6 +279,8 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
             "Retry only safe calls, with backoff; add circuit breakers around remote services.",
             "Use queues for work that does not need an immediate answer.",
         ),
+        families=("reliability.no-timeout",),
+        checked_by=("opengrep",),
         signals=("circuit-breakers", "retries", "timeouts", "messaging"),
         missing="low",
         stack_steps=(
