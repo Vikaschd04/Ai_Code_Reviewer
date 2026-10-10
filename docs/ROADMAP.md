@@ -8,6 +8,11 @@ Updated 8 October 2026 with the owner's two new requirements:
 - fixing issues inside the portal (manual and AI), compiling, comparing and exporting;
 - architecture intelligence for efficiency, scalability and performance.
 
+Updated 10 October 2026 with the owner's request for non-functional requirement answers, industry
+readiness and experience uplifts: new phase P12 (NFR assessment,
+[NFR_ASSESSMENT.md](NFR_ASSESSMENT.md)) and the readiness plan
+[INDUSTRY_READINESS.md](INDUSTRY_READINESS.md).
+
 The market study behind phases P08–P11 is
 [research/MARKET_ANALYSIS_2026.md](research/MARKET_ANALYSIS_2026.md); the architecture
 specification is [ARCHITECTURE_INTELLIGENCE.md](ARCHITECTURE_INTELLIGENCE.md).
@@ -36,6 +41,9 @@ Every owner requirement, the phase that delivers it, and how it is verified. "Se
 | R10 | Suggestions for **efficiency, scalability, performance** | P10 slices 3–7 | Catalogs with fixtures; "potential" versus runtime-confirmed; measured precision |
 | R11 | **Production-grade fixes** and help applying them | P11 (plus P08 and P09) | Smell gone, rules pass, metrics moved, compile and tests in the sandbox |
 | R12 | **World-class quality, efficient results** | All phases | Measured accuracy and performance in every report; no unmeasured claims |
+| R13 | The portal **answers non-functional requirement questionnaires** (performance, security, recoverability, operations, reliability, availability, scalability, usability, portability) for the analysed system | P12 (with P10 slices 4–5 for measured answers) | Six honest answer states; cited evidence; gaps as tracked issues; detector precision and recall on labelled fixtures; never "met" without evidence, never a compliance certificate |
+| R14 | **Industry ready** product | Readiness tracks A–B (INDUSTRY_READINESS.md), released through P07 | Real-code evaluation, live AI and sandbox gates, SSO, isolation, backups and restore tests, HA, observability, load tests with published capacity |
+| R15 | **Experience uplifts** | Readiness track C, delivered with P12 and P07 | Project home, prioritised queue, stakeholder reports, integrations, accessibility checks (axe, keyboard) in every journey |
 
 ## Phases, status and order
 
@@ -51,8 +59,9 @@ Every owner requirement, the phase that delivers it, and how it is verified. "Se
 | **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | BLOCKED (all slices done; live AI quality needs the owner's key) |
 | **9** | **P09 Isolated build** | Tiered compile and build in the portal; completes P05 tests and build steps | P05, P08; paid compute (owner) | IN_PROGRESS (Tier 0 done; Tiers 1–2 need compute) |
 | **10 (next phase focus)** | **P10 Architecture intelligence** | Architecture model, metrics, intended-architecture rules, smell, performance and scalability catalogs, Git-history hotspots, runtime import, recommendations, grounded AI architect | P02, P04, P06; P03 for AI | IN_PROGRESS (slices 1–3: metrics, cycles, Structure health; architecture rules with breaches as issues; structural smells) |
-| **11** | **P11 Architecture remediation** | Deterministic refactorings, what-if simulation, AI multi-file plans, verified migrations | P08, P09, P10 | NOT_STARTED |
-| 12 | P07 Production hardening | SSO/tenancy, isolation qualification, retention, scale, release | Applicable earlier gates | NOT_STARTED |
+| **11 (next phase)** | **P12 NFR assessment** | Questionnaire with ISO/IEC 25010 mapping, NFR profile and attested answers, configuration/infrastructure/code evidence, gaps as issues, measured evidence import, AI NFR analyst, readiness view and reports | P10 slices 1–3; P10 slice 5 for measured answers; P03 for AI | NOT_STARTED |
+| 12 | P11 Architecture remediation | Deterministic refactorings, what-if simulation, AI multi-file plans, verified migrations | P08, P09, P10 | NOT_STARTED |
+| 13 | P07 Production hardening | SSO/tenancy, isolation qualification, retention, scale, release (readiness track B) | Applicable earlier gates; owner decisions | NOT_STARTED |
 
 Phase ids are stable identifiers; the order column is the plan. P07 tasks needed for paying
 external customers (identity, tenant isolation, encryption, backups) can start in parallel with
@@ -107,6 +116,21 @@ protection for the first time.
 7. Grounded AI architect review and draft ADRs (needs the owner's key for live quality).
 8. Evaluation set and measured precision and recall per smell.
 
+### P12 NFR assessment (next phase)
+
+1. Questionnaire (owner's 9 aspects and 24 questions, ISO/IEC 25010:2023 mapping), NFR profile
+   with attested answers, existing findings tagged by aspect, readiness view, CSV and report
+   export.
+2. Configuration and infrastructure evidence (Kubernetes, Helm, Terraform, Dockerfile via Trivy's
+   offline misconfiguration checks after verification; Spring Boot, resilience and observability
+   configuration); gaps as `nfr` findings.
+3. Code-pattern evidence for performance, reliability and scalability (timeouts, unbounded
+   queries, blocking calls, statelessness), with SAP Commerce and Salesforce rows.
+4. Measured evidence import shared with P10 slice 5 (load tests, traces, accessibility and DAST
+   reports) compared with the team's targets.
+5. AI NFR analyst (cited, labelled, team-approved) and the stakeholder report.
+6. Labelled evaluation per detector and per question state.
+
 ### P11 Architecture remediation
 
 1. Deterministic refactoring recipes into change sets, with what-if simulation.
@@ -122,7 +146,8 @@ protection for the first time.
 | P06 live | GitHub App and a private test repository (docs/GITHUB.md) |
 | P09 Tier 1–2 | Paid isolated compute: managed microVM sandboxes or a self-hosted node; package proxy |
 | P04 and P10 claims | Domain expert review (SAP Commerce, Salesforce); permission to use real or open-source repositories for the labelled architecture evaluation |
-| P07 | Identity provider, hosting tier, data-retention policy |
+| P07 | Identity provider, hosting tier, data-retention policy, operators, penetration-test vendor |
+| P12 measured answers | Customer load-test, trace, accessibility or DAST reports; permission to use real systems for the labelled NFR evaluation |
 
 ## Rules that keep applying
 
