@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — NFR checkpoints instead of the questionnaire (10 October 2026)
+
+- **NFR checkpoints:** Insights now shows 28 checkpoints in six areas (security, reliability and
+  availability, performance and scalability, operations and monitoring, architecture and
+  maintainability, experience and portability). Each says whether the uploaded project meets it
+  — with the evidence (file and line) or the issues against it — and how to resolve it.
+- **The NFR questionnaire is gone**, with its targets, answers and exports. Old links open the
+  checkpoints.
+- **Resolve faster:** "Start fixing" opens a fix workspace with the checkpoint's issues, where
+  automatic fixes now cover the deployment and configuration checks (schema validation instead
+  of automatic schema changes, health details for authorised users only, a safe Actuator
+  exposure list, rolling updates, two instances, a readiness probe). Steps are tailored to
+  Spring Boot, Node.js and Kubernetes projects.
+- **Handled elsewhere:** when a mechanism lives outside the code (for example monitoring run by
+  the platform), your team can say so; it is shown as your statement and can be undone.
+- Checks that did not run are shown as "Not checked", never as passed.
+
 ## Unreleased — deployment and configuration checks (10 October 2026)
 
 - **Deployment & configuration** (new check): Kubernetes workloads that can run as a single

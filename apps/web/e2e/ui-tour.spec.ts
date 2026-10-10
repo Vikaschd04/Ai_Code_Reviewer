@@ -99,7 +99,7 @@ test("demo sign-in, sample dry run and every review screen", async ({ page }) =>
   await expect(page.getByTestId("issue-row").first()).toBeVisible();
   await shot(page, "issues");
   await page.getByRole("link", { name: "Insights", exact: true }).click();
-  await expect(page.getByTestId("recommendations")).toBeVisible();
+  await expect(page.getByTestId("needs-work")).toBeVisible();
   await shot(page, "insights");
   await page.getByRole("link", { name: "Architecture", exact: true }).click();
   await expect(page.getByTestId("architecture")).toBeVisible();

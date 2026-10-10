@@ -4,7 +4,9 @@ Date: 10 October 2026. Environment: macOS arm64, Python 3.14, PostgreSQL 18.6, T
 server, PMD 7.27.0, ESLint 10.11.0, Opengrep 1.30.0, Trivy 0.69.3. Decision record:
 [ADR 0021](../adr/0021_NFR_QUESTIONNAIRE.md). Specification: [NFR_ASSESSMENT.md](../NFR_ASSESSMENT.md).
 
-Status: **IN_PROGRESS.** Slice 1 is delivered and verified: the questionnaire, the NFR profile,
+Status: **IN_PROGRESS.** Update 10 October 2026: at the owner's request the questionnaire was
+replaced by NFR checkpoints with resolution help ([ADR 0024](../adr/0024_NFR_CHECKPOINTS.md); see
+the last section). Slice 1 is delivered and verified: the questionnaire, the NFR profile,
 evidence from declared libraries and files, gaps from tracked issues, the readiness view and the
 CSV and Markdown exports. With the product simplification (ADR 0022), the insight engine and
 the advisor agent are also delivered: the agent part of slice 5, with live quality BLOCKED on the
@@ -169,3 +171,36 @@ Limitations:
 - A Deployment without a security context gets many Trivy findings (Pod Security Standards); the
   insights group them, but the Issues list is long.
 - Precision and recall per detector are measured only on the synthetic fixtures so far (slice 6).
+
+## NFR checkpoints replace the questionnaire (10 October 2026; ADR 0024)
+
+Owner request: "remove the NFR questionnaire as it is not required; we just need to give insight
+to users of NFRs for the project they uploaded, and help them resolve NFR checkpoints."
+
+| Deliverable | Delivered | Where |
+|---|---|---|
+| NFR insight for the uploaded project | 28 checkpoints in six areas; statuses needs attention, not found, handled elsewhere, in place, no issues found, not checked, not applicable, from open issues, evidence with file and line, and the review's engine runs; area health; to-resolve list first | `crp_analysis/insights/engine.py` (`crp-insights-v3`), `routes/insights.py`, `pages/InsightsView.tsx` |
+| Help to resolve | Stack-specific steps (Spring Boot, Node.js, Kubernetes); Start fixing; recipes for all six configuration rules (behaviour notes, validation ladder); "handled elsewhere" for missing mechanisms (versioned, attested, undo); advisor plans from the checkpoints (prompt v2) | `fixes/config_recipes.py`, `insights/decisions.py`, `insights/advisor.py` |
+| Questionnaire removed | Questionnaire, profile, assessment and exports, three endpoints (404 now), the view, "Tell us your targets", per-signal question mappings; old links redirect; stored profiles kept in the table, unread | ADR 0024 |
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Catalog coverage | Every catalog rule lands in one checkpoint; specific checkpoints before category catch-alls (an SAP extension cycle, category reliability, lands in "no cycles", not "errors are handled") | PASS | `test_every_catalog_rule_lands_in_one_checkpoint` |
+| Honest statuses | Attention with priority and counts; resolved issues ignored; in place with file and line; not found; not applicable without Kubernetes, rules or an HTTP framework; engines that did not run give "not checked"; a partial run says so; no review gives "not checked" everywhere | PASS | `test_statuses_follow_the_evidence`, `test_checks_that_did_not_run_are_not_clean` |
+| Team decisions | Only for missing mechanisms; 3–500 characters; ignored once the mechanism appears; old questionnaire documents hold none; API 422/404, isolation 404, versions only on change | PASS | `test_team_decisions_count_only_while_the_mechanism_is_missing`, `test_decisions_are_validated_and_old_documents_hold_none`, `test_checkpoint_decisions_and_isolation` |
+| Recipes | Each of the six recipes removes its issue on a re-check without breaking the file; narrow shapes only (multi-line lists and one-line containers refused with a reason) | PASS | `test_recipes_resolve_every_configuration_gap_in_the_fixture`, `test_recipes_change_only_the_narrow_shapes_they_understand` |
+| Workspace round trip | All 9 configuration issues of `nfr-config` fixed by recipes in one workspace; the workspace check reports every one fixed and nothing new | PASS | `test_p12_config.py` |
+| Real reviews | `nfr-mixed`: health checks in place (pom.xml:9, application.yml:7, deployment.yaml:20), two instances at deployment.yaml:6, rollouts in place, autoscaling not found, monitoring handled then undone; advisor plan cites checkpoints | PASS | `test_p12_nfr.py`, `test_insights_advisor.py` |
+| Browser | Checkpoints with evidence, handled elsewhere and undo, old `?tab=nfr` link, Start fixing, AI plan; light, dark, 390 px | PASS | `e2e/p12-nfr.spec.ts`, `e2e/insights.spec.ts` |
+
+Checks for this change:
+
+| Check | Command | Outcome |
+|---|---|---|
+| Lint, format, types and contracts | `make check` | exit 0 |
+| Tests | `caffeinate -i make test` | exit 0: 599 pytest + 30 vitest, 8 min 40 s |
+| Browser E2E | `caffeinate -i make test-e2e` | exit 0: 21/21 in 3.6 minutes; screenshots reviewed in light, dark and at 390 px |
+
+Limitations: targets and regulations are no longer collected, so no checkpoint judges whether the
+evidence meets a stated target; checkpoint statuses describe the upload, not run-time behaviour.
+

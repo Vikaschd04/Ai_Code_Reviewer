@@ -2,8 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { createProject, env, signIn } from "./helpers";
 
-// The simplified project (docs/PRODUCT_SIMPLIFICATION.md): six tabs, health and next steps on the
-// Overview, recommendations from the tools in Insights leading straight to a focused fix
+// The simplified project (docs/PRODUCT_SIMPLIFICATION.md, ADR 0024): six tabs, NFR health and
+// next steps on the Overview, NFR checkpoints in Insights leading straight to a focused fix
 // workspace, and an AI improvement plan whose unsupported suggestions are removed. The model is
 // the labelled fake provider started by `make test-e2e`.
 
@@ -19,7 +19,7 @@ async function noOverflow(page: Page) {
   ).toBe(0);
 }
 
-test("insights: health, recommendations, start fixing and a checked AI plan", async ({ page }) => {
+test("insights: NFR health, checkpoints, start fixing and a checked AI plan", async ({ page }) => {
   test.setTimeout(300_000);
   await signIn(page);
   await createProject(page, `Insights ${Date.now()}`);
@@ -43,11 +43,11 @@ test("insights: health, recommendations, start fixing and a checked AI plan", as
     timeout: 150_000,
   });
 
-  // Overview: health by area and the next steps.
+  // Overview: NFR health by area and the next checkpoints to resolve.
   await page.goto(`/#/projects/${project}`);
   const health = page.getByTestId("health-summary");
   await expect(health.getByTestId("next-steps")).toContainText(
-    "Untrusted input can reach dangerous calls",
+    "Untrusted input cannot reach dangerous calls",
   );
   await expect(health.locator('[data-area="security"]')).toHaveAttribute(
     "data-state",
@@ -55,19 +55,21 @@ test("insights: health, recommendations, start fixing and a checked AI plan", as
   );
   await page.screenshot({ path: "test-results/screens/insights-overview.png", fullPage: true });
 
-  // Insights: recommendations with guided steps; "Start fixing" opens a focused workspace.
+  // Insights: checkpoints to resolve with guided steps; "Start fixing" opens a focused workspace.
   await sections(page).getByRole("link", { name: "Insights" }).click();
-  const injection = page.getByTestId("insight-security.injection");
-  await expect(injection).toContainText("How to improve it");
+  const work = page.getByTestId("needs-work");
+  const injection = work.getByTestId("checkpoint-security.injection");
+  await expect(injection).toHaveAttribute("data-status", "attention");
+  await expect(injection).toContainText("How to resolve it");
   await expect(injection).toContainText("parameterised queries");
-  await expect(page.getByTestId("insight-operations.diagnostics")).toContainText(
+  await expect(work.getByTestId("checkpoint-operations.diagnostics")).toContainText(
     "Nothing in the uploaded code or configuration shows it.",
   );
   await page.screenshot({ path: "test-results/screens/insights.png", fullPage: true });
-  await injection.getByTestId("insight-start-fixing").click();
+  await injection.getByTestId("checkpoint-start-fixing").click();
   await expect(page).toHaveURL(/#\/workspaces\/.*issues=/);
   await expect(page.getByTestId("workspace-focus")).toContainText(
-    "Showing the issues of one recommendation",
+    "Showing the issues of one NFR checkpoint",
   );
   await expect(page.getByTestId("workspace-issues").locator("tbody tr")).toHaveCount(2);
   await expect(page.getByTestId("workspace-issues")).toContainText("cart.js");

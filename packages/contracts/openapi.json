@@ -2329,29 +2329,21 @@
       "AreaHealthResponse": {
         "additionalProperties": false,
         "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Checkpoints by status",
+            "title": "Counts",
+            "type": "object"
+          },
           "id": {
             "title": "Id",
             "type": "string"
           },
-          "insights": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "description": "Recommendations by priority",
-            "title": "Insights",
-            "type": "object"
-          },
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "questions": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "description": "NFR questions by status",
-            "title": "Questions",
-            "type": "object"
           },
           "state": {
             "enum": [
@@ -2368,8 +2360,7 @@
           "id",
           "name",
           "state",
-          "insights",
-          "questions"
+          "counts"
         ],
         "title": "AreaHealthResponse",
         "type": "object"
@@ -3052,6 +3043,151 @@
         ],
         "title": "CheckStatus",
         "type": "string"
+      },
+      "CheckpointHandled": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "How it is handled elsewhere",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CheckpointHandled",
+        "type": "object"
+      },
+      "CheckpointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "can_mark_handled": {
+            "description": "A missing mechanism the team may mark as handled",
+            "title": "Can Mark Handled",
+            "type": "boolean"
+          },
+          "evidence": {
+            "description": "What the upload shows for it",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "handled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The team's statement, when handled elsewhere",
+            "title": "Handled Reason"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "issue_count": {
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "issue_ids": {
+            "description": "Open issues it covers, up to 50 (for fixing)",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Issue Ids",
+            "type": "array"
+          },
+          "issues": {
+            "description": "Most severe open issues, up to 5",
+            "items": {
+              "$ref": "#/components/schemas/InsightIssueRef"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For checkpoints that need work",
+            "title": "Priority"
+          },
+          "status": {
+            "enum": [
+              "attention",
+              "missing",
+              "not_checked",
+              "in_place",
+              "handled",
+              "no_issues",
+              "not_applicable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "steps": {
+            "description": "How to resolve it (stack-specific steps first)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "description": "The requirement, phrased as the goal",
+            "title": "Title",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "area",
+          "title",
+          "status",
+          "priority",
+          "summary",
+          "why",
+          "steps",
+          "issue_count",
+          "issues",
+          "issue_ids",
+          "evidence",
+          "handled_reason",
+          "can_mark_handled"
+        ],
+        "title": "CheckpointResponse",
+        "type": "object"
       },
       "CodeReviewCreate": {
         "additionalProperties": false,
@@ -4193,6 +4329,77 @@
           "request_id"
         ],
         "title": "ErrorResponse",
+        "type": "object"
+      },
+      "EvidenceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "locations": {
+            "description": "Up to 5, with file and line",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceLocation"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "signal": {
+            "title": "Signal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signal",
+          "label",
+          "count",
+          "locations"
+        ],
+        "title": "EvidenceItem",
+        "type": "object"
+      },
+      "EvidenceLocation": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "line",
+          "detail"
+        ],
+        "title": "EvidenceLocation",
         "type": "object"
       },
       "FileComparison": {
@@ -6808,99 +7015,38 @@
         "title": "InsightIssueRef",
         "type": "object"
       },
-      "InsightResponse": {
+      "InsightsBasis": {
         "additionalProperties": false,
         "properties": {
-          "area": {
-            "title": "Area",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "issue_count": {
-            "title": "Issue Count",
-            "type": "integer"
-          },
-          "issue_ids": {
-            "description": "Open issues it covers, up to 50 (for fixing)",
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Issue Ids",
-            "type": "array"
-          },
-          "issues": {
-            "description": "Most severe open issues, up to 5",
-            "items": {
-              "$ref": "#/components/schemas/InsightIssueRef"
-            },
-            "title": "Issues",
-            "type": "array"
-          },
-          "kind": {
-            "enum": [
-              "issues",
-              "missing",
-              "targets"
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Kind",
+            "title": "Reviewed At"
+          },
+          "scan_id": {
+            "format": "uuid",
+            "title": "Scan Id",
             "type": "string"
           },
-          "priority": {
-            "enum": [
-              "high",
-              "medium",
-              "low"
-            ],
-            "title": "Priority",
-            "type": "string"
-          },
-          "questions": {
-            "description": "NFR questions it answers",
-            "items": {
-              "type": "string"
-            },
-            "title": "Questions",
-            "type": "array"
-          },
-          "steps": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Steps",
-            "type": "array"
-          },
-          "summary": {
-            "title": "Summary",
-            "type": "string"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          },
-          "why": {
-            "title": "Why",
+          "snapshot_id": {
+            "format": "uuid",
+            "title": "Snapshot Id",
             "type": "string"
           }
         },
         "required": [
-          "id",
-          "area",
-          "kind",
-          "priority",
-          "title",
-          "summary",
-          "why",
-          "steps",
-          "questions",
-          "issue_count",
-          "issues",
-          "issue_ids"
+          "snapshot_id",
+          "scan_id",
+          "reviewed_at"
         ],
-        "title": "InsightResponse",
+        "title": "InsightsBasis",
         "type": "object"
       },
       "InsightsResponse": {
@@ -6919,28 +7065,47 @@
           "basis": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/NfrBasis"
+                "$ref": "#/components/schemas/InsightsBasis"
               },
               {
                 "type": "null"
               }
             ]
           },
+          "can_edit": {
+            "description": "The caller may mark checkpoints as handled elsewhere",
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "checkpoints": {
+            "description": "Checkpoints that need work first (by priority), then the rest",
+            "items": {
+              "$ref": "#/components/schemas/CheckpointResponse"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "decisions_version": {
+            "description": "Version of the team's checkpoint decisions",
+            "title": "Decisions Version",
+            "type": "integer"
+          },
           "engine": {
             "title": "Engine",
             "type": "string"
+          },
+          "not_checked": {
+            "description": "Material in the upload that refactorX does not assess",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            },
+            "title": "Not Checked",
+            "type": "array"
           },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
-          },
-          "recommendations": {
-            "items": {
-              "$ref": "#/components/schemas/InsightResponse"
-            },
-            "title": "Recommendations",
-            "type": "array"
           }
         },
         "required": [
@@ -6948,7 +7113,10 @@
           "engine",
           "basis",
           "areas",
-          "recommendations",
+          "checkpoints",
+          "not_checked",
+          "decisions_version",
+          "can_edit",
           "advisor"
         ],
         "title": "InsightsResponse",
@@ -7778,846 +7946,6 @@
           "types"
         ],
         "title": "ModuleSummary",
-        "type": "object"
-      },
-      "NfrAnswerDocument": {
-        "additionalProperties": false,
-        "properties": {
-          "not_applicable": {
-            "default": false,
-            "title": "Not Applicable",
-            "type": "boolean"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "text": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Text"
-          }
-        },
-        "title": "NfrAnswerDocument",
-        "type": "object"
-      },
-      "NfrAnswerView": {
-        "additionalProperties": false,
-        "properties": {
-          "not_applicable": {
-            "title": "Not Applicable",
-            "type": "boolean"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Text"
-          }
-        },
-        "required": [
-          "text",
-          "not_applicable",
-          "reason"
-        ],
-        "title": "NfrAnswerView",
-        "type": "object"
-      },
-      "NfrAspectResult": {
-        "additionalProperties": false,
-        "properties": {
-          "counts": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Counts",
-            "type": "object"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "iso": {
-            "description": "ISO/IEC 25010:2023 characteristic",
-            "title": "Iso",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "questions": {
-            "items": {
-              "$ref": "#/components/schemas/NfrQuestionResult"
-            },
-            "title": "Questions",
-            "type": "array"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "iso",
-          "counts",
-          "questions"
-        ],
-        "title": "NfrAspectResult",
-        "type": "object"
-      },
-      "NfrAssessmentResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "aspects": {
-            "items": {
-              "$ref": "#/components/schemas/NfrAspectResult"
-            },
-            "title": "Aspects",
-            "type": "array"
-          },
-          "basis": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NfrBasis"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The reviewed upload the evidence comes from"
-          },
-          "can_edit": {
-            "title": "Can Edit",
-            "type": "boolean"
-          },
-          "counts": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Counts",
-            "type": "object"
-          },
-          "history": {
-            "description": "Newest first, up to 50",
-            "items": {
-              "$ref": "#/components/schemas/NfrProfileVersionSummary"
-            },
-            "title": "History",
-            "type": "array"
-          },
-          "profile": {
-            "$ref": "#/components/schemas/NfrProfileDocument"
-          },
-          "profile_note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profile Note"
-          },
-          "profile_saved_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profile Saved At"
-          },
-          "profile_saved_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profile Saved By"
-          },
-          "profile_version": {
-            "description": "0 when no profile was saved",
-            "title": "Profile Version",
-            "type": "integer"
-          },
-          "project_id": {
-            "format": "uuid",
-            "title": "Project Id",
-            "type": "string"
-          },
-          "questionnaire_source": {
-            "title": "Questionnaire Source",
-            "type": "string"
-          },
-          "status_labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Status Labels",
-            "type": "object"
-          },
-          "targets": {
-            "items": {
-              "$ref": "#/components/schemas/NfrTargetSpec"
-            },
-            "title": "Targets",
-            "type": "array"
-          }
-        },
-        "required": [
-          "project_id",
-          "questionnaire_source",
-          "basis",
-          "counts",
-          "status_labels",
-          "aspects",
-          "profile_version",
-          "profile",
-          "profile_note",
-          "profile_saved_by",
-          "profile_saved_at",
-          "can_edit",
-          "history",
-          "targets"
-        ],
-        "title": "NfrAssessmentResponse",
-        "type": "object"
-      },
-      "NfrBasis": {
-        "additionalProperties": false,
-        "properties": {
-          "reviewed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reviewed At"
-          },
-          "scan_id": {
-            "format": "uuid",
-            "title": "Scan Id",
-            "type": "string"
-          },
-          "snapshot_id": {
-            "format": "uuid",
-            "title": "Snapshot Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "snapshot_id",
-          "scan_id",
-          "reviewed_at"
-        ],
-        "title": "NfrBasis",
-        "type": "object"
-      },
-      "NfrEvidenceItem": {
-        "additionalProperties": false,
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "kind": {
-            "enum": [
-              "supports",
-              "context"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "locations": {
-            "description": "Up to 5",
-            "items": {
-              "$ref": "#/components/schemas/NfrEvidenceLocation"
-            },
-            "title": "Locations",
-            "type": "array"
-          },
-          "signal": {
-            "title": "Signal",
-            "type": "string"
-          }
-        },
-        "required": [
-          "signal",
-          "label",
-          "kind",
-          "count",
-          "locations"
-        ],
-        "title": "NfrEvidenceItem",
-        "type": "object"
-      },
-      "NfrEvidenceLocation": {
-        "additionalProperties": false,
-        "properties": {
-          "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "For example the declared library",
-            "title": "Detail"
-          },
-          "line": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Line"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "line",
-          "detail"
-        ],
-        "title": "NfrEvidenceLocation",
-        "type": "object"
-      },
-      "NfrGaps": {
-        "additionalProperties": false,
-        "properties": {
-          "accepted": {
-            "description": "Accepted risks (still gaps, accepted by the team)",
-            "title": "Accepted",
-            "type": "integer"
-          },
-          "by_severity": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "By Severity",
-            "type": "object"
-          },
-          "open": {
-            "title": "Open",
-            "type": "integer"
-          },
-          "top": {
-            "description": "Most severe open issues, up to 5",
-            "items": {
-              "$ref": "#/components/schemas/NfrIssueRef"
-            },
-            "title": "Top",
-            "type": "array"
-          }
-        },
-        "required": [
-          "open",
-          "accepted",
-          "by_severity",
-          "top"
-        ],
-        "title": "NfrGaps",
-        "type": "object"
-      },
-      "NfrIssueRef": {
-        "additionalProperties": false,
-        "properties": {
-          "engine": {
-            "title": "Engine",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "rule_id": {
-            "title": "Rule Id",
-            "type": "string"
-          },
-          "severity": {
-            "title": "Severity",
-            "type": "string"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "severity",
-          "path",
-          "engine",
-          "rule_id"
-        ],
-        "title": "NfrIssueRef",
-        "type": "object"
-      },
-      "NfrProfileDocument": {
-        "additionalProperties": false,
-        "properties": {
-          "answers": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/NfrAnswerDocument"
-            },
-            "description": "Attested answers by question id",
-            "title": "Answers",
-            "type": "object"
-          },
-          "platforms": {
-            "items": {
-              "maxLength": 100,
-              "type": "string"
-            },
-            "maxItems": 20,
-            "title": "Platforms",
-            "type": "array"
-          },
-          "regulations": {
-            "items": {
-              "maxLength": 100,
-              "type": "string"
-            },
-            "maxItems": 20,
-            "title": "Regulations",
-            "type": "array"
-          },
-          "schema": {
-            "const": "crp-nfr-profile-v1",
-            "default": "crp-nfr-profile-v1",
-            "title": "Schema",
-            "type": "string"
-          },
-          "targets": {
-            "$ref": "#/components/schemas/NfrTargets"
-          }
-        },
-        "title": "NfrProfileDocument",
-        "type": "object"
-      },
-      "NfrProfileUpdate": {
-        "additionalProperties": false,
-        "properties": {
-          "base_version": {
-            "description": "The version you edited (0 when none)",
-            "minimum": 0.0,
-            "title": "Base Version",
-            "type": "integer"
-          },
-          "document": {
-            "$ref": "#/components/schemas/NfrProfileDocument"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "required": [
-          "document",
-          "base_version"
-        ],
-        "title": "NfrProfileUpdate",
-        "type": "object"
-      },
-      "NfrProfileVersionSummary": {
-        "additionalProperties": false,
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "created_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "sha256": {
-            "title": "Sha256",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "version",
-          "sha256",
-          "note",
-          "created_at",
-          "created_by"
-        ],
-        "title": "NfrProfileVersionSummary",
-        "type": "object"
-      },
-      "NfrQuestionResult": {
-        "additionalProperties": false,
-        "properties": {
-          "answer": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NfrAnswerView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "context": {
-            "description": "In the upload, not assessed yet",
-            "items": {
-              "$ref": "#/components/schemas/NfrEvidenceItem"
-            },
-            "title": "Context",
-            "type": "array"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/NfrEvidenceItem"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "gaps": {
-            "$ref": "#/components/schemas/NfrGaps"
-          },
-          "help": {
-            "title": "Help",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "profile_fields": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Profile Fields",
-            "type": "array"
-          },
-          "status": {
-            "enum": [
-              "needs_work",
-              "needs_input",
-              "evidence",
-              "answered",
-              "not_applicable",
-              "not_checked"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "team_required": {
-            "title": "Team Required",
-            "type": "boolean"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          },
-          "values": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "string"
-                },
-                {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              ]
-            },
-            "description": "The team's targets and lists for this question",
-            "title": "Values",
-            "type": "object"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "help",
-          "status",
-          "team_required",
-          "profile_fields",
-          "evidence",
-          "context",
-          "gaps",
-          "answer",
-          "values"
-        ],
-        "title": "NfrQuestionResult",
-        "type": "object"
-      },
-      "NfrTargetSpec": {
-        "additionalProperties": false,
-        "properties": {
-          "high": {
-            "title": "High",
-            "type": "number"
-          },
-          "kind": {
-            "enum": [
-              "int",
-              "float",
-              "text"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "low": {
-            "title": "Low",
-            "type": "number"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "kind",
-          "unit",
-          "low",
-          "high"
-        ],
-        "title": "NfrTargetSpec",
-        "type": "object"
-      },
-      "NfrTargets": {
-        "additionalProperties": false,
-        "properties": {
-          "accessibility": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Accessibility"
-          },
-          "availability_percent": {
-            "anyOf": [
-              {
-                "maximum": 100.0,
-                "minimum": 1.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Availability Percent"
-          },
-          "downtime_cost": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Downtime Cost"
-          },
-          "growth": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Growth"
-          },
-          "latency_p95_ms": {
-            "anyOf": [
-              {
-                "maximum": 600000.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latency P95 Ms"
-          },
-          "page_load_seconds": {
-            "anyOf": [
-              {
-                "maximum": 120.0,
-                "minimum": 0.1,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Page Load Seconds"
-          },
-          "peak_concurrent_users": {
-            "anyOf": [
-              {
-                "maximum": 1000000000.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Peak Concurrent Users"
-          },
-          "rpo_minutes": {
-            "anyOf": [
-              {
-                "maximum": 525600.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rpo Minutes"
-          },
-          "rto_minutes": {
-            "anyOf": [
-              {
-                "maximum": 525600.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rto Minutes"
-          },
-          "typical_users": {
-            "anyOf": [
-              {
-                "maximum": 1000000000.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Typical Users"
-          }
-        },
-        "title": "NfrTargets",
         "type": "object"
       },
       "OverallReadiness": {
@@ -16962,7 +16290,7 @@
     },
     "/v1/projects/{project_id}/insights": {
       "get": {
-        "description": "What to improve, by area, with evidence and guided steps; and the latest advisor plan.",
+        "description": "The project's NFR checkpoints by area, with evidence and how to resolve them; and the\nlatest advisor plan.",
         "operationId": "get_insights_v1_projects__project_id__insights_get",
         "parameters": [
           {
@@ -17044,9 +16372,203 @@
         ]
       }
     },
+    "/v1/projects/{project_id}/insights/checkpoints/{checkpoint_id}/handled": {
+      "delete": {
+        "description": "Undo \"handled elsewhere\" for a checkpoint (members).",
+        "operationId": "clear_handled_v1_projects__project_id__insights_checkpoints__checkpoint_id__handled_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Clear Handled",
+        "tags": [
+          "insights"
+        ]
+      },
+      "put": {
+        "description": "Record that a missing mechanism is handled outside this code (members). Shown as the\nteam's statement, never as detected.",
+        "operationId": "mark_handled_v1_projects__project_id__insights_checkpoints__checkpoint_id__handled_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "checkpoint_id",
+            "required": true,
+            "schema": {
+              "title": "Checkpoint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointHandled"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Mark Handled",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/v1/projects/{project_id}/insights/plan": {
       "post": {
-        "description": "Ask the advisor agent for an improvement plan (members; AI must be on for the project).\nThe recommendations and facts it may use are frozen now; every step is checked later.",
+        "description": "Ask the advisor agent for an improvement plan (members; AI must be on for the project).\nThe checkpoints and facts it may use are frozen now; every step is checked later.",
         "operationId": "request_plan_v1_projects__project_id__insights_plan_post",
         "parameters": [
           {
@@ -17512,284 +17034,6 @@
         "summary": "List Issues",
         "tags": [
           "issues"
-        ]
-      }
-    },
-    "/v1/projects/{project_id}/nfr": {
-      "get": {
-        "description": "NFR readiness: every question with evidence, open issues and the team's answers.",
-        "operationId": "get_nfr_assessment_v1_projects__project_id__nfr_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Project Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NfrAssessmentResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Content"
-          }
-        },
-        "summary": "Get Nfr Assessment",
-        "tags": [
-          "nfr"
-        ]
-      }
-    },
-    "/v1/projects/{project_id}/nfr/export": {
-      "get": {
-        "description": "The questionnaire with every answer, as CSV (spreadsheets) or a Markdown report.",
-        "operationId": "export_nfr_assessment_v1_projects__project_id__nfr_export_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "format",
-            "required": false,
-            "schema": {
-              "default": "csv",
-              "enum": [
-                "csv",
-                "md"
-              ],
-              "title": "Format",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "text/csv": {},
-              "text/markdown": {},
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Content"
-          }
-        },
-        "summary": "Export Nfr Assessment",
-        "tags": [
-          "nfr"
-        ]
-      }
-    },
-    "/v1/projects/{project_id}/nfr/profile": {
-      "put": {
-        "description": "Save the team's targets and attested answers as a new profile version (members).",
-        "operationId": "save_nfr_profile_v1_projects__project_id__nfr_profile_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Project Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NfrProfileUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NfrAssessmentResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Content"
-          }
-        },
-        "summary": "Save Nfr Profile",
-        "tags": [
-          "nfr"
         ]
       }
     },

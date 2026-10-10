@@ -294,13 +294,14 @@ class DbSnapshotReader:
         ]
 
 
-def _targets(value: object) -> dict[str, object]:
-    return {str(k): v for k, v in value.items()} if isinstance(value, dict) else {}
-
-
 def _dict_list(value: object) -> list[dict[str, object]]:
     """The dict entries of a JSON list (the advisor's frozen context)."""
     return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _checkpoints(context: dict[str, Any]) -> list[dict[str, object]]:
+    """The frozen checkpoints (runs requested before ADR 0024 froze "recommendations")."""
+    return _dict_list(context.get("checkpoints") or context.get("recommendations"))
 
 
 def _anchor_payload(anchor: Anchor, check: AnchorCheck) -> dict[str, Any]:
@@ -439,11 +440,7 @@ class AiRunActivities:
         kind = AiRunKind(run.kind)
         if kind is AiRunKind.ADVISOR:
             context = run.context or {}
-            return advisor_task(
-                _dict_list(context.get("facts")),
-                _dict_list(context.get("recommendations")),
-                _targets(context.get("targets")),
-            )
+            return advisor_task(_dict_list(context.get("facts")), _checkpoints(context))
         if kind is AiRunKind.QUESTION:
             return await question_task(reader, run.question or "")
         if kind is AiRunKind.FILE_REVIEW:
@@ -729,16 +726,15 @@ class AiRunActivities:
             )
         if result.plan is not None and AiRunKind(run.kind) is AiRunKind.ADVISOR:
             context = run.context or {}
-            recommendations = {
-                str(r["id"]): f"{r['title']}. {r['summary']}"
-                for r in _dict_list(context.get("recommendations"))
+            checkpoints = {
+                str(r["id"]): f"{r['title']}. {r['summary']}" for r in _checkpoints(context)
             }
             checked = await check_plan(
-                result.plan, _dict_list(context.get("facts")), recommendations, reader
+                result.plan, _dict_list(context.get("facts")), checkpoints, reader
             )
             answer = {"type": "plan", "text": checked.summary, **checked.to_json()}
             limitations.append(
-                "Each step was checked against the tools' recommendations and facts and the cited "
+                "Each step was checked against the tools' checkpoints and facts and the cited "
                 "code; steps without valid evidence or with numbers not in the evidence were "
                 "removed."
             )

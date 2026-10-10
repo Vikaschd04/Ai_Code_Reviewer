@@ -1,12 +1,10 @@
-"""NFR readiness (P12) on the real stack: a reviewed upload gives cited evidence (declared
-libraries with their manifest lines, files, configuration read by the ``nfr`` engine) and gaps
-(tracked issues); the team's profile adds targets and attested answers; nothing found stays "not
-checked yet"."""
+"""NFR checkpoints (P12, ADR 0024) on the real stack: a reviewed upload gives each checkpoint a
+status with cited evidence (declared libraries with their manifest lines, configuration read by
+the ``nfr`` engine, files) or the open issues behind it; a mechanism the upload does not show can
+be marked as handled elsewhere by the team, and the mark is shown as their statement."""
 
 from __future__ import annotations
 
-import csv
-import io
 from pathlib import Path
 from typing import Any
 
@@ -24,19 +22,14 @@ def _zip(tmp_path: Path) -> bytes:
     return zip_directory(prepare_fixture("nfr-mixed", tmp_path / "nfr-mixed"))
 
 
-def _questions(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {q["id"]: q for aspect in data["aspects"] for q in aspect["questions"]}
+def _checks(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {c["id"]: c for c in data["checkpoints"]}
 
 
-async def test_nfr_readiness_from_a_real_review(settings: Settings, tmp_path: Path) -> None:
+async def test_nfr_checkpoints_from_a_real_review(settings: Settings, tmp_path: Path) -> None:
     async with lite_stack(settings) as stack:
         project = await stack.project("P12 NFR")
-        url = f"/v1/projects/{project}/nfr"
-        before = await stack.ok("GET", url)
-        assert before["basis"] is None and before["profile_version"] == 0
-        assert before["counts"]["not_checked"] + before["counts"]["needs_input"] == 23
-        assert len(before["targets"]) == 10 and before["can_edit"] is True
-
+        url = f"/v1/projects/{project}/insights"
         intake = await stack.zip_intake(project, _zip(tmp_path))
         scan = await stack.scan_and_wait(project, intake["snapshot_id"])
         assert scan["state"] in {"SUCCEEDED", "PARTIAL"}
@@ -44,12 +37,12 @@ async def test_nfr_readiness_from_a_real_review(settings: Settings, tmp_path: Pa
         assert engines["nfr"]["state"] == "SUCCEEDED"
         data = await stack.ok("GET", url)
         assert data["basis"]["snapshot_id"] == intake["snapshot_id"]
-        questions = _questions(data)
+        checks = _checks(data)
 
-        recovery = questions["recoverability.recovery-time"]
-        signals = {e["signal"]: e for e in recovery["evidence"]}
-        assert set(signals) == {"health-endpoints", "ci-pipeline", "k8s-probes"}
-        assert signals["health-endpoints"]["locations"] == [
+        health = checks["reliability.health"]
+        assert health["status"] == "in_place"
+        evidence = {e["signal"]: e for e in health["evidence"]}
+        assert evidence["health-endpoints"]["locations"] == [
             {
                 "path": "pom.xml",
                 "line": 9,
@@ -61,90 +54,41 @@ async def test_nfr_readiness_from_a_real_review(settings: Settings, tmp_path: Pa
                 "detail": "management.endpoint.health.probes.enabled",
             },
         ]
-        assert signals["k8s-probes"]["locations"] == [
+        assert evidence["k8s-probes"]["locations"] == [
             {"path": "deploy/k8s/deployment.yaml", "line": 20, "detail": "shop: readinessProbe"}
         ]
-        # Evidence alone does not answer it: the recovery time objective is the team's.
-        assert recovery["status"] == "needs_input" and recovery["team_required"] is True
-
-        consistency = questions["reliability.consistency"]
-        assert consistency["status"] == "needs_work"  # the empty catch is an open issue
-        assert consistency["gaps"]["open"] >= 1
-        assert {e["signal"] for e in consistency["evidence"]} >= {
-            "circuit-breakers",
-            "automated-tests",
-            "ci-pipeline",
-        }
-        assert questions["security.attacks"]["status"] == "needs_work"  # eval()
-        assert questions["portability.platforms"]["status"] == "evidence"  # Dockerfile
-        assert questions["portability.data-exchange"]["status"] == "evidence"  # openapi.yaml
-        assert questions["recoverability.data"]["evidence"][0]["signal"] == "db-migrations"
-        availability = questions["availability.continuous"]
-        assert availability["status"] == "needs_input"
-        assert availability["context"] == []  # the configuration checks read the manifest
-        shown = {e["signal"]: e for e in availability["evidence"]}
-        assert {"multiple-instances", "k8s-probes", "graceful-shutdown"} <= set(shown)
-        assert shown["multiple-instances"]["locations"] == [
+        instances = checks["reliability.instances"]
+        assert instances["status"] == "in_place"
+        assert instances["evidence"][0]["locations"] == [
             {
                 "path": "deploy/k8s/deployment.yaml",
                 "line": 6,
                 "detail": "Deployment shop: replicas: 2",
             }
         ]
-        assert questions["usability.simplicity"]["status"] == "not_checked"
+        assert checks["reliability.rollouts"]["status"] == "in_place"  # graceful shutdown
+        assert checks["reliability.data"]["evidence"][0]["signal"] == "db-migrations"
+        assert checks["reliability.errors"]["status"] == "attention"  # the empty catch
+        assert checks["security.injection"]["status"] == "attention"  # eval()
+        assert checks["performance.autoscaling"]["status"] == "missing"  # no autoscaler
+        api = checks["experience.api"]  # api/openapi.yaml describes it
+        assert api["status"] == "in_place" and api["evidence"][0]["signal"] == "api-specs"
+        assert checks["experience.accessibility"]["status"] == "not_applicable"  # no web UI
+        assert data["not_checked"] == []  # no Helm charts, Terraform or load tests here
 
-        # The team adds targets and answers; a new profile version.
-        document = {
-            "targets": {"rto_minutes": 30, "availability_percent": 99.9},
-            "answers": {
-                "recoverability.cost": {"text": "About 20k EUR per hour of downtime."},
-                "usability.simplicity": {"not_applicable": True, "reason": "Back-office API"},
-            },
-        }
-        saved = await stack.ok(
+        # The team marks a missing mechanism as handled elsewhere: their statement, versioned.
+        monitoring = checks["operations.monitoring"]
+        assert monitoring["status"] == "missing" and monitoring["priority"] == "medium"
+        marked = await stack.ok(
             "PUT",
-            f"{url}/profile",
-            json={"document": document, "note": "First targets", "base_version": 0},
+            f"{url}/checkpoints/operations.monitoring/handled",
+            json={"reason": "Prometheus scrapes the platform's sidecar"},
         )
-        assert saved["profile_version"] == 1 and saved["profile_note"] == "First targets"
-        questions = _questions(saved)
-        assert questions["recoverability.recovery-time"]["status"] == "evidence"
-        assert questions["recoverability.recovery-time"]["values"] == {"rto_minutes": 30}
-        assert questions["availability.continuous"]["status"] == "evidence"
-        assert questions["recoverability.cost"]["status"] == "answered"
-        assert questions["usability.simplicity"]["status"] == "not_applicable"
-        assert saved["history"][0]["created_by"]
-
-        stale = await stack.client.put(
-            f"{url}/profile", json={"document": document, "base_version": 0}
-        )
-        assert stale.status_code == 409 and stale.json()["code"] == "version_conflict"
-        invalid = await stack.client.put(
-            f"{url}/profile",
-            json={
-                "document": {"answers": {"usability.simplicity": {"not_applicable": True}}},
-                "base_version": 1,
-            },
-        )
-        assert invalid.status_code == 422 and invalid.json()["code"] == "invalid_profile"
-        assert any("say why" in p for p in invalid.json()["details"]["problems"])
-        unknown = await stack.client.put(
-            f"{url}/profile",
-            json={"document": {"answers": {"made.up": {"text": "x"}}}, "base_version": 1},
-        )
-        assert unknown.status_code == 422
-
-        exported = await stack.client.get(f"{url}/export?format=csv")
-        assert exported.status_code == 200 and exported.headers["content-type"].startswith(
-            "text/csv"
-        )
-        rows = list(csv.reader(io.StringIO(exported.text)))
-        assert len(rows) == 24
-        cost = next(
-            r for r in rows if r[2].startswith("What would be the impact in terms of costs")
-        )
-        assert cost[3] == "Answered by your team" and cost[8].startswith("About 20k EUR")
-        report = await stack.client.get(f"{url}/export?format=md")
-        assert report.text.startswith("# NFR readiness: P12 NFR")
-        assert "NFR profile version 1." in report.text
-        assert "refactorX does not certify compliance." in report.text
+        monitoring = _checks(marked)["operations.monitoring"]
+        assert monitoring["status"] == "handled"
+        assert monitoring["handled_reason"] == "Prometheus scrapes the platform's sidecar"
+        assert marked["decisions_version"] == 1
+        areas = {a["id"]: a for a in marked["areas"]}
+        assert areas["operations"]["counts"]["handled"] == 1
+        cleared = await stack.ok("DELETE", f"{url}/checkpoints/operations.monitoring/handled")
+        assert _checks(cleared)["operations.monitoring"]["status"] == "missing"

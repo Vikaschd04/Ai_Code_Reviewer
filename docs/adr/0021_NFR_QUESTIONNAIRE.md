@@ -1,6 +1,8 @@
 # ADR 0021 — NFR questionnaire, profile and readiness (P12 slice 1)
 
-Status: accepted; implemented and verified (unit tests, an API test, a real-stack review, a
+Status: **superseded in part by ADR 0024** (10 October 2026: the questionnaire, the profile, the
+readiness view and the exports were removed at the owner's request; the evidence signals remain).
+Originally accepted; implemented and verified (unit tests, an API test, a real-stack review, a
 browser journey). Date: 10 October 2026. Owner: repository owner (request of 10 October 2026;
 prompts/P12_NFR_ASSESSMENT.md); implemented by the development agent.
 

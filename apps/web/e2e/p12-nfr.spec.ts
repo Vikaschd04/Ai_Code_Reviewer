@@ -1,20 +1,12 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { createProject, env, signIn } from "./helpers";
 
-// P12: after a review, the NFR questionnaire answers with evidence from the code and its
-// configuration (with file and line), and the team's targets and answers complete it. The
-// archive is synthetic.
+// P12 (ADR 0024): after a review, Insights shows every NFR checkpoint by area with what the code
+// and its configuration show (file and line), and the team can mark a mechanism that lives
+// outside the code as handled elsewhere. The archive is synthetic.
 
-function question(page: Page, id: string) {
-  return page.getByTestId(`nfr-q-${id}`);
-}
-
-async function status(page: Page, id: string) {
-  return question(page, id).locator("summary [data-status]").getAttribute("data-status");
-}
-
-test("NFR readiness: evidence, targets, answers and not applicable", async ({ page }) => {
+test("NFR checkpoints: evidence by area and handled elsewhere", async ({ page }) => {
   test.setTimeout(300_000);
   await signIn(page);
   await createProject(page, `P12 NFR ${Date.now()}`);
@@ -30,44 +22,37 @@ test("NFR readiness: evidence, targets, answers and not applicable", async ({ pa
     timeout: 150_000,
   });
 
+  // Old questionnaire links open the checkpoints.
   await page.goto(`/#/projects/${project}?tab=nfr`);
-  await expect(page.getByTestId("nfr-basis")).toContainText("Evidence from the latest review");
-  const recovery = question(page, "recoverability.recovery-time");
-  await recovery.locator("summary").click();
-  await expect(recovery.getByTestId("nfr-evidence")).toContainText(
-    "Health and readiness endpoints",
+  await expect(page.getByRole("link", { name: "NFR checkpoints" })).toHaveAttribute(
+    "aria-current",
+    "page",
   );
-  await expect(recovery.getByTestId("nfr-evidence")).toContainText("pom.xml:9");
-  await expect(recovery.getByTestId("nfr-evidence")).toContainText("Kubernetes health probes");
-  await expect(recovery.getByTestId("nfr-evidence")).toContainText("deploy/k8s/deployment.yaml:20");
-  expect(await status(page, "recoverability.recovery-time")).toBe("needs_input");
-  expect(await status(page, "reliability.consistency")).toBe("needs_work");
-  expect(await status(page, "portability.platforms")).toBe("evidence");
+  const all = page.getByTestId("all-checkpoints");
+  const health = all.getByTestId("checkpoint-reliability.health");
+  await expect(health).toHaveAttribute("data-status", "in_place");
+  await health.locator("summary").click();
+  const evidence = health.getByTestId("checkpoint-evidence");
+  await expect(evidence).toContainText("Health and readiness endpoints");
+  await expect(evidence).toContainText("pom.xml:9");
+  await expect(evidence).toContainText("Kubernetes health probes");
+  await expect(evidence).toContainText("deploy/k8s/deployment.yaml:20");
+  await expect(all.getByTestId("area-experience")).toContainText("Not applicable here");
   await page.screenshot({ path: "test-results/screens/p12-nfr.png", fullPage: true });
 
-  // The team's targets turn evidence into answers.
-  await page.getByLabel("Recovery time objective (RTO) (min)").fill("30");
-  await page.getByLabel("Availability target (%)").fill("99.9");
-  await page.getByRole("button", { name: "Save targets" }).click();
-  await expect.poll(() => status(page, "recoverability.recovery-time")).toBe("evidence");
-  expect(await status(page, "availability.continuous")).toBe("evidence");
-
-  const cost = question(page, "recoverability.cost");
-  await cost.locator("summary").click();
-  await cost.getByLabel("Your team's answer").fill("About 20k EUR per hour of downtime.");
-  await cost.getByRole("button", { name: "Save answer" }).click();
-  await expect.poll(() => status(page, "recoverability.cost")).toBe("answered");
-
-  const simplicity = question(page, "usability.simplicity");
-  await simplicity.locator("summary").click();
-  await simplicity.getByLabel("Does not apply to this system").check();
-  await simplicity.getByLabel("Why it does not apply").fill("Back-office API without a UI");
-  await simplicity.getByRole("button", { name: "Save answer" }).click();
-  await expect.poll(() => status(page, "usability.simplicity")).toBe("not_applicable");
-  await expect(page.getByRole("link", { name: "Spreadsheet (CSV)" })).toHaveAttribute(
-    "href",
-    `/v1/projects/${project}/nfr/export?format=csv`,
-  );
+  // Monitoring runs outside this code: the team says so, and it counts as their statement.
+  const monitoring = page.getByTestId("needs-work").getByTestId("checkpoint-operations.monitoring");
+  await expect(monitoring).toHaveAttribute("data-status", "missing");
+  await monitoring.getByTestId("checkpoint-mark-handled").click();
+  await monitoring.getByLabel("How is it handled?").fill("Prometheus scrapes the platform sidecar");
+  await monitoring.getByRole("button", { name: "Save" }).click();
+  const row = all.getByTestId("checkpoint-operations.monitoring");
+  await expect(row).toHaveAttribute("data-status", "handled");
+  await row.locator("summary").click();
+  await expect(row).toContainText("Prometheus scrapes the platform sidecar");
+  await expect(
+    page.getByTestId("needs-work").getByTestId("checkpoint-operations.monitoring"),
+  ).toHaveCount(0);
 
   await page.getByRole("button", { name: "Switch to dark theme" }).click(); // design review
   await page.screenshot({ path: "test-results/screens/p12-nfr-dark.png", fullPage: true });
@@ -79,4 +64,7 @@ test("NFR readiness: evidence, targets, answers and not applicable", async ({ pa
     ),
   ).toBe(0);
   await page.screenshot({ path: "test-results/screens/p12-nfr-mobile.png", fullPage: true });
+
+  await row.getByRole("button", { name: "Undo" }).click();
+  await expect(row).toHaveAttribute("data-status", "missing");
 });

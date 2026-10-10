@@ -277,7 +277,8 @@ class SubmittedPlan(BaseModel):
 
 SUBMIT_PLAN = ToolSpec(
     "submit_plan",
-    "Submit the improvement plan: ordered steps, each citing the recommendation ids and fact ids "
+    "Submit the improvement plan: ordered steps, each citing the checkpoint ids (insight_ids) and "
+    "fact ids "
     "it is based on (and code lines you read, with the exact quoted code). Use only numbers that "
     "appear in the facts you cite. Abstain when the facts do not support a plan.",
     {

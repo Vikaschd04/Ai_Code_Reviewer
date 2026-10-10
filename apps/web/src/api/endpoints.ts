@@ -8,8 +8,6 @@ import {
   type ArchitectureRules,
   type ArchitectureRulesCheck,
   type Insights,
-  type NfrAssessment,
-  type NfrProfileDocument,
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
@@ -1093,7 +1091,7 @@ export async function openWorkspacePullRequest(
 }
 
 /** Components, structural metrics and cycles of an upload's current architecture map (P10). */
-/** Insights: recommendations by area from the tools, and the latest advisor plan. */
+/** Insights: the project's NFR checkpoints by area, and the latest advisor plan. */
 export async function fetchInsights(projectId: string, signal?: Sig): Promise<Insights> {
   const { data, error, response } = await api.GET("/v1/projects/{project_id}/insights", {
     params: { path: { project_id: projectId } },
@@ -1112,33 +1110,31 @@ export async function requestPlan(projectId: string): Promise<AiRun> {
   throw toApiError(response, error);
 }
 
-/** NFR readiness: every questionnaire question with evidence, open issues and team answers. */
-export async function fetchNfr(projectId: string, signal?: Sig): Promise<NfrAssessment> {
-  const { data, error, response } = await api.GET("/v1/projects/{project_id}/nfr", {
-    params: { path: { project_id: projectId } },
-    signal: signal ?? null,
-  });
-  if (data) return data;
-  throw toApiError(response, error);
-}
-
-/** Save the team's NFR profile as a new version (members); ``baseVersion`` guards conflicts. */
-export async function saveNfrProfile(
+/** Record that a missing mechanism is handled outside this code (members). */
+export async function markHandled(
   projectId: string,
-  document: NfrProfileDocument,
-  baseVersion: number,
-  note: string,
-): Promise<NfrAssessment> {
-  const { data, error, response } = await api.PUT("/v1/projects/{project_id}/nfr/profile", {
-    params: { path: { project_id: projectId } },
-    body: { document, base_version: baseVersion, note: note.trim() || null },
-  });
+  checkpointId: string,
+  reason: string,
+): Promise<Insights> {
+  const { data, error, response } = await api.PUT(
+    "/v1/projects/{project_id}/insights/checkpoints/{checkpoint_id}/handled",
+    {
+      params: { path: { project_id: projectId, checkpoint_id: checkpointId } },
+      body: { reason },
+    },
+  );
   if (data) return data;
   throw toApiError(response, error);
 }
 
-export function nfrExportUrl(projectId: string, format: "csv" | "md"): string {
-  return `/v1/projects/${encodeURIComponent(projectId)}/nfr/export?format=${format}`;
+/** Undo "handled elsewhere" for a checkpoint (members). */
+export async function clearHandled(projectId: string, checkpointId: string): Promise<Insights> {
+  const { data, error, response } = await api.DELETE(
+    "/v1/projects/{project_id}/insights/checkpoints/{checkpoint_id}/handled",
+    { params: { path: { project_id: projectId, checkpoint_id: checkpointId } } },
+  );
+  if (data) return data;
+  throw toApiError(response, error);
 }
 
 /** A project's architecture rules (newest or a given version) and their history. */

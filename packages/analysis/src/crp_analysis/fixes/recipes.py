@@ -183,6 +183,11 @@ def options(finding: FindingInfo) -> list[str]:
         return ["java:string-literal-equals"]
     if finding.engine == "frameworks" and finding.rule_id == "crp.sf.metadata.retired-api-version":
         return ["salesforce:api-version"]
+    if finding.engine == "nfr":
+        from crp_analysis.fixes import config_recipes  # lazy: config_recipes imports this module
+
+        recipe = config_recipes.RECIPES.get(finding.rule_id)
+        return [recipe] if recipe else []
     return []
 
 
@@ -194,4 +199,8 @@ def propose(recipe_id: str, finding: FindingInfo, text: str, read: ReadFile) -> 
         return eslint_fix(finding, text)
     if recipe_id == "java:string-literal-equals":
         return java_string_equals(finding, text)
+    if recipe_id.startswith("nfr:"):
+        from crp_analysis.fixes import config_recipes  # lazy: config_recipes imports this module
+
+        return config_recipes.propose(recipe_id, finding, text)
     return salesforce_api_version(finding, text, read)

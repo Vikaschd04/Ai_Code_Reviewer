@@ -1,6 +1,6 @@
-"""Insights and the advisor agent on the real stack (labelled fake model through an HTTP mock
-transport): the tools' recommendations come from a real review; the agent is off until the
-project's admin switches AI on; its plan keeps only steps with known evidence and cited numbers."""
+"""NFR checkpoints and the advisor agent on the real stack (labelled fake model through an HTTP
+mock transport): the checkpoints come from a real review; the agent is off until the project's
+admin switches AI on; its plan keeps only steps with known evidence and cited numbers."""
 
 from __future__ import annotations
 
@@ -62,27 +62,33 @@ async def test_insights_and_a_checked_advisor_plan(settings: Settings, tmp_path:
         url = f"/v1/projects/{project}/insights"
         empty = await stack.ok("GET", url)
         assert empty["basis"] is None
-        assert {r["kind"] for r in empty["recommendations"]} <= {"targets"}  # no review, no claims
+        assert {c["status"] for c in empty["checkpoints"]} == {"not_checked"}  # no review
         assert empty["advisor"]["can_request"] is False
 
         source = prepare_fixture("nfr-mixed", tmp_path / "nfr-mixed")
         intake = await stack.zip_intake(project, zip_directory(source))
         await stack.scan_and_wait(project, intake["snapshot_id"])
         data = await stack.ok("GET", url)
-        recs = {r["id"]: r for r in data["recommendations"]}
-        injection = recs["security.injection"]  # eval() in web/cart.js, seen by two tools
-        assert injection["kind"] == "issues" and injection["issue_count"] == 2
+        checks = {c["id"]: c for c in data["checkpoints"]}
+        injection = checks["security.injection"]  # eval() in web/cart.js, seen by two tools
+        assert injection["status"] == "attention" and injection["issue_count"] == 2
         assert {i["path"] for i in injection["issues"]} == {"web/cart.js"} and injection["steps"]
-        assert recs["reliability.defects"]["issue_count"] >= 1  # the empty catch
-        # Mechanisms the upload shows produce no "missing" recommendation...
-        for shown in ("reliability.tests", "reliability.fault-tolerance", "reliability.recovery"):
-            assert shown not in recs
-        # ...and the one it does not show does.
-        assert recs["operations.diagnostics"]["kind"] == "missing"
-        assert recs["targets.reliability"]["kind"] == "targets"
+        assert checks["reliability.errors"]["status"] == "attention"  # the empty catch
+        # Mechanisms the upload shows are in place, with their evidence...
+        for shown in ("reliability.tests", "reliability.fault-tolerance", "reliability.health"):
+            assert checks[shown]["status"] == "in_place" and checks[shown]["evidence"]
+        # ...and those it does not show are "not found", which the team may mark as handled.
+        diagnostics = checks["operations.diagnostics"]
+        assert diagnostics["status"] == "missing" and diagnostics["can_mark_handled"] is True
+        assert checks["experience.accessibility"]["status"] == "not_applicable"  # no web UI
+        assert checks["reliability.health"]["steps"][0].startswith(
+            "Add spring-boot-starter-actuator"  # Spring Boot project: its own steps first
+        )
+        failing = [c for c in data["checkpoints"] if c["status"] in {"attention", "missing"}]
+        assert data["checkpoints"][: len(failing)] == failing  # needs work first
         areas = {a["id"]: a for a in data["areas"]}
-        assert areas["security"]["state"] in {"attention", "improve"}
-        assert areas["experience"]["state"] in {"no_problems", "unknown", "improve"}
+        assert areas["security"]["state"] == "attention"
+        assert areas["experience"]["state"] == "no_problems"  # api/openapi.yaml
 
         # The agent is off until an admin switches AI on: nothing is sent.
         assert data["advisor"]["enabled"] is False
@@ -105,7 +111,7 @@ async def test_insights_and_a_checked_advisor_plan(settings: Settings, tmp_path:
         assert all(s["insight_ids"] for s in plan["steps"])
         reasons = {r["title"]: r["reason"] for r in plan["rejected"]}
         assert reasons[f"{LABEL} Add a web application firewall"] == (
-            "cites no known recommendation, fact or code"
+            "cites no known checkpoint, fact or code"
         )
         assert reasons[f"{LABEL} Fix all 4242 issues"] == (
             "uses numbers not in the cited evidence: 4242"
@@ -113,12 +119,12 @@ async def test_insights_and_a_checked_advisor_plan(settings: Settings, tmp_path:
         assert any("Each step was checked" in note for note in done["limitations"])
         first = model.requests[0]
         message = next(m["content"] for m in first["messages"] if m["role"] == "user")
-        assert "- F1: Recommendation" in message
+        assert "- F1: Checkpoint" in message
         assert {t["function"]["name"] for t in first["tools"]} >= {"submit_plan", "read_file"}
         latest = (await stack.ok("GET", url))["advisor"]["latest"]
         assert latest["id"] == run["id"] and latest["plan"]["steps"]
 
-        # "Start fixing": a workspace narrowed to the recommendation's issues.
+        # "Start fixing": a workspace narrowed to the checkpoint's issues.
         workspace = await stack.ok("POST", f"/v1/projects/{project}/change-sets", json={})
         page = await stack.ok(
             "GET",

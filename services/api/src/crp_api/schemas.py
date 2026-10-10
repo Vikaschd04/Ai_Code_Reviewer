@@ -1645,157 +1645,23 @@ class ArchitectureRulesCheckResponse(ApiModel):
     notes: list[str]
 
 
-# -- NFR assessment (P12 slice 1; docs/NFR_ASSESSMENT.md) -----------------------------------------
+# -- NFR checkpoints (ADR 0024) ---------------------------------------------------------------
 
-NfrStatus = Literal[
-    "needs_work", "needs_input", "evidence", "answered", "not_applicable", "not_checked"
+CheckpointStatus = Literal[
+    "attention",
+    "missing",
+    "not_checked",
+    "in_place",
+    "handled",
+    "no_issues",
+    "not_applicable",
 ]
 
 
-class NfrTargets(ApiModel):
-    availability_percent: float | None = Field(default=None, ge=1, le=100)
-    latency_p95_ms: int | None = Field(default=None, ge=1, le=600_000)
-    page_load_seconds: float | None = Field(default=None, ge=0.1, le=120)
-    typical_users: int | None = Field(default=None, ge=0, le=1_000_000_000)
-    peak_concurrent_users: int | None = Field(default=None, ge=0, le=1_000_000_000)
-    rto_minutes: int | None = Field(default=None, ge=0, le=525_600)
-    rpo_minutes: int | None = Field(default=None, ge=0, le=525_600)
-    growth: str | None = Field(default=None, max_length=300)
-    downtime_cost: str | None = Field(default=None, max_length=300)
-    accessibility: str | None = Field(default=None, max_length=300)
-
-
-class NfrAnswerDocument(ApiModel):
-    text: str | None = Field(default=None, max_length=2000)
-    not_applicable: bool = False
-    reason: str | None = Field(default=None, max_length=300)
-
-
-class NfrProfileDocument(ApiModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    profile_schema: Literal["crp-nfr-profile-v1"] = Field(
-        default="crp-nfr-profile-v1", alias="schema"
-    )
-    targets: NfrTargets = Field(default_factory=NfrTargets)
-    regulations: list[Annotated[str, StringConstraints(max_length=100)]] = Field(
-        default_factory=list, max_length=20
-    )
-    platforms: list[Annotated[str, StringConstraints(max_length=100)]] = Field(
-        default_factory=list, max_length=20
-    )
-    answers: dict[str, NfrAnswerDocument] = Field(
-        default_factory=dict, description="Attested answers by question id"
-    )
-
-
-class NfrProfileUpdate(ApiModel):
-    document: NfrProfileDocument
-    note: str | None = Field(default=None, max_length=500)
-    base_version: int = Field(ge=0, description="The version you edited (0 when none)")
-
-
-class NfrEvidenceLocation(ApiModel):
-    path: str
-    line: int | None
-    detail: str | None = Field(description="For example the declared library")
-
-
-class NfrEvidenceItem(ApiModel):
-    signal: str
-    label: str
-    kind: Literal["supports", "context"]
-    count: int
-    locations: list[NfrEvidenceLocation] = Field(description="Up to 5")
-
-
-class NfrIssueRef(ApiModel):
-    id: UUID
-    title: str
-    severity: str
-    path: str
-    engine: str
-    rule_id: str
-
-
-class NfrGaps(ApiModel):
-    open: int
-    accepted: int = Field(description="Accepted risks (still gaps, accepted by the team)")
-    by_severity: dict[str, int]
-    top: list[NfrIssueRef] = Field(description="Most severe open issues, up to 5")
-
-
-class NfrAnswerView(ApiModel):
-    text: str | None
-    not_applicable: bool
-    reason: str | None
-
-
-class NfrQuestionResult(ApiModel):
-    id: str
-    text: str
-    help: str
-    status: NfrStatus
-    team_required: bool
-    profile_fields: list[str]
-    evidence: list[NfrEvidenceItem]
-    context: list[NfrEvidenceItem] = Field(description="In the upload, not assessed yet")
-    gaps: NfrGaps
-    answer: NfrAnswerView | None
-    values: dict[str, float | int | str | list[str]] = Field(
-        description="The team's targets and lists for this question"
-    )
-
-
-class NfrAspectResult(ApiModel):
-    id: str
-    name: str
-    iso: str = Field(description="ISO/IEC 25010:2023 characteristic")
-    counts: dict[str, int]
-    questions: list[NfrQuestionResult]
-
-
-class NfrBasis(ApiModel):
+class InsightsBasis(ApiModel):
     snapshot_id: UUID
     scan_id: UUID
     reviewed_at: datetime | None
-
-
-class NfrProfileVersionSummary(ApiModel):
-    version: int
-    sha256: str
-    note: str | None
-    created_at: datetime
-    created_by: str | None
-
-
-class NfrTargetSpec(ApiModel):
-    name: str
-    label: str
-    kind: Literal["int", "float", "text"]
-    unit: str
-    low: float
-    high: float
-
-
-class NfrAssessmentResponse(ApiModel):
-    project_id: UUID
-    questionnaire_source: str
-    basis: NfrBasis | None = Field(description="The reviewed upload the evidence comes from")
-    counts: dict[str, int]
-    status_labels: dict[str, str]
-    aspects: list[NfrAspectResult]
-    profile_version: int = Field(description="0 when no profile was saved")
-    profile: NfrProfileDocument
-    profile_note: str | None
-    profile_saved_by: str | None
-    profile_saved_at: datetime | None
-    can_edit: bool
-    history: list[NfrProfileVersionSummary] = Field(description="Newest first, up to 50")
-    targets: list[NfrTargetSpec]
-
-
-# -- insights (docs/PRODUCT_SIMPLIFICATION.md) -------------------------------------------------
 
 
 class InsightIssueRef(ApiModel):
@@ -1805,27 +1671,43 @@ class InsightIssueRef(ApiModel):
     path: str
 
 
-class InsightResponse(ApiModel):
+class EvidenceLocation(ApiModel):
+    path: str
+    line: int | None
+    detail: str | None
+
+
+class EvidenceItem(ApiModel):
+    signal: str
+    label: str
+    count: int
+    locations: list[EvidenceLocation] = Field(description="Up to 5, with file and line")
+
+
+class CheckpointResponse(ApiModel):
     id: str
     area: str
-    kind: Literal["issues", "missing", "targets"]
-    priority: Literal["high", "medium", "low"]
-    title: str
+    title: str = Field(description="The requirement, phrased as the goal")
+    status: CheckpointStatus
+    priority: Literal["high", "medium", "low"] | None = Field(
+        description="For checkpoints that need work"
+    )
     summary: str
     why: str
-    steps: list[str]
-    questions: list[str] = Field(description="NFR questions it answers")
+    steps: list[str] = Field(description="How to resolve it (stack-specific steps first)")
     issue_count: int
     issues: list[InsightIssueRef] = Field(description="Most severe open issues, up to 5")
     issue_ids: list[UUID] = Field(description="Open issues it covers, up to 50 (for fixing)")
+    evidence: list[EvidenceItem] = Field(description="What the upload shows for it")
+    handled_reason: str | None = Field(description="The team's statement, when handled elsewhere")
+    can_mark_handled: bool = Field(description="A missing mechanism the team may mark as handled")
 
 
 class AreaHealthResponse(ApiModel):
     id: str
     name: str
     state: Literal["attention", "improve", "no_problems", "unknown"]
-    insights: dict[str, int] = Field(description="Recommendations by priority")
-    questions: dict[str, int] = Field(description="NFR questions by status")
+    counts: dict[str, int] = Field(description="Checkpoints by status")
 
 
 class AdvisorState(ApiModel):
@@ -1838,7 +1720,18 @@ class AdvisorState(ApiModel):
 class InsightsResponse(ApiModel):
     project_id: UUID
     engine: str
-    basis: NfrBasis | None
+    basis: InsightsBasis | None
     areas: list[AreaHealthResponse]
-    recommendations: list[InsightResponse]
+    checkpoints: list[CheckpointResponse] = Field(
+        description="Checkpoints that need work first (by priority), then the rest"
+    )
+    not_checked: list[EvidenceItem] = Field(
+        description="Material in the upload that refactorX does not assess"
+    )
+    decisions_version: int = Field(description="Version of the team's checkpoint decisions")
+    can_edit: bool = Field(description="The caller may mark checkpoints as handled elsewhere")
     advisor: AdvisorState
+
+
+class CheckpointHandled(ApiModel):
+    reason: str = Field(min_length=3, max_length=500, description="How it is handled elsewhere")

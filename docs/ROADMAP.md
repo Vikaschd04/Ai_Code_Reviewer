@@ -41,7 +41,7 @@ Every owner requirement, the phase that delivers it, and how it is verified. "Se
 | R10 | Suggestions for **efficiency, scalability, performance** | P10 slices 3–7 | Catalogs with fixtures; "potential" versus runtime-confirmed; measured precision |
 | R11 | **Production-grade fixes** and help applying them | P11 (plus P08 and P09) | Smell gone, rules pass, metrics moved, compile and tests in the sandbox |
 | R12 | **World-class quality, efficient results** | All phases | Measured accuracy and performance in every report; no unmeasured claims |
-| R13 | The portal **answers non-functional requirement questionnaires** (performance, security, recoverability, operations, reliability, availability, scalability, usability, portability) for the analysed system | P12 (with P10 slices 4–5 for measured answers) | Six honest answer states; cited evidence; gaps as tracked issues; detector precision and recall on labelled fixtures; never "met" without evidence, never a compliance certificate |
+| R13 | The portal gives **NFR insight for the uploaded project** (security, reliability and availability, performance and scalability, operations, architecture, experience) and **helps resolve the NFR checkpoints** (owner request of 10 October 2026; the questionnaire was dropped, ADR 0024) | P12 | Cited evidence or issues per checkpoint; honest statuses (not found, not checked, not applicable are never passed); steps, fix workspace, recipes, "handled elsewhere" |
 | R14 | **Industry ready** product | Readiness tracks A–B (INDUSTRY_READINESS.md), released through P07 | Real-code evaluation, live AI and sandbox gates, SSO, isolation, backups and restore tests, HA, observability, load tests with published capacity |
 | R15 | **Experience uplifts** | Readiness track C, delivered with P12 and P07 | Project home, prioritised queue, stakeholder reports, integrations, accessibility checks (axe, keyboard) in every journey |
 
@@ -59,7 +59,7 @@ Every owner requirement, the phase that delivers it, and how it is verified. "Se
 | **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | BLOCKED (all slices done; live AI quality needs the owner's key) |
 | **9** | **P09 Isolated build** | Tiered compile and build in the portal; completes P05 tests and build steps | P05, P08; paid compute (owner) | IN_PROGRESS (Tier 0 done; Tiers 1–2 need compute) |
 | **10 (next phase focus)** | **P10 Architecture intelligence** | Architecture model, metrics, intended-architecture rules, smell, performance and scalability catalogs, Git-history hotspots, runtime import, recommendations, grounded AI architect | P02, P04, P06; P03 for AI | IN_PROGRESS (slices 1–3: metrics, cycles, Structure health; architecture rules with breaches as issues; structural smells) |
-| **11 (next phase)** | **P12 NFR assessment** | Questionnaire with ISO/IEC 25010 mapping, NFR profile and attested answers, configuration/infrastructure/code evidence, gaps as issues, measured evidence import, AI NFR analyst, readiness view and reports | P10 slices 1–3; P10 slice 5 for measured answers; P03 for AI | IN_PROGRESS (slice 1, plus insights and the advisor agent with the simplification, ADR 0022) |
+| **11 (next phase)** | **P12 NFR assessment** | NFR checkpoints by area with evidence, issues and resolution help (steps, fix workspace, configuration recipes, handled elsewhere), configuration/infrastructure/code evidence, gaps as issues, grounded AI plan | IN_PROGRESS (slices 1–2; the questionnaire was replaced by NFR checkpoints, ADR 0024; advisor live quality needs the owner's key) |
 | 12 | P11 Architecture remediation | Deterministic refactorings, what-if simulation, AI multi-file plans, verified migrations | P08, P09, P10 | NOT_STARTED |
 | 13 | P07 Production hardening | SSO/tenancy, isolation qualification, retention, scale, release (readiness track B) | Applicable earlier gates; owner decisions | NOT_STARTED |
 
@@ -118,18 +118,16 @@ protection for the first time.
 
 ### P12 NFR assessment (next phase)
 
-1. Questionnaire (owner's 9 aspects and 23 questions, ISO/IEC 25010:2023 mapping), NFR profile
-   with attested answers, existing findings tagged by aspect, readiness view, CSV and report
-   export.
+1. NFR checkpoints by area (ADR 0024; the questionnaire of slice 1 was removed at the owner's
+   request), existing findings mapped to checkpoints, resolution help.
 2. Configuration and infrastructure evidence (Kubernetes, Helm, Terraform, Dockerfile via Trivy's
    offline misconfiguration checks after verification; Spring Boot, resilience and observability
    configuration); gaps as `nfr` findings.
 3. Code-pattern evidence for performance, reliability and scalability (timeouts, unbounded
    queries, blocking calls, statelessness), with SAP Commerce and Salesforce rows.
 4. Measured evidence import shared with P10 slice 5 (load tests, traces, accessibility and DAST
-   reports) compared with the team's targets.
-5. AI NFR analyst (cited, labelled, team-approved) and the stakeholder report.
-6. Labelled evaluation per detector and per question state.
+   reports) — only if the owner wants checkpoints backed by measurements.
+5. Labelled evaluation per detector and per checkpoint status.
 
 ### P11 Architecture remediation
 

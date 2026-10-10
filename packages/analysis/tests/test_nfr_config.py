@@ -1,18 +1,20 @@
 """Configuration and infrastructure checks (P12 slice 2, ADR 0023): the ``nfr`` engine's rules on
-positive and negative examples, coverage honesty, parsing bounds, and how the evidence reaches the
-NFR questionnaire and the insights."""
+positive and negative examples, coverage honesty, parsing bounds, how the evidence reaches the NFR
+checkpoints, and the fix recipes that resolve the gaps (ADR 0024)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from crp_analysis.catalog import all_rules
 from crp_analysis.engines.base import CancelToken
 from crp_analysis.engines.nfr import ConfigChecksAdapter
-from crp_analysis.insights.engine import ISSUE_GUIDELINES
+from crp_analysis.fixes import recipes
+from crp_analysis.fixes.patching import apply_edits
+from crp_analysis.insights.engine import TrackedIssue, checkpoint_for
 from crp_analysis.nfr import config
-from crp_analysis.nfr.assessment import TrackedIssue
-from crp_analysis.nfr.questionnaire import questions_for_rule
 from crp_analysis.nfr.signals import detect
 from crp_analysis.normalize import normalize
 from crp_core.domain.states import CoverageOutcome, EngineState
@@ -202,53 +204,104 @@ def test_anchor_expansion_and_recursion_are_bounded() -> None:
 
 def test_detect_uses_config_evidence_and_says_what_is_not_checked() -> None:
     paths = ["chart/Chart.yaml", "infra/main.tf", "deploy/k8s/app.yaml", "application.yml"]
-    legacy = {e.signal for e in detect(paths, [])}
-    assert {"deployment-manifests", "terraform", "application-config"} <= legacy
-
     stored = [
         {"signal": "autoscaling", "count": 7, "locations": [["deploy/k8s/hpa.yaml", 2, "HPA a"]]},
         {"signal": "health-endpoints", "count": 1, "locations": [["application.yml", 9, "k"]]},
         {"signal": "unknown-signal", "count": 1, "locations": [["x", 1, None]]},
     ]
     checked = {e.signal: e for e in detect(paths, [], stored)}
-    assert "deployment-manifests" not in checked and "application-config" not in checked
     assert checked["helm-charts"].kind == "context"
     assert (
         checked["terraform"].label == "Terraform infrastructure (security settings are not checked)"
     )
     assert checked["autoscaling"].count == 7
     assert checked["autoscaling"].locations == [("deploy/k8s/hpa.yaml", 2, "HPA a")]
-    assert "scalability.spikes" in checked["autoscaling"].questions
     assert checked["health-endpoints"].kind == "supports"
     assert "unknown-signal" not in checked
+    assert {e.signal for e in detect(paths, [])} == {"helm-charts", "terraform"}
 
 
 def _issue(engine: str, rule: str, category: str, family: str | None) -> TrackedIssue:
     return TrackedIssue("i", engine, rule, category, family, "medium", "t", "p", "OPEN")
 
 
-def test_questions_and_recommendations_for_configuration_issues() -> None:
+def test_configuration_issues_land_in_their_checkpoints() -> None:
     catalog = all_rules()
+    expected = {
+        config.SINGLE_REPLICA: "reliability.instances",
+        config.NO_READINESS: "reliability.health",
+        config.RECREATE: "reliability.rollouts",
+        config.ACTUATOR_EXPOSED: "security.configuration",
+        config.HEALTH_DETAILS: "security.configuration",
+        config.SCHEMA_AUTO: "reliability.data",
+    }
     for rule in config.RULES:
         info = catalog[f"nfr:{rule}"]
-        assert questions_for_rule("nfr", rule, info.category.value, info.family)
-        issue = _issue("nfr", rule, info.category.value, info.family)
-        key = next(g.key for g in ISSUE_GUIDELINES if g.matches(issue))
-        assert key in {"reliability.deployment", "reliability.schema", "security.configuration"}
-    assert questions_for_rule(
-        "nfr", config.SINGLE_REPLICA, "reliability", "availability.single-instance"
-    ) == (
-        "availability.continuous",
-        "availability.fault-tolerance",
+        found = checkpoint_for(_issue("nfr", rule, info.category.value, info.family))
+        assert found is not None and found.id == expected[rule], rule
+
+
+def _fix(path: str, text: str, rule: str, line: int | None) -> tuple[str, recipes.RecipeProposal]:
+    info = recipes.FindingInfo("nfr", rule, path, line, line, None)
+    [recipe] = recipes.options(info)
+    proposal = recipes.propose(recipe, info, text, lambda _: None)
+    return apply_edits(text, list(proposal.edits)), proposal
+
+
+def test_recipes_resolve_every_configuration_gap_in_the_fixture(tmp_path: Path) -> None:
+    root = prepare_fixture("nfr-config", tmp_path / "src")
+    texts = {
+        p.relative_to(root).as_posix(): p.read_text(encoding="utf-8")
+        for p in root.rglob("*")
+        if p.is_file()
+        and config.is_candidate(p.relative_to(root).as_posix())
+        and "src/test/" not in p.relative_to(root).as_posix()
+    }
+    gaps = config.analyse(texts).gaps
+    assert {g.rule_id for g in gaps} == set(config.RULES)
+    for gap in gaps:
+        fixed, proposal = _fix(gap.path, texts[gap.path], gap.rule_id, gap.line)
+        assert proposal.behaviour_note  # every recipe says what behaviour changes
+        after = config.analyse({**texts, gap.path: fixed})
+        assert gap.path not in after.failed, (gap.rule_id, after.failed)
+        remaining = [
+            g
+            for g in after.gaps
+            if (g.rule_id, g.path, g.identity) == (gap.rule_id, gap.path, gap.identity)
+        ]
+        assert remaining == [], (gap.rule_id, gap.path)
+
+
+def test_recipes_change_only_the_narrow_shapes_they_understand() -> None:
+    fixed, proposal = _fix(
+        "application.properties",
+        "management.endpoints.web.exposure.include=health,info,prometheus,heapdump\n",
+        config.ACTUATOR_EXPOSED,
+        1,
     )
-    cpu = _issue("trivy", "misconfig:KSV-0011", "security", None)
-    root = _issue("trivy", "misconfig:KSV-0012", "security", None)
-    assert next(g.key for g in ISSUE_GUIDELINES if g.matches(cpu)) == "performance.capacity"
-    assert next(g.key for g in ISSUE_GUIDELINES if g.matches(root)) == "security.configuration"
-    assert questions_for_rule("trivy", "misconfig:KSV-0011", "security", None) == (
-        "security.attacks",
-        "scalability.demand",
+    assert fixed == "management.endpoints.web.exposure.include=health,info,prometheus\n"
+    assert proposal.title == "Expose only health,info,prometheus over HTTP"
+    starred, _ = _fix(
+        "application.yml", 'management:\n  include: "*"  # all\n', config.ACTUATOR_EXPOSED, 2
     )
-    assert questions_for_rule("trivy", "misconfig:DS-0002", "security", None) == (
-        "security.attacks",
+    assert starred == 'management:\n  include: "health,info"  # all\n'
+    workload = (
+        "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: w\nspec:\n"
+        "  selector: {}\n  template:\n    spec:\n      containers:\n        - name: w\n"
+        "          ports:\n            - name: http\n"
     )
+    added, _ = _fix("w.yaml", workload, config.SINGLE_REPLICA, 2)
+    assert "spec:\n  replicas: 2\n  selector: {}" in added
+    probed, proposal = _fix("w.yaml", workload, config.NO_READINESS, 10)
+    assert "        - name: w\n          readinessProbe:\n            tcpSocket:\n" in probed
+    assert "              port: http\n" in probed and proposal.title.endswith("port http")
+    with pytest.raises(recipes.NoFix, match="single value"):
+        _fix("a.yml", "include:\n  - health\n", config.ACTUATOR_EXPOSED, 1)
+    with pytest.raises(recipes.NoFix, match="one line"):
+        _fix(
+            "w.yaml",
+            "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: w}\nspec:\n  template:\n"
+            "    spec:\n      containers:\n        - {name: w, ports: [{containerPort: 80}]}\n",
+            config.NO_READINESS,
+            8,
+        )

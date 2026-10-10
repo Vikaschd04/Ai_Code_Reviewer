@@ -1,7 +1,8 @@
 # ADR 0022 — Simplified product and the grounded insights advisor
 
 Status: accepted; implemented and verified (unit tests, real-stack tests with the labelled fake
-model, browser journeys). Date: 10 October 2026. Owner: repository owner (request of
+model, browser journeys). The Insights views and the recommendation catalog were replaced by the
+NFR checkpoints (ADR 0024); navigation, the advisor checks and Start fixing are unchanged. Date: 10 October 2026. Owner: repository owner (request of
 10 October 2026: keep only what users need; let tools and agents together analyse a project
 against NFR guidelines and guide its improvement, without hallucination). Plan:
 docs/PRODUCT_SIMPLIFICATION.md.

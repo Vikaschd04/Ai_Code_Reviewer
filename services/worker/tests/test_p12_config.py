@@ -1,10 +1,11 @@
 """Configuration and infrastructure evidence (P12 slice 2, ADR 0023) on the real stack: one review
 of the configuration fixture runs the ``nfr`` engine and Trivy's misconfiguration checks; gaps
-become tracked issues that the NFR questionnaire and the insights pick up, and what could not be
-checked is reported as such."""
+become tracked issues that the NFR checkpoints pick up, and what could not be checked is reported
+as such."""
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -16,10 +17,6 @@ from crp_devtools.testing.fixture_projects import prepare_fixture, zip_directory
 from .conftest import lite_stack
 
 pytestmark = pytest.mark.integration
-
-
-def _questions(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {q["id"]: q for aspect in data["aspects"] for q in aspect["questions"]}
 
 
 async def test_configuration_evidence_from_a_real_review(
@@ -60,24 +57,50 @@ async def test_configuration_evidence_from_a_real_review(
         page = await stack.ok("GET", f"/v1/projects/{project}/issues?engine=nfr&limit=50")
         assert page["total"] == 9 and {i["status"] for i in page["items"]} == {"OPEN"}
 
-        questions = _questions(await stack.ok("GET", f"/v1/projects/{project}/nfr"))
-        continuous = questions["availability.continuous"]
-        assert continuous["status"] == "needs_work" and continuous["gaps"]["open"] >= 4
-        assert {e["signal"] for e in continuous["evidence"]} >= {
-            "multiple-instances",
+        data = await stack.ok("GET", f"/v1/projects/{project}/insights")
+        checks = {c["id"]: c for c in data["checkpoints"]}
+        instances = checks["reliability.instances"]  # shop, cache (autoscaler min 1), worker
+        assert instances["status"] == "attention" and instances["issue_count"] == 3
+        assert {e["signal"] for e in instances["evidence"]} == {"multiple-instances", "multi-zone"}
+        assert checks["reliability.health"]["issue_count"] == 1  # shop has no readiness probe
+        rollouts = checks["reliability.rollouts"]
+        assert rollouts["issue_count"] == 1  # Recreate
+        assert {e["signal"] for e in rollouts["evidence"]} == {
             "disruption-budget",
             "graceful-shutdown",
         }
-        assert [e["signal"] for e in continuous["context"]] == ["helm-charts"]
-        assert questions["recoverability.data"]["gaps"]["open"] == 2  # ddl-auto update, create
-        assert questions["scalability.spikes"]["evidence"][0]["signal"] == "autoscaling"
-
-        insights = await stack.ok("GET", f"/v1/projects/{project}/insights")
-        recs = {r["id"]: r for r in insights["recommendations"]}
-        assert recs["reliability.deployment"]["issue_count"] == 5
-        assert recs["reliability.schema"]["issue_count"] == 2
-        assert recs["reliability.schema"]["priority"] == "high"  # create drops the data
-        assert recs["performance.capacity"]["kind"] == "issues"
-        security = recs["security.configuration"]  # Trivy's checks and the Actuator settings
+        schema = checks["reliability.data"]
+        assert schema["issue_count"] == 2 and schema["priority"] == "high"  # create drops data
+        assert checks["performance.capacity"]["status"] == "attention"
+        assert checks["performance.autoscaling"]["status"] == "in_place"
+        security = checks["security.configuration"]  # Trivy's checks and the Actuator settings
         assert security["priority"] == "high" and security["issue_count"] >= 10
         assert security["issues"][0]["severity"] == "high"  # the five most severe are shown
+        assert [e["signal"] for e in data["not_checked"]] == ["helm-charts", "terraform"]
+
+        # Resolving: the recipes fix every configuration issue in a workspace, and the
+        # workspace check confirms each one is gone (the upload itself is untouched).
+        targets = [f for f in findings if f["engine"] == "nfr"]
+        ws = await stack.ok("POST", f"/v1/projects/{project}/change-sets", json={})
+        fixed = await stack.ok(
+            "POST",
+            f"/v1/change-sets/{ws['id']}/fixes",
+            json={"version": ws["version"], "finding_ids": [f["id"] for f in targets]},
+        )
+        assert {a["finding_id"] for a in fixed["applied"]} == {f["id"] for f in targets}, fixed
+        started = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/checks")
+        check = await _wait_check(stack, started["id"])
+        assert check["state"] in {"SUCCEEDED", "PARTIAL"}, check
+        outcomes = check["result"]["outcomes"]
+        assert {outcomes[f["id"]] for f in targets} == {"fixed"}, outcomes
+        new_config = [i for i in check["result"]["new_items"] if i["engine"] == "nfr"]
+        assert new_config == []
+
+
+async def _wait_check(stack: Any, check_id: str) -> dict[str, Any]:
+    for _ in range(600):
+        check = await stack.ok("GET", f"/v1/change-set-checks/{check_id}")
+        if check["state"] in {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}:
+            return dict(check)
+        await asyncio.sleep(0.3)
+    raise AssertionError("workspace check did not finish")

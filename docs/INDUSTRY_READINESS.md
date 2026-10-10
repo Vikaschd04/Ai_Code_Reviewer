@@ -73,8 +73,8 @@ release (dogfooding).
    readiness on one page, with trends across reviews and "the 5 things to do next".
 2. **Prioritised work queue:** risk = severity × change frequency (P10 slice 4) × reachability
    (graph) × NFR impact; "fix this sprint" list and bulk triage.
-3. **NFR readiness and questionnaire flow** (P12): what the code shows, what is missing, what we
-   need from you.
+3. **NFR checkpoints** (P12, ADR 0024): what the code shows, what is missing, and how to resolve
+   it (the questionnaire flow was dropped by the owner).
 4. **Stakeholder reports:** one click to an architecture and NFR report (HTML, Markdown, later
    PDF) with an executive summary.
 5. **Integrations:** Jira and Azure Boards export, Slack and Teams notifications, GitLab,
@@ -94,7 +94,8 @@ release (dogfooding).
 1. **Next phase: P12 NFR assessment, slice 1** (questionnaire, profile, tagging of existing
    findings, readiness view, export). No owner input needed. Then slices 2–3 (infrastructure,
    configuration and code-pattern evidence). *Status 10 October 2026: slices 1 and 2 delivered
-   (ADR 0021, ADR 0023); slice 3 (code patterns) is next.*
+   (ADR 0021, ADR 0023); the questionnaire was then replaced by NFR checkpoints (ADR 0024);
+   slice 3 (code patterns) is next.*
 2. **Alongside, uplifts that need no owner input:** project home, prioritised queue, web bundle
    splitting, axe checks, OpenTelemetry for refactorX, backup and restore scripts with a restore
    test on the local database.

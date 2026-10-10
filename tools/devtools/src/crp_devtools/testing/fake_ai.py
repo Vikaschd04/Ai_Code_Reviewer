@@ -225,11 +225,11 @@ def _fix(first: str) -> dict[str, Any]:
 _RECOMMENDATION = re.compile(
     r"^- (?P<id>[\w.-]+) \| (?P<area>\w+) \| (?P<priority>\w+) \| (?P<title>[^|]+)\|"
 )
-_FACT = re.compile(r"^- (?P<id>F\d+): Recommendation (?P<insight>[\w.-]+) ")
+_FACT = re.compile(r"^- (?P<id>F\d+): Checkpoint (?P<insight>[\w.-]+) ")
 
 
 def _plan(first: str) -> dict[str, Any]:
-    """Plan the first two recommendations from their facts, plus two claims the checks must remove:
+    """Plan the first two checkpoints from their facts, plus two claims the checks must remove:
     one citing nothing known and one with a number that is not in the evidence."""
     recommendations = [m for m in map(_RECOMMENDATION.match, first.splitlines()) if m]
     fact_of = {m["insight"]: m["id"] for m in map(_FACT.match, first.splitlines()) if m}

@@ -1,16 +1,15 @@
-"""Evidence signals for the NFR questionnaire (P12 slice 1): what the upload declares or contains.
+"""Evidence signals for the NFR checkpoints (P12): what the upload declares or contains.
 
 Two kinds:
-- ``supports``: a mechanism the requirement relies on is declared or present (a library in a
-  manifest, a pipeline, an API description). It shows intent, not that it works at run time.
-- ``context``: material that is in the upload but not assessed (Helm templates, Terraform
-  security settings, load-test scripts).
+- ``supports``: a mechanism a checkpoint relies on is declared or present (a library in a
+  manifest, a pipeline, a probe in a manifest). It shows intent, not that it works at run time.
+- ``context``: material that is in the upload but that refactorX does not assess (Helm templates,
+  Terraform security settings, load-test scripts); listed so nothing looks checked that is not.
 
 Libraries come from the manifests' declared dependencies (pom.xml, package.json) with their file
 and line; files from the upload's paths; configuration signals (replicas, probes, autoscaling,
-timeouts, ...) from the ``nfr`` engine's run of the same review (P12 slice 2,
-``crp_analysis.nfr.config``). Reviews made before that engine existed, or where it did not
-complete, keep the earlier "not checked yet" context. Nothing is executed or downloaded.
+timeouts, ...) from the ``nfr`` engine's run of the same review (``crp_analysis.nfr.config``).
+Nothing is executed or downloaded.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ from pathlib import PurePosixPath
 
 from crp_analysis import policy as scope_policy
 
-SIGNALS_VERSION = "crp-nfr-signals-v2"
+SIGNALS_VERSION = "crp-nfr-signals-v3"
 MAX_LOCATIONS = 5
 
 
@@ -31,7 +30,6 @@ class Signal:
     id: str
     label: str
     kind: str  # supports | context
-    questions: tuple[str, ...]
     libraries: tuple[tuple[str, str], ...] = ()  # (ecosystem, name pattern)
     files: tuple[str, ...] = ()  # path patterns (``**`` = any folders)
 
@@ -49,7 +47,6 @@ class Evidence:
     signal: str
     label: str
     kind: str
-    questions: tuple[str, ...]
     count: int = 0
     locations: list[tuple[str, int | None, str | None]] = field(default_factory=list)
     """(path, line, detail such as the library name), up to ``MAX_LOCATIONS``."""
@@ -69,14 +66,12 @@ SIGNALS: tuple[Signal, ...] = (
         "health-endpoints",
         "Health and readiness endpoints (Spring Boot Actuator)",
         "supports",
-        ("operations.monitoring", "recoverability.recovery-time", "availability.continuous"),
         libraries=(("maven", "org.springframework.boot:spring-boot-starter-actuator"),),
     ),
     Signal(
         "metrics",
         "Metrics library",
         "supports",
-        ("operations.monitoring",),
         libraries=(
             ("maven", "io.micrometer:*"),
             ("maven", "io.prometheus:*"),
@@ -87,14 +82,12 @@ SIGNALS: tuple[Signal, ...] = (
         "tracing",
         "Distributed tracing (OpenTelemetry)",
         "supports",
-        ("operations.monitoring", "reliability.glitches"),
         libraries=(("maven", "io.opentelemetry*:*"), ("npm", "@opentelemetry/*")),
     ),
     Signal(
         "circuit-breakers",
         "Circuit breakers and fault handling",
         "supports",
-        ("reliability.consistency", "availability.fault-tolerance", "recoverability.outage"),
         libraries=(
             ("maven", "io.github.resilience4j:*"),
             ("maven", "org.springframework.cloud:spring-cloud-starter-circuitbreaker-*"),
@@ -107,7 +100,6 @@ SIGNALS: tuple[Signal, ...] = (
         "retries",
         "Retries for failed calls",
         "supports",
-        ("reliability.consistency", "recoverability.outage"),
         libraries=(
             ("maven", "org.springframework.retry:spring-retry"),
             ("npm", "p-retry"),
@@ -119,14 +111,12 @@ SIGNALS: tuple[Signal, ...] = (
         "error-tracking",
         "Error tracking",
         "supports",
-        ("reliability.glitches",),
         libraries=(("maven", "io.sentry:*"), ("npm", "@sentry/*"), ("npm", "@bugsnag/*")),
     ),
     Signal(
         "structured-logging",
         "Structured logging",
         "supports",
-        ("reliability.glitches", "operations.monitoring"),
         libraries=(
             ("maven", "net.logstash.logback:logstash-logback-encoder"),
             ("npm", "pino"),
@@ -137,7 +127,6 @@ SIGNALS: tuple[Signal, ...] = (
         "authentication",
         "Authentication and authorization framework",
         "supports",
-        ("security.access",),
         libraries=(
             ("maven", "org.springframework.boot:spring-boot-starter-security"),
             ("maven", "org.springframework.boot:spring-boot-starter-oauth2-*"),
@@ -154,14 +143,12 @@ SIGNALS: tuple[Signal, ...] = (
         "security-headers",
         "HTTP security headers (helmet)",
         "supports",
-        ("security.attacks",),
         libraries=(("npm", "helmet"),),
     ),
     Signal(
         "db-migrations",
         "Versioned database migrations",
         "supports",
-        ("recoverability.data",),
         libraries=(
             ("maven", "org.flywaydb:*"),
             ("maven", "org.liquibase:*"),
@@ -174,7 +161,6 @@ SIGNALS: tuple[Signal, ...] = (
         "caching",
         "Caching",
         "supports",
-        ("performance.latency", "scalability.demand"),
         libraries=(
             ("maven", "org.springframework.boot:spring-boot-starter-cache"),
             ("maven", "org.springframework.boot:spring-boot-starter-data-redis"),
@@ -192,12 +178,6 @@ SIGNALS: tuple[Signal, ...] = (
         "messaging",
         "Asynchronous messaging and queues",
         "supports",
-        (
-            "scalability.spikes",
-            "scalability.demand",
-            "availability.fault-tolerance",
-            "portability.data-exchange",
-        ),
         libraries=(
             ("maven", "org.springframework.kafka:*"),
             ("maven", "org.apache.kafka:*"),
@@ -214,7 +194,6 @@ SIGNALS: tuple[Signal, ...] = (
         "api-docs-library",
         "API documentation generated from the code (OpenAPI)",
         "supports",
-        ("portability.data-exchange",),
         libraries=(
             ("maven", "org.springdoc:*"),
             ("maven", "io.swagger*:*"),
@@ -227,14 +206,12 @@ SIGNALS: tuple[Signal, ...] = (
         "job-locking",
         "Scheduled jobs locked across instances (ShedLock)",
         "supports",
-        ("availability.continuous",),
         libraries=(("maven", "net.javacrumbs.shedlock:*"),),
     ),
     Signal(
         "rate-limiting",
         "Rate limiting",
         "supports",
-        ("scalability.spikes", "security.attacks"),
         libraries=(
             ("maven", "com.bucket4j:*"),
             ("npm", "express-rate-limit"),
@@ -245,7 +222,6 @@ SIGNALS: tuple[Signal, ...] = (
         "internationalisation",
         "Internationalisation",
         "supports",
-        ("usability.simplicity",),
         libraries=(
             ("npm", "i18next"),
             ("npm", "react-i18next"),
@@ -258,7 +234,6 @@ SIGNALS: tuple[Signal, ...] = (
         "accessibility-checks",
         "Accessibility checks in the build or tests",
         "supports",
-        ("usability.experience",),
         libraries=(
             ("npm", "eslint-plugin-jsx-a11y"),
             ("npm", "eslint-plugin-vuejs-accessibility"),
@@ -273,14 +248,12 @@ SIGNALS: tuple[Signal, ...] = (
         "page-performance",
         "Page performance measurement",
         "supports",
-        ("performance.load-time",),
         libraries=(("npm", "web-vitals"), ("npm", "@lhci/cli"), ("npm", "lighthouse")),
     ),
     Signal(
         "ci-pipeline",
         "Automated build and deployment pipeline",
         "supports",
-        ("recoverability.recovery-time", "reliability.consistency"),
         files=(
             *(f"**/.github/workflows/*.{e}" for e in ("yml", "yaml")),
             "**/Jenkinsfile",
@@ -294,14 +267,12 @@ SIGNALS: tuple[Signal, ...] = (
         "container",
         "Container image definition",
         "supports",
-        ("portability.platforms",),
         files=("**/Dockerfile", "**/Dockerfile.*", "**/*.Dockerfile", "**/Containerfile"),
     ),
     Signal(
         "runtime-pins",
         "Pinned runtime versions",
         "supports",
-        ("portability.platforms",),
         files=(
             "**/.nvmrc",
             "**/.node-version",
@@ -314,7 +285,6 @@ SIGNALS: tuple[Signal, ...] = (
         "api-specs",
         "API description files (OpenAPI, AsyncAPI)",
         "supports",
-        ("portability.data-exchange",),
         files=tuple(
             f"**/{stem}*.{ext}"
             for stem in ("openapi", "swagger", "asyncapi")
@@ -325,7 +295,6 @@ SIGNALS: tuple[Signal, ...] = (
         "runbooks",
         "Runbooks and operations guides",
         "supports",
-        ("operations.remediation",),
         files=(
             "**/RUNBOOK*.md",
             "**/runbook*.md",
@@ -338,7 +307,6 @@ SIGNALS: tuple[Signal, ...] = (
         "alerting",
         "Alert rules and dashboards",
         "supports",
-        ("operations.monitoring",),
         files=(
             *_yaml("**/alertmanager*"),
             *_yaml("**/*alert*rules*"),
@@ -349,9 +317,8 @@ SIGNALS: tuple[Signal, ...] = (
     ),
     Signal(
         "load-tests",
-        "Load-test scripts (results can be imported later)",
+        "Load-test scripts (their results are not read)",
         "context",
-        ("scalability.spikes", "performance.access-pattern"),
         files=("**/*.jmx", "**/gatling/**", "**/k6/**", "**/load-test*/**", "**/loadtest*/**"),
     ),
 )
@@ -361,111 +328,67 @@ CONFIG_SIGNALS: tuple[Signal, ...] = (
         "multiple-instances",
         "More than one instance (Kubernetes replicas or autoscaler minimum)",
         "supports",
-        ("availability.continuous", "availability.fault-tolerance"),
     ),
     Signal(
         "autoscaling",
         "Autoscaling (Kubernetes HorizontalPodAutoscaler or KEDA)",
         "supports",
-        ("scalability.spikes", "scalability.demand"),
     ),
     Signal(
         "disruption-budget",
         "Pod disruption budgets (maintenance keeps instances running)",
         "supports",
-        ("availability.continuous",),
     ),
     Signal(
         "k8s-probes",
         "Kubernetes health probes (readiness, liveness, startup)",
         "supports",
-        ("recoverability.recovery-time", "availability.continuous"),
     ),
     Signal(
         "graceful-shutdown",
         "Graceful shutdown (requests in progress finish)",
         "supports",
-        ("availability.continuous",),
     ),
     Signal(
         "timeouts",
         "Timeouts for connections and calls",
         "supports",
-        ("availability.fault-tolerance", "performance.latency"),
     ),
     Signal(
         "connection-pool",
         "Database connection pool sized in configuration",
         "supports",
-        ("scalability.demand",),
     ),
     Signal(
         "backups",
         "Database backups configured (Terraform)",
         "supports",
-        ("recoverability.data",),
     ),
     Signal(
         "multi-zone",
         "Database across availability zones (Terraform)",
         "supports",
-        ("availability.continuous", "availability.fault-tolerance"),
     ),
 )
-# What the configuration checks leave out (shown when they ran).
+# What refactorX does not check in these files.
 CHECKED_CONTEXT: tuple[Signal, ...] = (
     Signal(
         "helm-charts",
         "Helm charts (replicas and probes inside templates are not checked)",
         "context",
-        ("availability.continuous", "scalability.demand", "scalability.spikes"),
         files=("**/Chart.yaml",),
     ),
     Signal(
         "terraform",
         "Terraform infrastructure (security settings are not checked)",
         "context",
-        ("security.attacks", "recoverability.data"),
         files=("**/*.tf",),
-    ),
-)
-# Before the configuration checks existed, or when they did not complete.
-LEGACY_CONTEXT: tuple[Signal, ...] = (
-    Signal(
-        "deployment-manifests",
-        "Kubernetes or Helm manifests (replicas, probes and autoscaling not checked yet)",
-        "context",
-        ("availability.continuous", "scalability.demand", "scalability.spikes"),
-        files=(
-            "**/Chart.yaml",
-            *_yaml("**/kustomization"),
-            *(
-                f"**/{d}/**/*.{e}"
-                for d in ("k8s", "kubernetes", "helm", "charts")
-                for e in ("yml", "yaml")
-            ),
-        ),
-    ),
-    Signal(
-        "terraform",
-        "Terraform infrastructure (backups and redundancy not checked yet)",
-        "context",
-        ("recoverability.data", "availability.continuous"),
-        files=("**/*.tf",),
-    ),
-    Signal(
-        "application-config",
-        "Application configuration (timeouts and pool sizes not checked yet)",
-        "context",
-        ("performance.access-pattern", "performance.latency"),
-        files=(
-            "**/application*.properties",
-            *_yaml("**/application*"),
-        ),
     ),
 )
 TESTS_SIGNAL = Signal(
-    "automated-tests", "Automated tests", "supports", ("reliability.consistency",)
+    "automated-tests",
+    "Automated tests",
+    "supports",
 )
 
 
@@ -482,14 +405,12 @@ def detect(
     """Evidence found in an upload: its file paths, the manifests' declared libraries and, when
     the configuration checks ran (``config`` is not None), what they found."""
     found: dict[str, Evidence] = {}
-    signals = (*SIGNALS, *(LEGACY_CONTEXT if config is None else CHECKED_CONTEXT))
+    signals = (*SIGNALS, *CHECKED_CONTEXT)
 
     def hit(signal: Signal, path: str, line: int | None, detail: str | None) -> None:
         evidence = found.get(signal.id)
         if evidence is None:
-            evidence = found[signal.id] = Evidence(
-                signal.id, signal.label, signal.kind, signal.questions
-            )
+            evidence = found[signal.id] = Evidence(signal.id, signal.label, signal.kind)
         evidence.add(path, line, detail)
 
     for path in sorted(paths):
@@ -520,6 +441,6 @@ def detect(
         count = entry.get("count")
         if evidence is not None and isinstance(count, int) and count > len(locations):
             evidence.count += count - len(locations)  # locations are capped; the count is not
-    everything = (*SIGNALS, *CONFIG_SIGNALS, *CHECKED_CONTEXT, *LEGACY_CONTEXT, TESTS_SIGNAL)
+    everything = (*SIGNALS, *CONFIG_SIGNALS, *CHECKED_CONTEXT, TESTS_SIGNAL)
     order = {s.id: i for i, s in enumerate(everything)}
     return sorted(found.values(), key=lambda e: order[e.signal])

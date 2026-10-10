@@ -1,6 +1,8 @@
 # ADR 0023 — Configuration and infrastructure evidence (P12 slice 2)
 
 Status: accepted; implemented and verified (unit tests, real Trivy runs, a real-stack review).
+The questionnaire mapping and the four guidelines of decision 4 now live in the NFR checkpoints
+(ADR 0024).
 Date: 10 October 2026. Owner: repository owner (P12 plan, docs/NFR_ASSESSMENT.md "New evidence
 detectors"); implemented by the development agent.
 

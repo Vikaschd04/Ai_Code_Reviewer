@@ -139,6 +139,35 @@ def _key_line(node: yaml.Node | None, key: str) -> int | None:
     return None
 
 
+def parse_nodes(text: str) -> list[yaml.Node]:
+    """The YAML documents as nodes with line numbers (for the configuration fix recipes)."""
+    return _documents(text)
+
+
+def child(node: yaml.Node | None, key: str) -> yaml.Node | None:
+    return _get(node, key)
+
+
+def key_line(node: yaml.Node | None, key: str) -> int | None:
+    return _key_line(node, key)
+
+
+def containers_of(node: yaml.Node) -> list[yaml.MappingNode]:
+    """The containers of a workload document (``spec.template.spec.containers``)."""
+    items = _items(_path(node, "spec", "template", "spec", "containers"))
+    return [c for c in items if isinstance(c, yaml.MappingNode)]
+
+
+def first_port(container: yaml.Node) -> str | None:
+    """The container's first declared port (number, or name when it has no number)."""
+    ports = _items(_get(container, "ports"))
+    if not ports:
+        return None
+    number = _int(_get(ports[0], "containerPort"))
+    name = _text(_get(ports[0], "name"))
+    return str(number) if number is not None else name
+
+
 # -- Kubernetes -----------------------------------------------------------------------------------
 
 

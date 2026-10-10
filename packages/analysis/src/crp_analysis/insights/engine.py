@@ -1,30 +1,63 @@
-"""The insight engine (tools, always on): evidence in, recommendations out.
+"""NFR checkpoints (tools, always on): what the uploaded project shows for each non-functional
+requirement, and how to resolve what needs work (ADR 0024; replaces the NFR questionnaire).
 
-Inputs are the NFR assessment (questions with signals, gaps and team statements), the project's
-tracked issues and the evidence signals of the newest reviewed upload. A curated guideline catalog
-turns them into recommendations, each with an area, a priority, what was found, why it matters,
-guided steps, and the evidence behind it. Nothing is inferred beyond the evidence: a missing
-mechanism is reported as "not found in the upload", never as "absent from the system".
+A checkpoint is one concrete, code-checkable requirement in an area (security, reliability,
+performance and scalability, operations, architecture, experience). Its status comes only from
+evidence in the newest reviewed upload:
 
-Areas group the NFR questionnaire's questions:
-- security: security.*;
-- reliability: reliability.consistency, availability.*, recoverability.*;
-- performance: performance.*, scalability.*;
-- architecture: operations.remediation (maintainability, structure);
-- operations: operations.monitoring, reliability.glitches (observability);
-- experience: usability.*, portability.*.
+- ``attention``: open tracked issues violate it (priority from the most severe issue);
+- ``missing``: the mechanism it needs is not found in the upload (catalog priority);
+- ``handled``: not found in the code, and the team recorded that it is handled elsewhere;
+- ``in_place``: the mechanism is found (file and line) and no issue is open;
+- ``no_issues``: the checks that look for it ran and report nothing open;
+- ``not_checked``: the checks that look for it did not run, or there is no review yet;
+- ``not_applicable``: the upload has nothing it applies to (for example no Kubernetes).
+
+"Not found in the upload" never means "absent from the system", and "no issues" never means
+"verified at run time"; the screens say so.
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 
-from crp_analysis.nfr.assessment import OPEN, Assessment, TrackedIssue
-from crp_analysis.nfr.questionnaire import CAPACITY_CHECKS
-from crp_analysis.nfr.signals import Evidence
+from crp_analysis.nfr.signals import Evidence, LibraryUse
 
-ENGINE_VERSION = "crp-insights-v2"
+ENGINE_VERSION = "crp-insights-v3"
+OPEN = frozenset({"OPEN", "TRIAGED", "FIX_PROPOSED"})
+COMPLETED = frozenset({"SUCCEEDED", "PARTIAL", "NOT_APPLICABLE"})
+# Trivy's Kubernetes checks for CPU and memory requests and limits.
+CAPACITY_CHECKS = frozenset(
+    {"misconfig:KSV-0011", "misconfig:KSV-0015", "misconfig:KSV-0016", "misconfig:KSV-0018"}
+)
+FAILING = frozenset({"attention", "missing"})
+PASSED = frozenset({"in_place", "handled", "no_issues"})
+STATUSES = (
+    "attention",
+    "missing",
+    "not_checked",
+    "in_place",
+    "handled",
+    "no_issues",
+    "not_applicable",
+)
+TOP_ISSUES = 5
+
+
+@dataclass(frozen=True, slots=True)
+class TrackedIssue:
+    id: str
+    engine: str
+    rule_id: str
+    category: str
+    family: str | None
+    severity: str
+    title: str
+    path: str
+    status: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,50 +68,30 @@ class Area:
 
 AREAS: tuple[Area, ...] = (
     Area("security", "Security"),
-    Area("reliability", "Reliability"),
+    Area("reliability", "Reliability and availability"),
     Area("performance", "Performance and scalability"),
-    Area("architecture", "Architecture and maintainability"),
     Area("operations", "Operations and monitoring"),
+    Area("architecture", "Architecture and maintainability"),
     Area("experience", "Experience and portability"),
 )
-_AREA_OF_QUESTION = {
-    "operations.remediation": "architecture",
-    "operations.monitoring": "operations",
-    "reliability.glitches": "operations",
-}
-_AREA_OF_ASPECT = {
-    "security": "security",
-    "reliability": "reliability",
-    "availability": "reliability",
-    "recoverability": "reliability",
-    "performance": "performance",
-    "scalability": "performance",
-    "usability": "experience",
-    "portability": "experience",
-    "operations": "architecture",
-}
-
-
-def area_of(question_id: str) -> str:
-    return _AREA_OF_QUESTION.get(question_id) or _AREA_OF_ASPECT[question_id.split(".", 1)[0]]
-
-
-# -- guideline catalog --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class IssueGuideline:
-    """Recommendation for open issues matching any of the selectors (first guideline wins)."""
-
-    key: str
+class Checkpoint:
+    id: str
     area: str
-    title: str
+    title: str  # the requirement, phrased as the goal
     why: str
-    steps: tuple[str, ...]
+    steps: tuple[str, ...]  # how to resolve it
     families: tuple[str, ...] = ()
     rule_prefixes: tuple[str, ...] = ()  # "engine:rule-prefix"
     categories: tuple[str, ...] = ()
     engines: tuple[str, ...] = ()
+    checked_by: tuple[str, ...] = ()  # engines whose completed run means the code was checked
+    signals: tuple[str, ...] = ()  # evidence that the mechanism is in place
+    missing: str | None = None  # priority when nothing is found; None: absence is no problem
+    requires: str | None = None  # kubernetes | configuration | platform | rules | web-ui | http-api
+    stack_steps: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (stack, steps) for that stack
 
     def matches(self, issue: TrackedIssue) -> bool:
         return (
@@ -89,28 +102,29 @@ class IssueGuideline:
         )
 
 
-ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
-    IssueGuideline(
+_CODE = ("pmd", "eslint", "opengrep", "pmd-apex")
+
+# An issue belongs to the first checkpoint that matches it by family, rule or engine; checkpoints
+# that match whole categories are catch-alls and are tried last (``checkpoint_for``).
+CHECKPOINTS: tuple[Checkpoint, ...] = (
+    Checkpoint(
         "security.secrets",
         "security",
-        "Secrets and keys are written in the code",
+        "No secrets in the code",
         "Anyone who can read the code, its history or a copy of it can use these credentials.",
         (
             "Move each secret to the platform's secret store or environment configuration.",
             "Rotate every secret that was committed: treat it as leaked.",
             "Keep a secret scan in the pipeline so new ones are caught before merge.",
         ),
-        families=(
-            "secrets.credentials",
-            "secrets.hardcoded-token-secret",
-            "crypto.hardcoded-key",
-        ),
+        families=("secrets.credentials", "secrets.hardcoded-token-secret", "crypto.hardcoded-key"),
         rule_prefixes=("trivy:secret:",),
+        checked_by=("trivy", "opengrep"),
     ),
-    IssueGuideline(
+    Checkpoint(
         "security.injection",
         "security",
-        "Untrusted input can reach dangerous calls",
+        "Untrusted input cannot reach dangerous calls",
         "Injection (SQL, commands, code, HTML) lets an attacker read or change data or run code.",
         (
             "Use parameterised queries or the framework's query builder instead of building "
@@ -119,17 +133,13 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
             "context.",
             "Validate input at the boundary and add a test for each fixed case.",
         ),
-        families=(
-            "injection.sql",
-            "command-injection.os",
-            "code-injection.eval",
-            "xss.dom-sink",
-        ),
+        families=("injection.sql", "command-injection.os", "code-injection.eval", "xss.dom-sink"),
+        checked_by=_CODE,
     ),
-    IssueGuideline(
+    Checkpoint(
         "security.dependencies",
         "security",
-        "Third-party libraries have known vulnerabilities",
+        "Libraries have no known vulnerabilities",
         "Known vulnerabilities in dependencies are the easiest way in, because exploits are "
         "public.",
         (
@@ -138,11 +148,12 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
             "Add automated dependency updates and a vulnerability check to the pipeline.",
         ),
         categories=("dependencies",),
+        checked_by=("trivy",),
     ),
-    IssueGuideline(
+    Checkpoint(
         "security.access",
         "security",
-        "Access checks or secure transport are missing",
+        "Data access is checked and connections are encrypted",
         "Missing permission checks or plain-text connections expose data to the wrong people.",
         (
             "Enforce object and field permissions (or sharing rules) on every data access.",
@@ -151,11 +162,13 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
         ),
         families=("transport.insecure", "secrets.logging"),
         rule_prefixes=("pmd-apex:ApexCRUDViolation", "pmd-apex:ApexSharingViolations"),
+        checked_by=("opengrep", "pmd-apex"),
+        signals=("authentication",),
     ),
-    IssueGuideline(
+    Checkpoint(
         "performance.capacity",
         "performance",
-        "Containers have no CPU or memory requests and limits",
+        "Containers declare CPU and memory requests and limits",
         "Without requests the scheduler cannot place instances reliably and CPU-based "
         "autoscaling has no baseline; without memory limits one instance can starve the others.",
         (
@@ -164,11 +177,13 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
             "Revisit the values after load tests.",
         ),
         rule_prefixes=tuple(sorted(f"trivy:{check}" for check in CAPACITY_CHECKS)),
+        checked_by=("trivy",),
+        requires="kubernetes",
     ),
-    IssueGuideline(
+    Checkpoint(
         "security.configuration",
         "security",
-        "Containers and settings are configured insecurely",
+        "Containers and settings are configured securely",
         "Root or privileged containers, writable file systems and exposed management endpoints "
         "turn one weakness into control of the host or the data.",
         (
@@ -180,125 +195,119 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
         ),
         families=("security.actuator-exposure",),
         rule_prefixes=("trivy:misconfig:",),
+        checked_by=("trivy", "nfr"),
+        requires="configuration",
     ),
-    IssueGuideline(
+    Checkpoint(
         "security.other",
         "security",
-        "Other security weaknesses",
+        "No weak cryptography or unsafe constructs",
         "Weak cryptography and unsafe constructs make attacks easier.",
         (
             "Replace weak algorithms (MD5, SHA-1, ECB mode) with current ones.",
             "Fix the most severe findings first; each finding explains the safe alternative.",
         ),
         categories=("security",),
+        checked_by=_CODE,
     ),
-    IssueGuideline(
-        "performance.loops",
-        "performance",
-        "Database work happens inside loops",
-        "One query or save per item multiplies load and latency with data volume, and hits "
-        "platform limits (Salesforce governor limits, SAP Commerce persistence).",
-        (
-            "Load what the loop needs in one query before it, and save in one batch after it.",
-            "Keep queries and saves out of triggers' per-record logic (bulkify).",
-        ),
-        families=("performance.persistence-in-loop",),
-    ),
-    IssueGuideline(
-        "performance.unbounded",
-        "performance",
-        "Queries can return unbounded results",
-        "Queries without limits or paging slow down and run out of memory as data grows.",
-        (
-            "Add paging or an explicit limit to every list query.",
-            "Return only the fields the caller needs.",
-        ),
-        families=("performance.unbounded-query",),
-    ),
-    IssueGuideline(
-        "performance.code",
-        "performance",
-        "Costly operations in hot code",
-        "Expensive operations repeated in loops waste CPU and memory.",
-        ("Move costly work out of loops and reuse results.",),
-        categories=("performance",),
-    ),
-    IssueGuideline(
-        "architecture.cycles",
-        "architecture",
-        "Parts of the code depend on each other in cycles",
-        "Parts in a cycle can only change, be tested and be released together.",
-        (
-            "Start with the cheapest cut named in the recommendation's issues.",
-            "Move shared code into a part both may use, or invert one dependency with an "
-            "interface owned by the part that should stay independent.",
-        ),
-        families=("maintainability.dependency-cycle", "reliability.dependency-cycle"),
-    ),
-    IssueGuideline(
-        "architecture.hubs",
-        "architecture",
-        "Some parts are hubs that everything depends on",
-        "Changes reach a hub from all sides and spread from it to all sides.",
-        (
-            "Split the hub by responsibility; begin with its busiest files.",
-            "Keep new code out of the hub; give it a clear, small interface.",
-        ),
-        families=("maintainability.hub",),
-    ),
-    IssueGuideline(
-        "architecture.layers",
-        "architecture",
-        "The code breaks your architecture rules",
-        "Uses that skip or reverse your layers tie parts together that should stay independent.",
-        (
-            "Move the dependency downwards or behind an interface owned by the lower layer.",
-            "If the use is intended for now, add an exception with a reason and an expiry date.",
-        ),
-        engines=("architecture",),
-    ),
-    IssueGuideline(
-        "architecture.unstable",
-        "architecture",
-        "Stable parts depend on parts that change often",
-        "Changes in the less stable parts ripple into everything that relies on the stable one.",
-        ("Depend in the direction of stability: put the contract in the stable part.",),
-        families=("maintainability.unstable-dependency",),
-    ),
-    IssueGuideline(
-        "reliability.deployment",
+    Checkpoint(
+        "reliability.instances",
         "reliability",
-        "Deployments can go down during failures or releases",
-        "A single instance, missing readiness probes or stop-everything rollouts turn every "
-        "crash, node failure or release into an outage.",
+        "More than one instance runs",
+        "With one instance, every crash, node failure or release is an outage.",
         (
-            "Run at least two replicas (or an autoscaler with a minimum of two) and add a "
-            "PodDisruptionBudget.",
+            "Run at least two replicas, or an autoscaler with a minimum of two.",
+            "Spread the instances across nodes or zones.",
+            "If another repository sets the replica count, mark it as handled there.",
+        ),
+        families=("availability.single-instance",),
+        checked_by=("nfr",),
+        signals=("multiple-instances", "multi-zone"),
+        requires="kubernetes",
+    ),
+    Checkpoint(
+        "reliability.health",
+        "reliability",
+        "Health checks restart and gate instances",
+        "Health checks let the platform stop sending traffic to instances that are not ready and "
+        "restart those that hang.",
+        (
+            "Expose health and readiness endpoints.",
             "Give every container that serves traffic a readiness probe.",
-            "Use rolling updates instead of Recreate.",
         ),
-        families=(
-            "availability.single-instance",
-            "availability.probes",
-            "availability.downtime-deploy",
+        families=("availability.probes",),
+        checked_by=("nfr",),
+        signals=("k8s-probes", "health-endpoints"),
+        missing="low",
+        stack_steps=(
+            (
+                "spring",
+                (
+                    "Add spring-boot-starter-actuator and set "
+                    "management.endpoint.health.probes.enabled=true.",
+                ),
+            ),
+            (
+                "kubernetes",
+                ("Point the readiness probe at the readiness endpoint, not at a static page.",),
+            ),
         ),
     ),
-    IssueGuideline(
-        "reliability.schema",
+    Checkpoint(
+        "reliability.rollouts",
         "reliability",
-        "The database schema changes automatically at startup",
+        "Releases and maintenance do not stop the service",
+        "A rollout that stops every instance, or a node drain without a disruption budget, "
+        "causes planned downtime.",
+        (
+            "Use rolling updates instead of Recreate.",
+            "Add a PodDisruptionBudget so maintenance keeps instances running.",
+            "Shut down gracefully so requests in progress finish.",
+        ),
+        families=("availability.downtime-deploy",),
+        checked_by=("nfr",),
+        signals=("disruption-budget", "graceful-shutdown"),
+        requires="kubernetes",
+    ),
+    Checkpoint(
+        "reliability.fault-tolerance",
+        "reliability",
+        "Remote calls are protected (timeouts, retries, circuit breakers)",
+        "If this system calls other services, one slow or failing service can take it down.",
+        (
+            "Set connect and read timeouts on every outgoing call.",
+            "Retry only safe calls, with backoff; add circuit breakers around remote services.",
+            "Use queues for work that does not need an immediate answer.",
+        ),
+        signals=("circuit-breakers", "retries", "timeouts", "messaging"),
+        missing="low",
+        stack_steps=(
+            (
+                "spring",
+                ("Use Resilience4j (circuit breaker, retry, time limiter) with Spring Boot.",),
+            ),
+            ("node", ("Pass a timeout to fetch or axios; use opossum or cockatiel for breakers.",)),
+        ),
+    ),
+    Checkpoint(
+        "reliability.data",
+        "reliability",
+        "Database changes are versioned and recoverable",
         "Automatic schema changes cannot be reviewed or rolled back, and create or create-drop "
         "delete the data.",
         (
             "Manage the schema with versioned migrations (Flyway or Liquibase).",
             "Set spring.jpa.hibernate.ddl-auto to validate or none outside development.",
+            "Keep backups with a retention that matches your recovery needs.",
         ),
         families=("data.schema-auto-ddl",),
+        checked_by=("nfr",),
+        signals=("db-migrations", "backups"),
     ),
-    IssueGuideline(
+    Checkpoint(
         "reliability.platform",
         "reliability",
-        "Platform versions or jobs need attention",
+        "Platform versions and jobs are supported",
         "Retired platform API versions and jobs that cannot stop cause failures on upgrades and "
         "incidents.",
         (
@@ -310,147 +319,337 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
             "reliability.job-abort",
             "reliability.interceptor-side-effect",
         ),
+        checked_by=("frameworks", "pmd-apex", "opengrep"),
+        requires="platform",
     ),
-    IssueGuideline(
-        "reliability.defects",
+    Checkpoint(
+        "reliability.errors",
         "reliability",
-        "Defects that make behaviour unpredictable",
+        "Errors are handled and behaviour is predictable",
         "Swallowed errors and wrong comparisons hide failures and give wrong results.",
         (
             "Handle or rethrow errors; never leave a catch block empty.",
             "Fix the most severe defects first and add a test for each.",
         ),
         categories=("reliability", "correctness"),
+        checked_by=_CODE,
     ),
-    IssueGuideline(
-        "architecture.code",
-        "architecture",
-        "Code that is harder to read and change",
-        "Unused code, deprecated APIs and inconsistent style slow every change.",
-        ("Clean up as you touch the code; fix the issues in files you change often first.",),
-        categories=("maintainability", "coding_standards"),
-    ),
-)
-
-
-@dataclass(frozen=True, slots=True)
-class MissingGuideline:
-    """Recommendation when the upload shows no supporting mechanism for a question."""
-
-    key: str
-    area: str
-    question: str
-    priority: str
-    title: str
-    why: str
-    steps: tuple[str, ...]
-    signal: str | None = None  # a specific signal must be absent (else: the question's evidence)
-
-
-MISSING_GUIDELINES: tuple[MissingGuideline, ...] = (
-    MissingGuideline(
-        "operations.monitoring",
-        "operations",
-        "operations.monitoring",
-        "medium",
-        "No monitoring or metrics found in the upload",
-        "Without metrics and alerts, problems are found by users first.",
-        (
-            "Add a metrics library (Micrometer, OpenTelemetry or prom-client) and expose health "
-            "and readiness endpoints.",
-            "Keep alert rules and dashboards with the code.",
-            "If monitoring is configured outside this code, record it in the NFR questionnaire.",
-        ),
-    ),
-    MissingGuideline(
-        "operations.diagnostics",
-        "operations",
-        "reliability.glitches",
-        "low",
-        "No structured logging, tracing or error tracking found in the upload",
-        "Without them, finding the cause of an incident takes much longer.",
-        (
-            "Log in a structured format with a request or correlation id.",
-            "Add tracing (OpenTelemetry) and an error-tracking service.",
-        ),
-    ),
-    MissingGuideline(
+    Checkpoint(
         "reliability.tests",
         "reliability",
-        "reliability.consistency",
-        "medium",
-        "No automated tests found in the upload",
+        "Automated tests protect behaviour",
         "Without tests, every change can break behaviour unnoticed, and fixes cannot be verified.",
         (
             "Start with tests for the code you change most and for every fixed defect.",
             "Run the tests in a pipeline on every change.",
         ),
-        signal="automated-tests",
+        signals=("automated-tests",),
+        missing="medium",
+        stack_steps=(
+            ("spring", ("Add spring-boot-starter-test and test the services and controllers.",)),
+            ("node", ("Add a test runner such as Vitest or Jest.",)),
+        ),
     ),
-    MissingGuideline(
-        "reliability.recovery",
-        "reliability",
-        "recoverability.recovery-time",
-        "low",
-        "No health endpoints or automated pipeline found in the upload",
-        "Health checks let the platform restart failed instances; a pipeline makes redeploying "
-        "fast and repeatable.",
+    Checkpoint(
+        "performance.database",
+        "performance",
+        "Database access stays efficient as data grows",
+        "One query per item and queries without limits multiply load and latency with data "
+        "volume, and hit platform limits.",
         (
-            "Expose health and readiness endpoints (for example Spring Boot Actuator).",
+            "Load what a loop needs in one query before it, and save in one batch after it.",
+            "Add paging or an explicit limit to every list query.",
+            "Size the connection pool and cache data that is read often.",
+        ),
+        families=("performance.persistence-in-loop", "performance.unbounded-query"),
+        checked_by=_CODE,
+        signals=("connection-pool", "caching"),
+    ),
+    Checkpoint(
+        "performance.code",
+        "performance",
+        "No costly operations in hot code",
+        "Expensive operations repeated in loops waste CPU and memory.",
+        ("Move costly work out of loops and reuse results.",),
+        categories=("performance",),
+        checked_by=_CODE,
+    ),
+    Checkpoint(
+        "performance.autoscaling",
+        "performance",
+        "Capacity follows demand (autoscaling)",
+        "Without autoscaling, peaks overload a fixed number of instances and quiet periods waste "
+        "capacity.",
+        (
+            "Add a HorizontalPodAutoscaler (autoscaling/v2) with a minimum of two replicas.",
+            "Scale on CPU from the containers' requests, or on queue length for workers.",
+        ),
+        signals=("autoscaling",),
+        missing="low",
+        requires="kubernetes",
+    ),
+    Checkpoint(
+        "operations.monitoring",
+        "operations",
+        "Metrics and alerts are in place",
+        "Without metrics and alerts, problems are found by users first.",
+        (
+            "Expose metrics and keep alert rules and dashboards with the code.",
+            "If monitoring is set up outside this code, mark it as handled elsewhere.",
+        ),
+        signals=("metrics", "alerting"),
+        missing="medium",
+        stack_steps=(
+            (
+                "spring",
+                (
+                    "Add spring-boot-starter-actuator with micrometer-registry-prometheus and "
+                    "expose the prometheus endpoint.",
+                ),
+            ),
+            ("node", ("Add prom-client and expose a /metrics endpoint.",)),
+        ),
+    ),
+    Checkpoint(
+        "operations.diagnostics",
+        "operations",
+        "Incidents can be diagnosed (logs, tracing, error tracking)",
+        "Without structured logs, traces and error tracking, finding the cause of an incident "
+        "takes much longer.",
+        (
+            "Log in a structured format with a request or correlation id.",
+            "Add tracing (OpenTelemetry) and an error-tracking service.",
+        ),
+        signals=("structured-logging", "tracing", "error-tracking"),
+        missing="low",
+        stack_steps=(
+            ("spring", ("Use logstash-logback-encoder for JSON logs and Micrometer Tracing.",)),
+            ("node", ("Use pino for JSON logs and @opentelemetry/sdk-node for traces.",)),
+        ),
+    ),
+    Checkpoint(
+        "operations.delivery",
+        "operations",
+        "Changes ship through an automated pipeline",
+        "A pipeline makes builds, tests and redeploys fast and repeatable, which shortens "
+        "recovery.",
+        (
             "Build, test and deploy through a pipeline kept with the code.",
+            "Keep a runbook for deploying and rolling back.",
         ),
+        signals=("ci-pipeline", "runbooks"),
+        missing="low",
     ),
-    MissingGuideline(
-        "reliability.fault-tolerance",
-        "reliability",
-        "availability.fault-tolerance",
-        "low",
-        "No fault handling for remote calls found in the upload",
-        "If this system calls other services, one slow or failing service can take it down.",
+    Checkpoint(
+        "architecture.cycles",
+        "architecture",
+        "Parts do not depend on each other in cycles",
+        "Parts in a cycle can only change, be tested and be released together.",
         (
-            "Wrap remote calls with timeouts, retries with backoff and circuit breakers "
-            "(for example Resilience4j).",
-            "Use queues for work that does not need an immediate answer.",
+            "Start with the cheapest cut named in the issues.",
+            "Move shared code into a part both may use, or invert one dependency with an "
+            "interface owned by the part that should stay independent.",
         ),
+        families=("maintainability.dependency-cycle", "reliability.dependency-cycle"),
+        checked_by=("smells", "frameworks"),
     ),
+    Checkpoint(
+        "architecture.hubs",
+        "architecture",
+        "No part is a hub that everything depends on",
+        "Changes reach a hub from all sides and spread from it to all sides.",
+        (
+            "Split the hub by responsibility; begin with its busiest files.",
+            "Keep new code out of the hub; give it a clear, small interface.",
+        ),
+        families=("maintainability.hub",),
+        checked_by=("smells",),
+    ),
+    Checkpoint(
+        "architecture.unstable",
+        "architecture",
+        "Stable parts do not depend on parts that change often",
+        "Changes in the less stable parts ripple into everything that relies on the stable one.",
+        ("Depend in the direction of stability: put the contract in the stable part.",),
+        families=("maintainability.unstable-dependency",),
+        checked_by=("smells",),
+    ),
+    Checkpoint(
+        "architecture.layers",
+        "architecture",
+        "The code follows your architecture rules",
+        "Uses that skip or reverse your layers tie parts together that should stay independent.",
+        (
+            "Move the dependency downwards or behind an interface owned by the lower layer.",
+            "If the use is intended for now, add an exception with a reason and an expiry date.",
+        ),
+        engines=("architecture",),
+        checked_by=("architecture",),
+        requires="rules",
+    ),
+    Checkpoint(
+        "architecture.code",
+        "architecture",
+        "Code is easy to read and change",
+        "Unused code, deprecated APIs and inconsistent style slow every change.",
+        ("Clean up as you touch the code; fix the issues in files you change often first.",),
+        categories=("maintainability", "coding_standards"),
+        checked_by=("pmd", "eslint", "pmd-apex"),
+    ),
+    Checkpoint(
+        "experience.accessibility",
+        "experience",
+        "Accessibility is checked in the build",
+        "Without automated checks, screens that keyboard and screen-reader users cannot use reach "
+        "production unnoticed.",
+        (
+            "Add an accessibility lint plugin (for example eslint-plugin-jsx-a11y) and axe checks "
+            "in the UI tests.",
+            "Fix the reported problems and keep the checks in the pipeline.",
+        ),
+        signals=("accessibility-checks",),
+        missing="low",
+        requires="web-ui",
+    ),
+    Checkpoint(
+        "experience.api",
+        "experience",
+        "APIs are described for their consumers",
+        "An API description (OpenAPI) lets other teams integrate without reading the code and "
+        "makes breaking changes visible.",
+        (
+            "Publish an OpenAPI description, generated from the code or kept with it.",
+            "Version the API and check changes against the description in the pipeline.",
+        ),
+        signals=("api-specs", "api-docs-library"),
+        missing="low",
+        requires="http-api",
+        stack_steps=(("spring", ("Add springdoc-openapi to generate the description.",)),),
+    ),
+)
+BY_ID = {c.id: c for c in CHECKPOINTS}
+MISSING_CAPABLE = frozenset(c.id for c in CHECKPOINTS if c.missing)
+_MATCH_ORDER = sorted(CHECKPOINTS, key=lambda c: bool(c.categories))  # stable: catch-alls last
+
+
+def checkpoint_for(issue: TrackedIssue) -> Checkpoint | None:
+    """The checkpoint an open issue counts against."""
+    return next((c for c in _MATCH_ORDER if c.matches(issue)), None)
+
+
+# -- what the review shows about the project ------------------------------------------------------
+
+_WEB_UI = frozenset({"react", "react-dom", "vue", "@angular/core", "svelte", "preact", "next"})
+_HTTP_NPM = frozenset({"express", "fastify", "koa", "@nestjs/core", "@hapi/hapi"})
+_HTTP_MAVEN = (
+    "org.springframework.boot:spring-boot-starter-web",
+    "org.springframework.boot:spring-boot-starter-webflux",
+    "io.quarkus:",
+    "io.micronaut:",
+    "jakarta.ws.rs:",
+    "javax.ws.rs:",
 )
 
 
-# -- insights ----------------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class ReviewContext:
+    """What the newest reviewed upload shows about the project (from its engine runs)."""
+
+    reviewed: bool
+    engines: Mapping[str, str] = field(default_factory=dict)  # engine -> run state
+    kubernetes: bool | None = None  # None: the configuration checks did not run
+    configuration: bool | None = None
+    platform: bool = False
+    rules: bool = False
+    web_ui: bool = False
+    http_api: bool = False
+    stacks: frozenset[str] = frozenset()
+
+
+def review_context(
+    runs: Mapping[str, tuple[str, Mapping[str, object] | None]],
+    libraries: Iterable[LibraryUse],
+    paths: Iterable[str],
+) -> ReviewContext:
+    """``runs``: engine -> (state, diagnostics) of the reviewed upload's scan."""
+    engines = {name: state for name, (state, _) in runs.items()}
+
+    def number(engine: str, key: str) -> int | None:
+        state, diagnostics = runs.get(engine, ("", None))
+        if state not in COMPLETED:
+            return None
+        value = (diagnostics or {}).get(key)
+        return value if isinstance(value, int) else 0
+
+    workloads = number("nfr", "workloads")
+    spring_files = number("nfr", "spring_files")
+    config_files = number("trivy", "config_files")
+    known = [v for v in (workloads, spring_files, config_files) if v is not None]
+    uses = list(libraries)
+    names = {(u.ecosystem, u.name) for u in uses}
+    spring = any(e == "maven" and n.startswith("org.springframework.boot:") for e, n in names)
+    node = any(e == "npm" for e, _ in names) or any(
+        PurePosixPath(p).name == "package.json" for p in paths
+    )
+    kubernetes = None if workloads is None else workloads > 0
+    stacks = {s for s, on in (("spring", spring), ("node", node), ("kubernetes", kubernetes)) if on}
+    return ReviewContext(
+        reviewed=True,
+        engines=engines,
+        kubernetes=kubernetes,
+        configuration=any(v > 0 for v in known) if known else None,
+        platform=any(
+            engines.get(e) in {"SUCCEEDED", "PARTIAL"} for e in ("frameworks", "pmd-apex")
+        ),
+        rules=engines.get("architecture") in {"SUCCEEDED", "PARTIAL"},
+        web_ui=any(e == "npm" and n in _WEB_UI for e, n in names),
+        http_api=any(e == "npm" and n in _HTTP_NPM for e, n in names)
+        or any(e == "maven" and n.startswith(_HTTP_MAVEN) for e, n in names),
+        stacks=frozenset(stacks),
+    )
+
+
+# -- checkpoint results ---------------------------------------------------------------------------
 
 _SEVERITY = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 _PRIORITY = {"high": 0, "medium": 1, "low": 2}
-TOP_ISSUES = 5
+_NOT_APPLICABLE = {
+    "kubernetes": "No Kubernetes workloads in the upload.",
+    "configuration": "No container, deployment or application configuration in the upload.",
+    "platform": "No Salesforce or SAP Commerce code in the upload.",
+    "rules": "No architecture rules are set (Insights, Architecture).",
+    "web-ui": "No web user interface in the upload.",
+    "http-api": "No HTTP API framework in the upload.",
+}
 
 
 @dataclass(slots=True)
-class Insight:
-    id: str
-    area: str
-    kind: str  # issues | missing | targets
-    priority: str  # high | medium | low
-    title: str
+class CheckpointResult:
+    checkpoint: Checkpoint
+    status: str
+    priority: str | None  # high | medium | low, for failing checkpoints
     summary: str
-    why: str
     steps: tuple[str, ...]
-    questions: tuple[str, ...]
     issues: list[TrackedIssue] = field(default_factory=list)  # every open issue it covers
-    targets: tuple[str, ...] = ()  # missing team targets (kind targets)
+    evidence: list[Evidence] = field(default_factory=list)
+    handled_reason: str | None = None
 
 
 @dataclass(slots=True)
 class AreaHealth:
     area: Area
     state: str  # attention | improve | no_problems | unknown
-    insights: dict[str, int]  # priority -> count
-    questions: dict[str, int]  # NFR status -> count
+    counts: dict[str, int]  # checkpoint status -> count
 
 
 @dataclass(slots=True)
-class InsightReport:
-    insights: list[Insight]
+class Report:
+    checkpoints: list[CheckpointResult]  # failing first (by priority), then the rest
     areas: list[AreaHealth]
     reviewed: bool
+
+    def failing(self) -> list[CheckpointResult]:
+        return [c for c in self.checkpoints if c.status in FAILING]
 
 
 def _priority(issues: list[TrackedIssue]) -> str:
@@ -458,168 +657,169 @@ def _priority(issues: list[TrackedIssue]) -> str:
     return "high" if worst <= 1 else "medium" if worst == 2 else "low"
 
 
-def _places(issues: list[TrackedIssue]) -> str:
+def _issue_summary(issues: list[TrackedIssue]) -> str:
     files = len({i.path for i in issues})
+    severities = Counter(i.severity for i in issues)
+    mix = ", ".join(
+        f"{severities[s]} {s}" for s in ("critical", "high", "medium", "low") if severities[s]
+    )
     count = len(issues)
-    issue_text = f"{count} open issue{'s' if count != 1 else ''}"
-    return f"{issue_text} in {files} file{'s' if files != 1 else ''}"
+    return (
+        f"{count} open issue{'s' if count != 1 else ''} in {files} "
+        f"file{'s' if files != 1 else ''}" + (f" ({mix})." if mix else ".")
+    )
 
 
-_TARGET_LABELS = {
-    "availability_percent": "availability",
-    "latency_p95_ms": "response time",
-    "page_load_seconds": "page load time",
-    "typical_users": "typical users",
-    "peak_concurrent_users": "peak users",
-    "rto_minutes": "recovery time (RTO)",
-    "rpo_minutes": "acceptable data loss (RPO)",
-    "growth": "expected growth",
-    "downtime_cost": "cost of downtime",
-    "accessibility": "accessibility level",
-    "regulations": "regulations",
-    "platforms": "platforms",
-}
+def _applies(requires: str | None, context: ReviewContext) -> bool | None:
+    if requires is None:
+        return True
+    return {
+        "kubernetes": context.kubernetes,
+        "configuration": context.configuration,
+        "platform": context.platform,
+        "rules": context.rules,
+        "web-ui": context.web_ui,
+        "http-api": context.http_api,
+    }[requires]
+
+
+def _steps(checkpoint: Checkpoint, context: ReviewContext) -> tuple[str, ...]:
+    extra = tuple(
+        s for stack, steps in checkpoint.stack_steps if stack in context.stacks for s in steps
+    )
+    return extra + checkpoint.steps
+
+
+def _evaluate(
+    checkpoint: Checkpoint,
+    issues: list[TrackedIssue],
+    evidence: list[Evidence],
+    context: ReviewContext,
+    handled: Mapping[str, str],
+) -> CheckpointResult:
+    steps = _steps(checkpoint, context)
+
+    def result(status: str, summary: str, priority: str | None = None) -> CheckpointResult:
+        return CheckpointResult(checkpoint, status, priority, summary, steps, issues, evidence)
+
+    if not context.reviewed:
+        return result("not_checked", "Review an upload to check it.")
+    if issues:
+        return result("attention", _issue_summary(issues), _priority(issues))
+    applies = _applies(checkpoint.requires, context)
+    if not evidence and applies is False:
+        return result("not_applicable", _NOT_APPLICABLE[checkpoint.requires or ""])
+    if not evidence and applies is None:
+        return result(
+            "not_checked", "Review the upload again to check its deployment configuration."
+        )
+    if evidence:
+        return result("in_place", "Found in the upload.")
+    if checkpoint.missing:
+        reason = handled.get(checkpoint.id)
+        if reason:
+            done = result("handled", "Handled outside this code, as your team recorded.")
+            done.handled_reason = reason
+            return done
+        return result(
+            "missing", "Nothing in the uploaded code or configuration shows it.", checkpoint.missing
+        )
+    states = [context.engines.get(e) for e in checkpoint.checked_by]
+    if any(s in COMPLETED for s in states):
+        partly = any(s == "PARTIAL" for s in states)
+        return result(
+            "no_issues",
+            "No open issues from the checks"
+            + ("; some files could not be checked." if partly else "."),
+        )
+    return result("not_checked", "The checks that look for it did not run in the latest review.")
 
 
 def build(
-    assessment: Assessment, issues: list[TrackedIssue], evidence: list[Evidence]
-) -> InsightReport:
-    insights: list[Insight] = []
-    open_issues = [i for i in issues if i.status in OPEN]
-    grouped: dict[str, list[TrackedIssue]] = {}
-    for issue in open_issues:
-        guideline = next((g for g in ISSUE_GUIDELINES if g.matches(issue)), None)
-        if guideline is not None:
-            grouped.setdefault(guideline.key, []).append(issue)
-    for guideline in ISSUE_GUIDELINES:
-        matched = grouped.get(guideline.key)
-        if not matched:
+    issues: Iterable[TrackedIssue],
+    evidence: Iterable[Evidence],
+    context: ReviewContext,
+    handled: Mapping[str, str] | None = None,
+) -> Report:
+    """Every checkpoint with its status, from open issues, evidence and the team's decisions."""
+    grouped: dict[str, list[TrackedIssue]] = {c.id: [] for c in CHECKPOINTS}
+    for issue in issues:
+        if issue.status not in OPEN:
             continue
-        severities = Counter(i.severity for i in matched)
-        mix = ", ".join(
-            f"{severities[s]} {s}" for s in ("critical", "high", "medium", "low") if severities[s]
+        checkpoint = checkpoint_for(issue)
+        if checkpoint is not None:
+            grouped[checkpoint.id].append(issue)
+    found = {e.signal: e for e in evidence if e.kind == "supports"}
+    results = []
+    for checkpoint in CHECKPOINTS:
+        matched = sorted(
+            grouped[checkpoint.id], key=lambda i: (_SEVERITY.get(i.severity, 9), i.path, i.title)
         )
-        insights.append(
-            Insight(
-                id=guideline.key,
-                area=guideline.area,
-                kind="issues",
-                priority=_priority(matched),
-                title=guideline.title,
-                summary=f"{_places(matched)} ({mix}).",
-                why=guideline.why,
-                steps=guideline.steps,
-                questions=(),
-                issues=sorted(
-                    matched, key=lambda i: (_SEVERITY.get(i.severity, 9), i.path, i.title)
-                ),
-            )
+        shown = [found[s] for s in checkpoint.signals if s in found]
+        results.append(_evaluate(checkpoint, matched, shown, context, handled or {}))
+    area_order = [a.id for a in AREAS]
+    catalog_order = {c.id: i for i, c in enumerate(CHECKPOINTS)}
+    results.sort(
+        key=lambda r: (
+            r.status not in FAILING,
+            _PRIORITY.get(r.priority or "", 3),
+            area_order.index(r.checkpoint.area),
+            catalog_order[r.checkpoint.id],
         )
-    if assessment.reviewed:
-        status = {r.question.id: r for a in assessment.aspects for r in a.questions}
-        present = {e.signal for e in evidence if e.kind == "supports"}
-        for missing in MISSING_GUIDELINES:
-            result = status.get(missing.question)
-            if result is None or result.status == "not_applicable":
-                continue
-            absent = missing.signal not in present if missing.signal else not result.evidence
-            if not absent or (result.answer and result.answer.text):
-                continue  # evidence found, or the team explained how it is handled
-            insights.append(
-                Insight(
-                    id=missing.key,
-                    area=missing.area,
-                    kind="missing",
-                    priority=missing.priority,
-                    title=missing.title,
-                    summary="Nothing in the uploaded code or configuration shows it.",
-                    why=missing.why,
-                    steps=missing.steps,
-                    questions=(missing.question,),
-                )
-            )
-    # Targets only the team can give, per area.
-    needed: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
-    for aspect in assessment.aspects:
-        for result in aspect.questions:
-            if result.status == "needs_input":
-                needed.setdefault(area_of(result.question.id), []).append(
-                    (result.question.id, result.question.profile_fields)
-                )
-    for area_id, entries in needed.items():
-        fields = tuple(dict.fromkeys(f for _, fs in entries for f in fs))
-        labels = [_TARGET_LABELS.get(f, f) for f in fields] or ["your answers"]
-        insights.append(
-            Insight(
-                id=f"targets.{area_id}",
-                area=area_id,
-                kind="targets",
-                priority="medium",
-                title="Tell us your targets",
-                summary=f"Needed to judge this area: {', '.join(labels)}.",
-                why="Evidence in code shows intent; only your targets say whether it is enough.",
-                steps=("Enter the targets in the NFR questionnaire (Insights).",),
-                questions=tuple(q for q, _ in entries),
-                targets=fields,
-            )
-        )
-    insights.sort(key=lambda i: (_PRIORITY[i.priority], [a.id for a in AREAS].index(i.area), i.id))
-    areas: list[AreaHealth] = []
+    )
+    areas = []
     for area in AREAS:
-        mine = [i for i in insights if i.area == area.id]
-        counts = Counter(i.priority for i in mine)
-        questions = Counter(
-            r.status
-            for a in assessment.aspects
-            for r in a.questions
-            if area_of(r.question.id) == area.id
-        )
-        if counts["high"]:
+        mine = [r for r in results if r.checkpoint.area == area.id]
+        counts = Counter(r.status for r in mine)
+        if any(r.status in FAILING and r.priority == "high" for r in mine):
             state = "attention"
-        elif counts["medium"] or counts["low"]:
+        elif any(r.status in FAILING for r in mine):
             state = "improve"
-        elif questions["evidence"] or questions["answered"]:
+        elif any(r.status in PASSED for r in mine):
             state = "no_problems"
         else:
             state = "unknown"
-        areas.append(
-            AreaHealth(
-                area,
-                state,
-                {p: counts.get(p, 0) for p in ("high", "medium", "low")},
-                dict(questions),
-            )
-        )
-    return InsightReport(insights, areas, assessment.reviewed)
+        areas.append(AreaHealth(area, state, {s: counts.get(s, 0) for s in STATUSES}))
+    return Report(results, areas, context.reviewed)
 
 
 # -- the advisor's fact sheet ---------------------------------------------------------------------
 
+_STATUS_TEXT = {"attention": "needs attention", "missing": "not found in the upload"}
 
-def facts(report: InsightReport, evidence: list[Evidence]) -> list[dict[str, object]]:
-    """Numbered facts the advisor agent may cite: recommendations, their most severe issues, the
-    mechanisms found, and missing targets. Everything is copied from the tools' output."""
+
+def facts(report: Report) -> list[dict[str, object]]:
+    """Numbered facts the advisor agent may cite: checkpoints that need work, their most severe
+    issues, mechanisms found and the team's decisions. Everything is copied from the tools."""
     sheet: list[dict[str, object]] = []
 
     def add(text: str, **refs: object) -> None:
         sheet.append({"id": f"F{len(sheet) + 1}", "text": text[:600], **refs})
 
-    for insight in report.insights:
+    for result in report.failing():
         add(
-            f"Recommendation {insight.id} ({insight.area}, priority {insight.priority}): "
-            f"{insight.title}. {insight.summary}",
-            insight=insight.id,
+            f"Checkpoint {result.checkpoint.id} ({result.checkpoint.area}, "
+            f"{_STATUS_TEXT[result.status]}, priority {result.priority}): "
+            f"{result.checkpoint.title}. {result.summary}",
+            insight=result.checkpoint.id,
         )
-        for issue in insight.issues[:TOP_ISSUES]:
+        for issue in result.issues[:TOP_ISSUES]:
             add(
-                f"Issue in {insight.id}: {issue.title} ({issue.severity}) at {issue.path}",
-                insight=insight.id,
+                f"Issue in {result.checkpoint.id}: {issue.title} ({issue.severity}) "
+                f"at {issue.path}",
+                insight=result.checkpoint.id,
                 issue=issue.id,
                 path=issue.path,
             )
-    for item in evidence:
-        if item.kind != "supports":
-            continue
-        where = ", ".join(f"{p}{f':{n}' if n else ''}" for p, n, _ in item.locations[:2])
-        add(f"Found in the upload: {item.label} ({where})", signal=item.signal)
+    for result in report.checkpoints:
+        if result.status == "in_place":
+            for item in result.evidence:
+                where = ", ".join(f"{p}{f':{n}' if n else ''}" for p, n, _ in item.locations[:2])
+                add(f"Found in the upload: {item.label} ({where})", signal=item.signal)
+        elif result.status == "handled":
+            add(
+                f"Handled outside the code (team statement): {result.checkpoint.title}: "
+                f"{result.handled_reason}",
+                insight=result.checkpoint.id,
+            )
     return sheet

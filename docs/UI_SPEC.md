@@ -112,19 +112,26 @@ This section supersedes the per-phase tab lists above where they differ.
 - **Project tabs (six):** Overview, Issues, Insights, Fixes, Uploads, Settings. Settings is shown
   to members only. Old links (`?tab=architecture`, `nfr`, `ai`, `workspaces`, `github`,
   `reviews`, `upload`, …) redirect to the new tab, and to the right Insights view.
-- **Overview:** "Latest review" (findings by severity, files reviewed) and "Health and next
+- **Overview:** "Latest review" (findings by severity, files reviewed) and "NFR health and next
   steps": the six areas with a plain state (Needs attention, Could be better, No problems found,
-  Not enough evidence) and the three most important recommendations.
-- **Insights:** views Recommendations (default), NFR questionnaire, Architecture.
-  - Recommendations: "Health by area" tiles; "Improvement plan" (optional, labelled AI). It shows
-    ordered steps with area, effort and what each is based on, plus "N suggestions removed for
-    lack of evidence" (collapsed, with reasons) and a provenance note.
-  - Recommendation cards: priority, area, what was found, why it matters, "How to improve it"
-    steps, the issues behind it (collapsed) and "Start fixing". Start fixing is primary only for
-    high priority; it opens a fix workspace narrowed to those issues ("Showing the issues of one
-    recommendation", with "Show all issues").
-  - Target requests are grouped into one "Tell us your targets" card. "Ask about this code" shows
-    only when AI is on for the project.
+  Not enough evidence) and the three most important checkpoints to resolve.
+- **Insights** (ADR 0024): views NFR checkpoints (default) and Architecture. The NFR
+  questionnaire was removed; old `nfr` links open the checkpoints.
+  - "NFR health by area" tiles (state, how many to resolve and passed; a tile scrolls to its
+    area); "Improvement plan" (optional, labelled AI) when something needs work. It shows ordered
+    steps with area, effort and what each is based on, plus "N suggestions removed for lack of
+    evidence" (collapsed, with reasons) and a provenance note.
+  - "N checkpoints to resolve": cards with the status (Needs attention / Not found), priority,
+    area, what was found, why it matters, "How to resolve it" steps (stack-specific first), the
+    issues behind it (collapsed), "Start fixing" (issues; primary only for high priority; opens a
+    fix workspace narrowed to those issues, "Showing the issues of one NFR checkpoint") and
+    "Handled outside this code?" (missing mechanisms; a reason, saved with the author, shown as
+    the team's statement, with undo).
+  - "All checkpoints by area": one collapsed row per checkpoint with its status (In place, No
+    issues found, Handled elsewhere, Not checked, …); opening it shows the evidence with file and
+    line. "Not applicable here" lists the rest in one line. "In the upload but not checked by
+    refactorX" lists Helm charts, Terraform security settings and load-test scripts when present.
+    "Ask about this code" shows only when AI is on for the project.
 - **Fixes:** fix workspaces; earlier single fixes collapsed and shown only if any exist. The
   finding page offers one "Fix this" card (fix workspace). Its AI second opinion shows only when
   AI is on, or when earlier opinions exist.
@@ -132,7 +139,7 @@ This section supersedes the per-phase tab lists above where they differ.
   and GitHub reviews when a repository is connected.
 - **Settings:** AI for this project, the GitHub connection, and deleting the project.
 - The sidebar has no "Coming soon" list; capabilities stay on System status for operators.
-- Checked in light, dark and 390 px by `e2e/insights.spec.ts` (screenshots `insights*.png`).
+- Checked in light, dark and 390 px by `e2e/insights.spec.ts` and `e2e/p12-nfr.spec.ts` (screenshots `insights*.png`, `p12-nfr*.png`).
 
 ## First journey
 

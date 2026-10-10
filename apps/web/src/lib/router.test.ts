@@ -109,7 +109,7 @@ describe("fix workspaces", () => {
     });
   });
 
-  it("carries the issues of a recommendation and drops anything that is not an id", () => {
+  it("carries the issues of a checkpoint and drops anything that is not an id", () => {
     const other = "3f2c8f1e-0000-4000-8000-000000000002";
     const href = workspaceHref(ID, "issues", null, null, [ID, other]);
     expect(parseRoute(href)).toMatchObject({

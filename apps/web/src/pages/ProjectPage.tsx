@@ -53,8 +53,8 @@ const TAB_ALIASES: Record<string, string> = {
   architecture: "insights",
   nfr: "insights",
 };
-/** Old tabs that are now views of Insights. */
-const VIEW_ALIASES: Record<string, string> = { architecture: "architecture", nfr: "nfr" };
+/** Old tabs that are now views of Insights (the NFR questionnaire became the checkpoints). */
+const VIEW_ALIASES: Record<string, string> = { architecture: "architecture" };
 
 async function waitForIntake(id: string): Promise<Intake> {
   for (let attempt = 0; attempt < 600; attempt++) {

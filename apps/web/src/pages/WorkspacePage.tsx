@@ -443,7 +443,7 @@ function IssueQueue({
       </div>
       {query.issues?.length ? (
         <div className="row" data-testid="workspace-focus">
-          <span className="small">Showing the issues of one recommendation.</span>
+          <span className="small">Showing the issues of one NFR checkpoint.</span>
           <button
             type="button"
             className="btn btn-ghost btn-sm"

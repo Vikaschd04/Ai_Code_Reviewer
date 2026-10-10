@@ -179,14 +179,14 @@ Residual risk: checks are source-level; an edited project can still fail to comp
 | Repository text stays data | Facts quote issue titles and paths through the same fence neutralisation as other prompts; the system prompt forbids following instructions found in them | test_advisor_task_quotes_facts_and_keeps_repository_text_as_data |
 | Same AI gate | Off until the project's admin switches AI on; provider, monthly budget, accounting and cancellation as for other runs; nothing is sent when off | test_insights_and_a_checked_advisor_plan (no model request while off) |
 
-### NFR readiness (P12 slice 1, ADR 0021)
+### NFR checkpoints (ADR 0024; replaces NFR readiness of ADR 0021)
 
 | Control | Implementation | Evidence |
 |---|---|---|
-| Statements, not detections | Team targets and answers are versioned with their author and shown as attested; evidence shows a mechanism is declared or present, never that it works; nothing found is "not checked yet"; compliance is never certified | test_status_precedence_is_honest, test_exports_list_every_question_and_never_claim_compliance |
-| Audit | Append-only profile versions with author, note and hash; stale saves are conflicts (409) | test_p12_nfr.py |
-| Isolation | View, profile and exports are project-scoped (404 for other workspaces); members edit, viewers read | test_members_save_profiles_and_other_workspaces_see_nothing |
-| Nothing executed or fetched | Evidence comes from the stored file list and the dependency map's declared dependencies; nothing is downloaded or run | crp_analysis/nfr/signals.py |
+| Evidence, not claims | Statuses come only from open issues, evidence with file and line, and the review's engine runs; nothing found is "not found in the upload"; checks that did not run are "not checked", never passed; compliance is never certified | test_statuses_follow_the_evidence, test_checks_that_did_not_run_are_not_clean |
+| Statements, not detections | "Handled elsewhere" is versioned with its author and shown as the team's statement; allowed only for missing mechanisms (issues are resolved or triaged instead) | test_checkpoint_decisions_and_isolation, test_nfr_checkpoints_from_a_real_review |
+| Isolation | Insights and decisions are project-scoped (404 for other workspaces); members decide, viewers read | test_checkpoint_decisions_and_isolation |
+| Nothing executed or fetched | Evidence comes from the stored file list, the dependency map and the review's engine results; fix recipes edit copies in a workspace and go through the validation ladder | crp_analysis/insights/engine.py, crp_analysis/fixes/config_recipes.py |
 
 ### Configuration evidence (P12 slice 2, ADR 0023)
 

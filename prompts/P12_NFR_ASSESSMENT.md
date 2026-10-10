@@ -1,5 +1,11 @@
 # Execute Phase 12 — NFR assessment
 
+> Scope update (10 October 2026, owner; ADR 0024): the questionnaire, profile, readiness view and
+> exports are removed. P12 delivers NFR checkpoints for the uploaded project (statuses with
+> evidence or issues) and help to resolve them (steps, fix workspace, recipes, "handled elsewhere",
+> optional checked AI plan). Read the sections below with that change; questionnaire items no
+> longer apply.
+
 Read docs/NFR_ASSESSMENT.md, ARCHITECTURE_INTELLIGENCE.md, ADR 0018–0020 (architecture model,
 rules, smells), ADR 0013 (framework packs), ADR 0012 (AI) and the P02/P10 reports. The goal:
 answer a non-functional requirements questionnaire for an uploaded system with cited evidence,

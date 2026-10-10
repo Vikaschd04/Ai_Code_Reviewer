@@ -44,11 +44,12 @@ A fourth run kind, `fix`, asks for up to `CRP_AI_FIX_MAX_CANDIDATES` (default 3)
 
 ## Improvement plan — the advisor agent (ADR 0022)
 
-- **Kind `advisor`**, prompt `rx-ai-advisor-v1`, final tool `submit_plan`. The request freezes the
-  insight engine's recommendations, a numbered fact sheet and the team's targets in
-  `ai_runs.context`. The agent may read code with the same read-only, masked tools.
+- **Kind `advisor`**, prompt `rx-ai-advisor-v2` (ADR 0024), final tool `submit_plan`. The request
+  freezes the NFR checkpoints that need work and a numbered fact sheet in `ai_runs.context`
+  (`checkpoints`, `facts`; runs requested before ADR 0024 froze `recommendations` and are read the
+  same way). The agent may read code with the same read-only, masked tools.
 - **Grounding checks** (`crp_analysis/insights/advisor.py`) run before the plan is stored:
-  - a step needs a known recommendation, a known fact or a verified code anchor;
+  - a step needs a known checkpoint, a known fact or a verified code anchor;
   - unknown ids are dropped;
   - numbers must appear in the cited evidence;
   - a summary with unknown numbers is withheld.
