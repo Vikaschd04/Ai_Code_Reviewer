@@ -2,8 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { createProject, env, signIn } from "./helpers";
 
-// P12 slice 1: after a review, the NFR readiness tab answers the questionnaire with evidence
-// from the code, and the team's targets and answers complete it. The archive is synthetic.
+// P12: after a review, the NFR questionnaire answers with evidence from the code and its
+// configuration (with file and line), and the team's targets and answers complete it. The
+// archive is synthetic.
 
 function question(page: Page, id: string) {
   return page.getByTestId(`nfr-q-${id}`);
@@ -37,6 +38,8 @@ test("NFR readiness: evidence, targets, answers and not applicable", async ({ pa
     "Health and readiness endpoints",
   );
   await expect(recovery.getByTestId("nfr-evidence")).toContainText("pom.xml:9");
+  await expect(recovery.getByTestId("nfr-evidence")).toContainText("Kubernetes health probes");
+  await expect(recovery.getByTestId("nfr-evidence")).toContainText("deploy/k8s/deployment.yaml:20");
   expect(await status(page, "recoverability.recovery-time")).toBe("needs_input");
   expect(await status(page, "reliability.consistency")).toBe("needs_work");
   expect(await status(page, "portability.platforms")).toBe("evidence");

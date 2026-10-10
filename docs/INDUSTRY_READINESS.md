@@ -93,7 +93,8 @@ release (dogfooding).
 
 1. **Next phase: P12 NFR assessment, slice 1** (questionnaire, profile, tagging of existing
    findings, readiness view, export). No owner input needed. Then slices 2–3 (infrastructure,
-   configuration and code-pattern evidence).
+   configuration and code-pattern evidence). *Status 10 October 2026: slices 1 and 2 delivered
+   (ADR 0021, ADR 0023); slice 3 (code patterns) is next.*
 2. **Alongside, uplifts that need no owner input:** project home, prioritised queue, web bundle
    splitting, axe checks, OpenTelemetry for refactorX, backup and restore scripts with a restore
    test on the local database.

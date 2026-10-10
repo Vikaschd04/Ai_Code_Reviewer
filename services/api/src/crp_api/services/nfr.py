@@ -1,5 +1,6 @@
-"""Inputs of a project's NFR assessment (P12 slice 1): the newest reviewed upload's files and
-declared libraries, the project's tracked issues, and the newest NFR profile version."""
+"""Inputs of a project's NFR assessment (P12): the newest reviewed upload's files, declared
+libraries and configuration evidence (engine ``nfr``), the project's tracked issues, and the
+newest NFR profile version."""
 
 from __future__ import annotations
 
@@ -15,8 +16,9 @@ from crp_analysis.catalog import lookup
 from crp_analysis.nfr.assessment import ACCEPTED, OPEN, Assessment, TrackedIssue, assess
 from crp_analysis.nfr.profile import Profile, from_document
 from crp_analysis.nfr.questionnaire import load
-from crp_analysis.nfr.signals import Evidence, LibraryUse, detect
+from crp_analysis.nfr.signals import ConfigSignals, Evidence, LibraryUse, detect
 from crp_core.db.models import (
+    EngineRun,
     FileEntry,
     GraphBuild,
     GraphEdge,
@@ -25,7 +27,7 @@ from crp_core.db.models import (
     Scan,
     User,
 )
-from crp_core.domain.states import FileDisposition, GraphBuildState
+from crp_core.domain.states import EngineState, FileDisposition, GraphBuildState
 
 _ECOSYSTEM = {"pom.xml": "maven", "package.json": "npm"}
 
@@ -84,6 +86,25 @@ async def libraries(session: Any, snapshot_id: uuid.UUID) -> list[LibraryUse]:
     return uses
 
 
+_CONFIG_RAN = frozenset(
+    {EngineState.SUCCEEDED.value, EngineState.PARTIAL.value, EngineState.NOT_APPLICABLE.value}
+)
+
+
+async def config_signals(session: Any, scan_id: uuid.UUID) -> ConfigSignals | None:
+    """What the configuration checks found in the review, or None when they did not run (older
+    reviews) or did not complete: then the assessment says the configuration is not checked."""
+    run = (
+        await session.execute(
+            select(EngineRun).where(EngineRun.scan_id == scan_id, EngineRun.engine == "nfr")
+        )
+    ).scalar_one_or_none()
+    if run is None or run.state not in _CONFIG_RAN:
+        return None
+    signals = (run.diagnostics or {}).get("signals")
+    return [s for s in signals if isinstance(s, dict)] if isinstance(signals, list) else []
+
+
 async def issues(session: Any, project_id: uuid.UUID) -> list[TrackedIssue]:
     rows = (
         await session.execute(
@@ -138,7 +159,9 @@ async def gather(session: Any, project_id: uuid.UUID) -> Gathered:
     evidence: list[Evidence] = []
     if found is not None:
         evidence = detect(
-            await paths(session, found.snapshot_id), await libraries(session, found.snapshot_id)
+            await paths(session, found.snapshot_id),
+            await libraries(session, found.snapshot_id),
+            await config_signals(session, found.scan_id),
         )
     tracked = await issues(session, project_id)
     assessment = assess(load(), evidence, tracked, profile, reviewed=found is not None)

@@ -1,0 +1,7 @@
+server:
+  shutdown: graceful
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

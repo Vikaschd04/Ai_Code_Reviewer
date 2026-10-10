@@ -21,9 +21,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from crp_analysis.nfr.assessment import OPEN, Assessment, TrackedIssue
+from crp_analysis.nfr.questionnaire import CAPACITY_CHECKS
 from crp_analysis.nfr.signals import Evidence
 
-ENGINE_VERSION = "crp-insights-v1"
+ENGINE_VERSION = "crp-insights-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +153,35 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
         rule_prefixes=("pmd-apex:ApexCRUDViolation", "pmd-apex:ApexSharingViolations"),
     ),
     IssueGuideline(
+        "performance.capacity",
+        "performance",
+        "Containers have no CPU or memory requests and limits",
+        "Without requests the scheduler cannot place instances reliably and CPU-based "
+        "autoscaling has no baseline; without memory limits one instance can starve the others.",
+        (
+            "Set CPU and memory requests from measured usage, and a memory limit.",
+            "Use the requests as the baseline for autoscaling on CPU utilisation.",
+            "Revisit the values after load tests.",
+        ),
+        rule_prefixes=tuple(sorted(f"trivy:{check}" for check in CAPACITY_CHECKS)),
+    ),
+    IssueGuideline(
+        "security.configuration",
+        "security",
+        "Containers and settings are configured insecurely",
+        "Root or privileged containers, writable file systems and exposed management endpoints "
+        "turn one weakness into control of the host or the data.",
+        (
+            "Run containers as a non-root user with a read-only root file system, no privilege "
+            "escalation and all capabilities dropped.",
+            "Expose only the health and info Actuator endpoints; require authentication for the "
+            "others.",
+            "Each issue names the setting to change.",
+        ),
+        families=("security.actuator-exposure",),
+        rule_prefixes=("trivy:misconfig:",),
+    ),
+    IssueGuideline(
         "security.other",
         "security",
         "Other security weaknesses",
@@ -234,6 +264,36 @@ ISSUE_GUIDELINES: tuple[IssueGuideline, ...] = (
         "Changes in the less stable parts ripple into everything that relies on the stable one.",
         ("Depend in the direction of stability: put the contract in the stable part.",),
         families=("maintainability.unstable-dependency",),
+    ),
+    IssueGuideline(
+        "reliability.deployment",
+        "reliability",
+        "Deployments can go down during failures or releases",
+        "A single instance, missing readiness probes or stop-everything rollouts turn every "
+        "crash, node failure or release into an outage.",
+        (
+            "Run at least two replicas (or an autoscaler with a minimum of two) and add a "
+            "PodDisruptionBudget.",
+            "Give every container that serves traffic a readiness probe.",
+            "Use rolling updates instead of Recreate.",
+        ),
+        families=(
+            "availability.single-instance",
+            "availability.probes",
+            "availability.downtime-deploy",
+        ),
+    ),
+    IssueGuideline(
+        "reliability.schema",
+        "reliability",
+        "The database schema changes automatically at startup",
+        "Automatic schema changes cannot be reviewed or rolled back, and create or create-drop "
+        "delete the data.",
+        (
+            "Manage the schema with versioned migrations (Flyway or Liquibase).",
+            "Set spring.jpa.hibernate.ddl-auto to validate or none outside development.",
+        ),
+        families=("data.schema-auto-ddl",),
     ),
     IssueGuideline(
         "reliability.platform",

@@ -3,11 +3,14 @@
 Two kinds:
 - ``supports``: a mechanism the requirement relies on is declared or present (a library in a
   manifest, a pipeline, an API description). It shows intent, not that it works at run time.
-- ``context``: material that is in the upload but not assessed yet (deployment manifests,
-  Terraform, application configuration, load-test scripts); later slices check it.
+- ``context``: material that is in the upload but not assessed (Helm templates, Terraform
+  security settings, load-test scripts).
 
 Libraries come from the manifests' declared dependencies (pom.xml, package.json) with their file
-and line; files from the upload's paths. Nothing is executed or downloaded.
+and line; files from the upload's paths; configuration signals (replicas, probes, autoscaling,
+timeouts, ...) from the ``nfr`` engine's run of the same review (P12 slice 2,
+``crp_analysis.nfr.config``). Reviews made before that engine existed, or where it did not
+complete, keep the earlier "not checked yet" context. Nothing is executed or downloaded.
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from pathlib import PurePosixPath
 
 from crp_analysis import policy as scope_policy
 
-SIGNALS_VERSION = "crp-nfr-signals-v1"
+SIGNALS_VERSION = "crp-nfr-signals-v2"
 MAX_LOCATIONS = 5
 
 
@@ -345,6 +348,90 @@ SIGNALS: tuple[Signal, ...] = (
         ),
     ),
     Signal(
+        "load-tests",
+        "Load-test scripts (results can be imported later)",
+        "context",
+        ("scalability.spikes", "performance.access-pattern"),
+        files=("**/*.jmx", "**/gatling/**", "**/k6/**", "**/load-test*/**", "**/loadtest*/**"),
+    ),
+)
+# Found by the configuration checks (engine ``nfr``), with file and line.
+CONFIG_SIGNALS: tuple[Signal, ...] = (
+    Signal(
+        "multiple-instances",
+        "More than one instance (Kubernetes replicas or autoscaler minimum)",
+        "supports",
+        ("availability.continuous", "availability.fault-tolerance"),
+    ),
+    Signal(
+        "autoscaling",
+        "Autoscaling (Kubernetes HorizontalPodAutoscaler or KEDA)",
+        "supports",
+        ("scalability.spikes", "scalability.demand"),
+    ),
+    Signal(
+        "disruption-budget",
+        "Pod disruption budgets (maintenance keeps instances running)",
+        "supports",
+        ("availability.continuous",),
+    ),
+    Signal(
+        "k8s-probes",
+        "Kubernetes health probes (readiness, liveness, startup)",
+        "supports",
+        ("recoverability.recovery-time", "availability.continuous"),
+    ),
+    Signal(
+        "graceful-shutdown",
+        "Graceful shutdown (requests in progress finish)",
+        "supports",
+        ("availability.continuous",),
+    ),
+    Signal(
+        "timeouts",
+        "Timeouts for connections and calls",
+        "supports",
+        ("availability.fault-tolerance", "performance.latency"),
+    ),
+    Signal(
+        "connection-pool",
+        "Database connection pool sized in configuration",
+        "supports",
+        ("scalability.demand",),
+    ),
+    Signal(
+        "backups",
+        "Database backups configured (Terraform)",
+        "supports",
+        ("recoverability.data",),
+    ),
+    Signal(
+        "multi-zone",
+        "Database across availability zones (Terraform)",
+        "supports",
+        ("availability.continuous", "availability.fault-tolerance"),
+    ),
+)
+# What the configuration checks leave out (shown when they ran).
+CHECKED_CONTEXT: tuple[Signal, ...] = (
+    Signal(
+        "helm-charts",
+        "Helm charts (replicas and probes inside templates are not checked)",
+        "context",
+        ("availability.continuous", "scalability.demand", "scalability.spikes"),
+        files=("**/Chart.yaml",),
+    ),
+    Signal(
+        "terraform",
+        "Terraform infrastructure (security settings are not checked)",
+        "context",
+        ("security.attacks", "recoverability.data"),
+        files=("**/*.tf",),
+    ),
+)
+# Before the configuration checks existed, or when they did not complete.
+LEGACY_CONTEXT: tuple[Signal, ...] = (
+    Signal(
         "deployment-manifests",
         "Kubernetes or Helm manifests (replicas, probes and autoscaling not checked yet)",
         "context",
@@ -376,22 +463,26 @@ SIGNALS: tuple[Signal, ...] = (
             *_yaml("**/application*"),
         ),
     ),
-    Signal(
-        "load-tests",
-        "Load-test scripts (results can be imported later)",
-        "context",
-        ("scalability.spikes", "performance.access-pattern"),
-        files=("**/*.jmx", "**/gatling/**", "**/k6/**", "**/load-test*/**", "**/loadtest*/**"),
-    ),
 )
 TESTS_SIGNAL = Signal(
     "automated-tests", "Automated tests", "supports", ("reliability.consistency",)
 )
 
 
-def detect(paths: Iterable[str], libraries: Iterable[LibraryUse]) -> list[Evidence]:
-    """Evidence found in an upload: its file paths and the manifests' declared libraries."""
+ConfigSignals = list[dict[str, object]]
+"""The ``nfr`` engine's ``diagnostics["signals"]``: ``{signal, count, locations}`` entries."""
+_BY_ID = {s.id: s for s in (*SIGNALS, *CONFIG_SIGNALS)}
+
+
+def detect(
+    paths: Iterable[str],
+    libraries: Iterable[LibraryUse],
+    config: ConfigSignals | None = None,
+) -> list[Evidence]:
+    """Evidence found in an upload: its file paths, the manifests' declared libraries and, when
+    the configuration checks ran (``config`` is not None), what they found."""
     found: dict[str, Evidence] = {}
+    signals = (*SIGNALS, *(LEGACY_CONTEXT if config is None else CHECKED_CONTEXT))
 
     def hit(signal: Signal, path: str, line: int | None, detail: str | None) -> None:
         evidence = found.get(signal.id)
@@ -403,7 +494,7 @@ def detect(paths: Iterable[str], libraries: Iterable[LibraryUse]) -> list[Eviden
 
     for path in sorted(paths):
         pure = PurePosixPath(path)
-        for signal in SIGNALS:
+        for signal in signals:
             if signal.files and any(pure.full_match(p) for p in signal.files):
                 hit(signal, path, None, None)
         if scope_policy.classify(path).category == "test":
@@ -415,5 +506,20 @@ def detect(paths: Iterable[str], libraries: Iterable[LibraryUse]) -> list[Eviden
                 for eco, pattern in signal.libraries
             ):
                 hit(signal, use.path, use.line, use.name)
-    order = {s.id: i for i, s in enumerate((*SIGNALS, TESTS_SIGNAL))}
+    for entry in config or []:
+        configured = _BY_ID.get(str(entry.get("signal")))
+        locations = entry.get("locations")
+        if configured is None or not isinstance(locations, list):
+            continue
+        for location in locations:
+            if isinstance(location, list) and len(location) == 3:
+                where, line, detail = location
+                number = line if isinstance(line, int) else None
+                hit(configured, str(where), number, str(detail) if detail else None)
+        evidence = found.get(configured.id)
+        count = entry.get("count")
+        if evidence is not None and isinstance(count, int) and count > len(locations):
+            evidence.count += count - len(locations)  # locations are capped; the count is not
+    everything = (*SIGNALS, *CONFIG_SIGNALS, *CHECKED_CONTEXT, *LEGACY_CONTEXT, TESTS_SIGNAL)
+    order = {s.id: i for i, s in enumerate(everything)}
     return sorted(found.values(), key=lambda e: order[e.signal])

@@ -1,5 +1,5 @@
 {
- "catalog_version": "crp-rules-v4",
+ "catalog_version": "crp-rules-v5",
  "rules": {
   "eslint:@typescript-eslint/no-unused-vars": {
    "category": "maintainability",
@@ -346,6 +346,78 @@
    "severity_rationale": "Salesforce retired Platform API versions 21.0 through 30.0 in Summer '25: calls at these versions fail, and components pinned to them keep legacy behaviour and miss later platform fixes.",
    "title": "Retired Salesforce API version",
    "url": "https://help.salesforce.com/s/articleView?id=000389618&language=en_US&type=1"
+  },
+  "nfr:crp.nfr.k8s.no-readiness-probe": {
+   "category": "reliability",
+   "engine": "nfr",
+   "explanation": "A container that declares a port has no readiness probe, so Kubernetes sends it traffic as soon as the process starts, and keeps sending traffic when it cannot serve.",
+   "family": "availability.probes",
+   "recommendation": "Add a readinessProbe that checks the application can serve requests (for Spring Boot, /actuator/health/readiness with management.endpoint.health.probes.enabled=true). Keep it cheap and independent of downstream services.",
+   "rule_id": "crp.nfr.k8s.no-readiness-probe",
+   "severity": "medium",
+   "severity_rationale": "Without readiness, rollouts and restarts route requests to instances that are not ready, which users see as errors; Kubernetes documents readiness probes as the mechanism that gates traffic.",
+   "title": "Container without a readiness probe",
+   "url": "https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/"
+  },
+  "nfr:crp.nfr.k8s.recreate-strategy": {
+   "category": "reliability",
+   "engine": "nfr",
+   "explanation": "The Deployment uses strategy type Recreate: all existing instances are stopped before new ones start.",
+   "family": "availability.downtime-deploy",
+   "recommendation": "Use the default RollingUpdate strategy (with readiness probes and maxUnavailable 0) unless two versions truly cannot run side by side; if they cannot, document the planned downtime.",
+   "rule_id": "crp.nfr.k8s.recreate-strategy",
+   "severity": "low",
+   "severity_rationale": "Recreate causes downtime on every deployment by design; low because some workloads need it (for example a single-writer volume).",
+   "title": "Deployment stops everything on each release",
+   "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#recreate-deployment"
+  },
+  "nfr:crp.nfr.k8s.single-replica": {
+   "category": "reliability",
+   "engine": "nfr",
+   "explanation": "A Kubernetes Deployment or StatefulSet in the upload can run with fewer than two instances: replicas is 1 or not set, and no overlay, kustomization or autoscaler in the upload sets a minimum of two or more.",
+   "family": "availability.single-instance",
+   "recommendation": "Run at least two replicas (or set the autoscaler's minReplicas to 2 or more), spread them across nodes or zones, and add a PodDisruptionBudget so maintenance never stops every instance. If another repository sets the replica count, record it in the NFR questionnaire.",
+   "rule_id": "crp.nfr.k8s.single-replica",
+   "severity": "medium",
+   "severity_rationale": "With one instance, every crash, node failure, eviction or rollout is an outage; Kubernetes' own guidance runs multiple replicas for availability. Medium because the deployed value may be set outside the upload.",
+   "title": "Workload runs a single instance",
+   "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+  },
+  "nfr:crp.nfr.spring.actuator-exposed": {
+   "category": "security",
+   "engine": "nfr",
+   "explanation": "management.endpoints.web.exposure.include exposes heapdump, env, configprops or threaddump (directly or with *) over HTTP.",
+   "family": "security.actuator-exposure",
+   "recommendation": "Expose only health and info over HTTP (management.endpoints.web.exposure.include=health,info); if more endpoints are needed, put them on a separate management port reachable only from inside the network, and require authentication for all of them.",
+   "rule_id": "crp.nfr.spring.actuator-exposed",
+   "severity": "medium",
+   "severity_rationale": "Spring Boot's documentation warns that endpoints may contain sensitive information; a heap dump contains secrets held in memory. Medium because authentication or network rules outside the configuration may protect them.",
+   "title": "Sensitive Actuator endpoints exposed over HTTP",
+   "url": "https://docs.spring.io/spring-boot/reference/actuator/endpoints.html#actuator.endpoints.exposing"
+  },
+  "nfr:crp.nfr.spring.health-details-public": {
+   "category": "security",
+   "engine": "nfr",
+   "explanation": "management.endpoint.health.show-details=always shows the status and details of every health component (databases, disk space, external services) to any caller.",
+   "family": "security.actuator-exposure",
+   "recommendation": "Use show-details=when-authorized (with roles) or never; probes only need the overall status.",
+   "rule_id": "crp.nfr.spring.health-details-public",
+   "severity": "low",
+   "severity_rationale": "Information disclosure that helps an attacker map dependencies and their failures; low because it reveals no credentials by itself.",
+   "title": "Health details shown to everyone",
+   "url": "https://docs.spring.io/spring-boot/reference/actuator/endpoints.html#actuator.endpoints.health"
+  },
+  "nfr:crp.nfr.spring.schema-auto-update": {
+   "category": "reliability",
+   "engine": "nfr",
+   "explanation": "spring.jpa.hibernate.ddl-auto (or hibernate.hbm2ddl.auto) is create, create-drop or update outside a development or test profile, so Hibernate changes the schema when the application starts.",
+   "family": "data.schema-auto-ddl",
+   "recommendation": "Manage the schema with versioned migrations (Flyway or Liquibase) and set ddl-auto to validate or none for every shared environment.",
+   "rule_id": "crp.nfr.spring.schema-auto-update",
+   "severity": "medium",
+   "severity_rationale": "create and create-drop delete all data at startup (reported as high); update applies unreviewed changes that cannot be rolled back and never removes or fixes columns. Spring Boot's documentation recommends a migration tool for production databases.",
+   "title": "Database schema changed automatically at startup",
+   "url": "https://docs.spring.io/spring-boot/how-to/data-initialization.html"
   },
   "opengrep:crp.java.command-injection.runtime-exec": {
    "category": "security",

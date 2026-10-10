@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — deployment and configuration checks (10 October 2026)
+
+- **Deployment & configuration** (new check): Kubernetes workloads that can run as a single
+  instance, containers that serve traffic without a readiness probe, and rollouts that stop
+  everything (Recreate); Spring Boot settings that expose sensitive Actuator endpoints, show health
+  details to everyone, or let Hibernate change (or drop) the database schema at startup. Overlays,
+  kustomizations and autoscalers are taken into account; development profiles and test resources
+  are ignored.
+- **Containers and Kubernetes security** (Trivy, offline): root and privileged containers,
+  writable file systems, missing CPU and memory requests and limits, and more, from the checks
+  built into the pinned Trivy. Terraform is not scanned by Trivy, because its scanner downloads
+  remote modules named in the code.
+- **NFR questionnaire and Insights** now cite what the configuration shows, with file and line:
+  replicas, autoscaling, disruption budgets, probes, graceful shutdown, timeouts, pool sizes,
+  backups and multi-zone databases. New recommendations: deployments that can go down, automatic
+  schema changes, containers without requests and limits, insecure container settings.
+- Helm templates and charts that cannot be rendered are reported as not checked, never as clean.
+
 ## Unreleased — a simpler refactorX, with insights and an advisor (10 October 2026)
 
 - **Simpler project page:** six tabs instead of eleven — Overview, Issues, Insights, Fixes,

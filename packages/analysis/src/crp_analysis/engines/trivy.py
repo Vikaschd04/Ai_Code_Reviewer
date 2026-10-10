@@ -1,4 +1,4 @@
-"""Trivy adapter: dependency vulnerabilities (lockfiles/manifests) and secrets, fully offline.
+"""Trivy adapter: dependency vulnerabilities, secrets and misconfigurations, fully offline.
 
 Pinned to Trivy 0.69.3, the release Aqua verified as safe after the March 2026 supply-chain
 compromise (signature checked with cosign; see ADR 0007). Every run uses ``--offline-scan``,
@@ -7,6 +7,14 @@ database is downloaded only by ``make engines``. The trusted secret config and a
 file are passed explicitly, so repository ``trivy.yaml``/``.trivyignore``/``trivy-secret.yaml``
 files cannot change results. Matched secret values are never stored.
 
+Misconfigurations (P12 slice 2, ADR 0023) use the checks embedded in the pinned binary
+(``--skip-check-update``; trivy-checks, MIT) for Dockerfiles, Kubernetes manifests, Helm charts
+(rendered with their own values), CloudFormation and Azure ARM templates. Terraform is left out:
+Trivy 0.69.3's Terraform scanner downloads remote modules named in the code, even with
+``--offline-scan``. As a second guard every run gets an unreachable HTTP proxy. Charts that cannot
+be rendered are listed in the run's diagnostics (``misconfig_unrendered``); code excerpts are
+dropped from the stored report.
+
 Exit contract: 0 = scan completed (``--exit-code`` left at 0); anything else = failure.
 """
 
@@ -14,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 from datetime import UTC, datetime
 from importlib import resources
@@ -34,6 +43,13 @@ from crp_analysis.engines.process import run_bounded, scrubbed_env
 from crp_core.domain.states import CoverageOutcome, EngineState
 
 RULESET_ID = "crp-trivy-v1"
+MISCONFIG_SCANNERS = ("dockerfile", "kubernetes", "helm", "cloudformation", "azure-arm")
+# Requests to any host fail fast: nothing in an offline scan should reach the network.
+NO_NETWORK = {
+    name: "http://127.0.0.1:9"
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
+} | {"NO_PROXY": "", "no_proxy": ""}
+_UNRENDERED = re.compile(r'\[helm scanner\] Failed to render Chart files\s+file_path="([^"]*)"')
 _SEVERITY = {
     "CRITICAL": "critical",
     "HIGH": "high",
@@ -68,7 +84,7 @@ class TrivyAdapter:
         self._max_output = max_output_bytes
 
     def is_eligible(self, path: str, language: str | None) -> bool:
-        return True  # secret scanning covers every stored text file; lockfiles add vulnerabilities
+        return True  # secrets in every stored text file; lockfiles and configuration add more
 
     def enabled_rules(self) -> None:
         return None  # vulnerability IDs come from the database and are open-ended
@@ -90,18 +106,23 @@ class TrivyAdapter:
         material = (
             f"trivy-db:{meta.get('UpdatedAt', 'missing')}|"
             + hashlib.sha256(secret_config_path().read_bytes()).hexdigest()
+            # Embedded misconfiguration checks change only with the binary.
+            + f"|misconfig:{self._version() or 'missing'}:{','.join(MISCONFIG_SCANNERS)}"
         )
         return hashlib.sha256(material.encode()).hexdigest()
+
+    def _version(self) -> str | None:
+        version_file = self._home / "VERSION" if self._home is not None else None
+        if version_file is None or not version_file.is_file():
+            return None
+        return version_file.read_text(encoding="utf-8").strip()
 
     def availability(self) -> Availability:
         if self._home is None or not (self._home / "trivy").is_file():
             return Availability(
                 False, None, "Trivy is not installed (CRP_TRIVY_HOME); run make engines"
             )
-        version_file = self._home / "VERSION"
-        version = (
-            version_file.read_text(encoding="utf-8").strip() if version_file.is_file() else None
-        )
+        version = self._version()
         if self.db_metadata() is None:
             return Availability(
                 False,
@@ -140,10 +161,12 @@ class TrivyAdapter:
             "--offline-scan",
             "--disable-telemetry",
             "--skip-version-check",
+            "--skip-check-update",
             "--no-progress",
-            "--quiet",
             "--scanners",
-            "vuln,secret",
+            "vuln,secret,misconfig",
+            "--misconfig-scanners",
+            ",".join(MISCONFIG_SCANNERS),
             "--secret-config",
             str(secret_config_path()),
             "--ignorefile",
@@ -158,7 +181,7 @@ class TrivyAdapter:
             result = run_bounded(
                 args,
                 cwd=work,
-                env=scrubbed_env([], work / "home"),
+                env=scrubbed_env([], work / "home", NO_NETWORK),
                 timeout_seconds=self._timeout,
                 max_output_bytes=self._max_output,
                 cancel=cancel,
@@ -172,7 +195,9 @@ class TrivyAdapter:
             "db_updated_at": meta.get("UpdatedAt"),
             "db_next_update": meta.get("NextUpdate"),
             "db_stale": _is_stale(meta.get("NextUpdate")),
-            "scanners": ["vuln", "secret"],
+            "scanners": ["vuln", "secret", "misconfig"],
+            "misconfig_scanners": list(MISCONFIG_SCANNERS),
+            "misconfig_unrendered": sorted(set(_UNRENDERED.findall(result.stderr_tail))),
         }
         if result.cancelled:
             outcome.state = EngineState.CANCELED
@@ -223,6 +248,8 @@ def _scrub_report(data: Any) -> Any:
         for secret in result.get("Secrets") or []:
             secret.pop("Match", None)
             secret.pop("Code", None)
+        for misconfig in result.get("Misconfigurations") or []:
+            (misconfig.get("CauseMetadata") or {}).pop("Code", None)
     return data
 
 
@@ -306,18 +333,69 @@ def _secret(target: str, secret: Any) -> RawFinding:
     )
 
 
+def _misconfiguration(target: str, item: Any) -> RawFinding:
+    check = str(item["ID"])
+    cause = item.get("CauseMetadata") or {}
+    start = int(cause["StartLine"]) if cause.get("StartLine") else None
+    end = int(cause.get("EndLine") or start) if start else None
+    title = str(item.get("Title") or check)
+    message = str(item.get("Message") or title)
+    return RawFinding(
+        path=target,
+        rule_id=f"misconfig:{check}",
+        ruleset=RULESET_ID,
+        engine_severity=str(item.get("Severity")),
+        message=message[:4000],
+        start_line=start,
+        start_column=None,
+        end_line=end,
+        end_column=None,
+        rule_url=item.get("PrimaryURL"),
+        anchor="source_span" if start else "file",
+        severity=_SEVERITY.get(str(item.get("Severity", "UNKNOWN")).upper(), "info"),
+        category="security",
+        guidance=Guidance(
+            title=title,
+            explanation=str(item.get("Description") or title)[:1500],
+            recommendation=str(item.get("Resolution") or message)[:1500],
+            severity_rationale=f"Severity {item.get('Severity')} from Trivy's built-in "
+            f"misconfiguration check {check} (not re-assessed).",
+            url=item.get("PrimaryURL"),
+        ),
+        details={
+            "check_id": check,
+            "config_type": item.get("Type"),
+            "resource": cause.get("Resource"),
+            "provider": cause.get("Provider"),
+            "service": cause.get("Service"),
+        },
+        # The message names the resource (for example the container), so it survives line moves.
+        identity=f"{check}|{cause.get('Resource') or ''}|{message}",
+        title=title,
+    )
+
+
 def _parse(data: Any, outcome: EngineOutcome, files: set[str]) -> None:
     targets: set[str] = set()
+    config: set[str] = set()
     for result in data.get("Results") or []:
         target = str(result.get("Target", ""))
         targets.add(target)
         if target not in files:
             continue
+        if result.get("Class") == "config":
+            config.add(target)
         for vuln in result.get("Vulnerabilities") or []:
             outcome.findings.append(_vulnerability(target, vuln))
         for secret in result.get("Secrets") or []:
             outcome.findings.append(_secret(target, secret))
+        for item in result.get("Misconfigurations") or []:
+            if item.get("Status", "FAIL") == "FAIL":
+                outcome.findings.append(_misconfiguration(target, item))
     outcome.attempted = sorted(files)
     outcome.problems = []
     outcome.state = EngineState.SUCCEEDED if files else EngineState.NOT_APPLICABLE
-    outcome.diagnostics["dependency_targets"] = sorted(t for t in targets if t in files)
+    outcome.diagnostics["dependency_targets"] = sorted(
+        t for t in targets if t in files and t not in config
+    )
+    outcome.diagnostics["config_files"] = len(config)

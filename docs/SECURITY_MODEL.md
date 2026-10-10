@@ -188,6 +188,16 @@ Residual risk: checks are source-level; an edited project can still fail to comp
 | Isolation | View, profile and exports are project-scoped (404 for other workspaces); members edit, viewers read | test_members_save_profiles_and_other_workspaces_see_nothing |
 | Nothing executed or fetched | Evidence comes from the stored file list and the dependency map's declared dependencies; nothing is downloaded or run | crp_analysis/nfr/signals.py |
 
+### Configuration evidence (P12 slice 2, ADR 0023)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| No downloads from scanned code | Trivy's Terraform scanner fetches remote modules named in the code even with `--offline-scan` (verified on 0.69.3); Terraform is left out of Trivy's misconfiguration scanners, and every Trivy run gets an unreachable HTTP proxy as a second guard; Helm chart dependencies are not fetched (unrendered charts are listed) | test_trivy_misconfigurations_use_embedded_checks_and_never_download |
+| Embedded checks only | `--skip-check-update`: the 563 checks inside the pinned binary; no registry pull | engines/trivy.py |
+| Files are data | The `nfr` engine composes YAML with PyYAML's safe loader (no object construction), bounds anchor expansion at 20,000 nodes and catches deep nesting; templates are not rendered; Spring placeholders are not resolved | test_anchor_expansion_and_recursion_are_bounded, test_placeholders_and_templated_values_are_not_judged |
+| No source excerpts stored from misconfigurations | `CauseMetadata.Code` is removed from the stored Trivy report (manifests can hold secrets) | test_trivy_misconfigurations_use_embedded_checks_and_never_download |
+| Honest coverage | Unreadable YAML is FAILED, templates and oversized files NOT_ATTEMPTED; the run is PARTIAL, never clean | test_coverage_is_honest_about_templates_and_broken_files |
+
 ### GitHub (P06, ADR 0015)
 
 | Control | Implementation | Evidence |

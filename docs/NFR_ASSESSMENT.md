@@ -139,6 +139,15 @@ imported file. "Team" is asked in the portal.
   and logging libraries from manifests, and code patterns (timeouts, unbounded queries, blocking
   calls). Gaps become findings of an `nfr` engine with the normal lifecycle; supporting evidence
   is stored with file and line.
+  - **Delivered in slice 2 (ADR 0023):** engine `nfr` (Kubernetes: single instance with overlays,
+    kustomizations and autoscalers considered, readiness probes, Recreate; Spring Boot: sensitive
+    Actuator endpoints, public health details, `ddl-auto` schema changes) and Trivy's embedded
+    misconfiguration checks for Dockerfile, Kubernetes, Helm, CloudFormation and Azure ARM.
+    **Terraform is not scanned by Trivy**: its scanner downloads remote modules named in the code
+    even offline (verified on 0.69.3); only two Terraform signals (backups, multi-zone) are read,
+    and Terraform security settings are listed as not checked. Helm templates are not checked by
+    the `nfr` engine (Trivy renders charts with their own values; unrenderable charts are listed).
+  - Still to come (slice 3): code patterns (timeouts in code, unbounded queries, blocking calls).
 - **NFR profile per project**: targets (availability, latency, RTO, RPO, peak users, growth),
   regulations and platforms, plus the team's attested answers. Versioned and audited like the
   architecture rules (ADR 0019).

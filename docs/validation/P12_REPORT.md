@@ -8,9 +8,11 @@ Status: **IN_PROGRESS.** Slice 1 is delivered and verified: the questionnaire, t
 evidence from declared libraries and files, gaps from tracked issues, the readiness view and the
 CSV and Markdown exports. With the product simplification (ADR 0022), the insight engine and
 the advisor agent are also delivered: the agent part of slice 5, with live quality BLOCKED on the
-owner's key. Slices 2–4 and 6 are planned (prompts/P12_NFR_ASSESSMENT.md):
+owner's key. Slice 2 (configuration and infrastructure evidence, [ADR 0023](../adr/0023_CONFIGURATION_EVIDENCE.md))
+is delivered and verified; see its section below. Slices 3, 4 and 6 are planned
+(prompts/P12_NFR_ASSESSMENT.md):
 
-2. configuration and infrastructure evidence;
+2. configuration and infrastructure evidence (delivered);
 3. code-pattern evidence;
 4. measured evidence import;
 5. AI NFR analyst (needs the owner's key);
@@ -107,3 +109,63 @@ Findings during this work:
 Limitations: the advisor's real-world quality is unmeasured until the owner adds an AI key (as
 for P03). The checks guarantee that every kept step is backed by the tools' evidence, not that
 the plan is the best one.
+
+## Configuration and infrastructure evidence (slice 2, 10 October 2026; ADR 0023)
+
+| Deliverable (P12 plan) | Delivered | Where |
+|---|---|---|
+| Trivy misconfiguration checks offline, after verification | 563 checks embedded in the pinned binary (`--skip-check-update`; trivy-checks, MIT) for Dockerfile, Kubernetes, Helm, CloudFormation and Azure ARM, in the same Trivy run; cause lines, Trivy's guidance and link; code excerpts not stored; unrenderable Helm charts listed. **Terraform not scanned by Trivy** (it downloads remote modules, see findings) | `engines/trivy.py` |
+| Gaps as `nfr` findings with the normal lifecycle | 6 rules: Kubernetes single instance (overlays, kustomizations, autoscalers considered), no readiness probe on a container with a port, Recreate; Spring Boot sensitive Actuator endpoints, public health details, `ddl-auto` schema changes (high for create and create-drop) | `engines/nfr.py`, `nfr/config.py`, catalog `crp-rules-v5` |
+| Supporting evidence with file and line | 9 new signals (more than one instance, autoscaling, disruption budgets, probes, graceful shutdown, timeouts, pool size, backups, multi-zone) and locations for Actuator health probes, circuit breakers and retries, stored in the run's diagnostics; Helm templates and Terraform security listed as not checked | `nfr/signals.py` (`crp-nfr-signals-v2`), `services/nfr.py` |
+| Questionnaire and insights | Mapping `crp-nfr-mapping-v2`; 4 new guidelines (deployments can go down, automatic schema changes, no requests and limits, insecure configuration) | `nfr/questionnaire.py`, `insights/engine.py` (`crp-insights-v2`) |
+| Positive and negative fixtures | `nfr-config`: every rule has a positive and a negative example (README table); `nfr-mixed` now has a real manifest and Spring Boot settings | `fixtures/projects/nfr-config`, `fixtures/projects/nfr-mixed` |
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Rules: positive and negative | 9 expected findings with exact lines; overlay-raised and autoscaled workloads, probed and portless containers, development profiles and test resources produce none; create is high, update medium; `shutdown` not listed as exposed (exposure does not enable it) | PASS | `test_rules_fire_on_positive_examples_only`, `test_relaxed_keys_lists_and_profiles`, `test_autoscaler_owns_the_replica_count` |
+| Honest coverage | Broken YAML FAILED with its line; Helm template NOT_ATTEMPTED; run PARTIAL | PASS | `test_coverage_is_honest_about_templates_and_broken_files` |
+| Parsing bounds | Alias expansion stops at 20,000 nodes; a recursive anchor fails instead of looping; placeholders and templated values not judged | PASS | `test_anchor_expansion_and_recursion_are_bounded`, `test_placeholders_and_templated_values_are_not_judged` |
+| Real Trivy, no downloads | Root Dockerfile flagged (DS-0002, DS-0026), hardened one not; privileged container KSV-0017 with lines and link; no Terraform results; the chart with an unvendored dependency listed as unrendered; nothing under `.aqua` in the run's folder; no `"Lines"` in the stored report | PASS | `test_trivy_misconfigurations_use_embedded_checks_and_never_download` |
+| Evidence reaches the questionnaire | Stored signals replace the slice 1 "not checked yet" context; capped locations keep the full count; unknown signals ignored; older reviews keep the old context | PASS | `test_detect_uses_config_evidence_and_says_what_is_not_checked` |
+| Real review (configuration fixture) | `nfr` PARTIAL (1 failed, 1 template), 9 tracked `nfr` issues, Trivy misconfigurations; continuous availability "needs work" with replicas, disruption budget and graceful shutdown as evidence and Helm charts as not checked; data recovery has the 2 schema issues; autoscaling cited for spikes; the 4 new recommendations | PASS | `test_p12_config.py` |
+| Real review (NFR fixture) | Kubernetes probe cited at `deploy/k8s/deployment.yaml:20`, replicas at line 6, Actuator health probes at `application.yml:7`; no "not checked yet" for the manifest | PASS | `test_p12_nfr.py`, `e2e/p12-nfr.spec.ts` |
+| Detector precision and recall on real systems | — | Not measured (slice 6) | — |
+
+Checks for slice 2:
+
+| Check | Command | Outcome |
+|---|---|---|
+| Lint, format, types and contracts | `make check` | exit 0 |
+| Tests | `caffeinate -i make test` | exit 0: 597 pytest (12 new) + 30 vitest, 10 min. A first run had 8 failures, all from expectations that list every engine (sample project, hosted smoke, upload comparison) and from changing `nfr-mixed` while the run was in progress; updated and rerun clean |
+| Browser E2E | `caffeinate -i make test-e2e` | exit 0: 21/21 in 3.2 minutes; the NFR journey now checks the Kubernetes probe cited at `deploy/k8s/deployment.yaml:20`; screenshots reviewed in light, dark and at 390 px (long paths wrap, no horizontal scroll) |
+
+Findings during slice 2:
+
+- **Trivy downloads remote Terraform modules even with `--offline-scan`.** A trial scan of a
+  `module { source = "terraform-aws-modules/vpc/aws" }` block fetched the module from the
+  registry into `$TMPDIR/.aqua/cache` (deleted after the trial). Trivy 0.69.3's Terraform parser
+  defaults to `allowDownloads: true` and `trivy fs` has no flag to turn it off. Terraform was left
+  out of the misconfiguration scanners and every Trivy run now gets an unreachable proxy.
+- **Helm render failures appear only in Trivy's log**, not in its JSON. The adapter no longer
+  passes `--quiet` and reads the failures from the log, so such charts are listed instead of
+  looking clean.
+- **Autoscalers own the replica count**: a first draft took the largest of `spec.replicas` and the
+  autoscaler minimum, which would have hidden an autoscaler that allows one instance.
+- **`shutdown` is not exposed by `include=*`** (it is disabled unless switched on), so it is not
+  named in the Actuator finding.
+- Existing expectations listing every engine (sample project, hosted smoke, deploy smoke script,
+  upload comparison) were updated for the new engine, which is NOT_APPLICABLE there.
+- **Memory:** loading the embedded checks raises Trivy's peak resident memory on `nfr-mixed`
+  from about 95 MB (vulnerabilities and secrets) to 158 MB (`/usr/bin/time -l`, macOS arm64), within
+  the lite profile's 512 MB budget; CI's lite smoke test under 512 MB checks it on Linux.
+
+Limitations:
+
+- Helm templates are not checked by the `nfr` engine, and Terraform security settings are not
+  checked at all (until a no-network sandbox or a download switch in Trivy, ADR 0023).
+- Workloads are matched across files by kind and name (namespaces set at deploy time are not
+  known); values set outside the upload (pipelines, other repositories, environment variables,
+  a config server) are not visible, which the messages and the catalog say.
+- A Deployment without a security context gets many Trivy findings (Pod Security Standards); the
+  insights group them, but the Issues list is long.
+- Precision and recall per detector are measured only on the synthetic fixtures so far (slice 6).

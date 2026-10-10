@@ -38,8 +38,9 @@ export const CHECKS: Record<string, CheckInfo> = {
     tool: "Opengrep",
   },
   trivy: {
-    name: "Dependencies & secrets",
-    description: "Known vulnerabilities in dependencies and leaked credentials in files.",
+    name: "Dependencies, secrets & containers",
+    description:
+      "Known vulnerabilities in dependencies, leaked credentials, and insecure Dockerfile and Kubernetes settings.",
     tool: "Trivy",
   },
   "pmd-apex": {
@@ -52,6 +53,12 @@ export const CHECKS: Record<string, CheckInfo> = {
     name: "Platform configuration",
     description: "SAP Commerce extension dependencies and Salesforce API versions in metadata.",
     tool: "refactorX framework packs",
+  },
+  nfr: {
+    name: "Deployment & configuration",
+    description:
+      "Single instances, missing readiness probes and stop-everything rollouts in Kubernetes manifests, and risky Spring Boot settings.",
+    tool: "refactorX configuration checks",
   },
   smells: {
     name: "Architecture smells",
@@ -75,6 +82,7 @@ export const CHECK_ORDER = [
   "trivy",
   "pmd-apex",
   "frameworks",
+  "nfr",
   "smells",
   "architecture",
 ];
@@ -85,13 +93,14 @@ export const FINDING_CHECKS = [
   "trivy",
   "pmd-apex",
   "frameworks",
+  "nfr",
   "smells",
   "architecture",
 ];
 
-/** Checks that only apply to some projects (platform files, architecture rules): shown only
- * when they applied. */
-export const PLATFORM_CHECKS = new Set(["pmd-apex", "frameworks", "architecture"]);
+/** Checks that only apply to some projects (platform files, deployment configuration,
+ * architecture rules): shown only when they applied. */
+export const PLATFORM_CHECKS = new Set(["pmd-apex", "frameworks", "nfr", "architecture"]);
 
 /** Checks worth showing for a scan: core checks always, the others when they applied. */
 export function visibleChecks(

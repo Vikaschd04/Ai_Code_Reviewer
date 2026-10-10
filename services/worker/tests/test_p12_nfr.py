@@ -1,6 +1,7 @@
-"""NFR readiness (P12 slice 1) on the real stack: a reviewed upload gives cited evidence (declared
-libraries with their manifest lines, files) and gaps (tracked issues); the team's profile adds
-targets and attested answers; nothing found stays "not checked yet"."""
+"""NFR readiness (P12) on the real stack: a reviewed upload gives cited evidence (declared
+libraries with their manifest lines, files, configuration read by the ``nfr`` engine) and gaps
+(tracked issues); the team's profile adds targets and attested answers; nothing found stays "not
+checked yet"."""
 
 from __future__ import annotations
 
@@ -39,19 +40,29 @@ async def test_nfr_readiness_from_a_real_review(settings: Settings, tmp_path: Pa
         intake = await stack.zip_intake(project, _zip(tmp_path))
         scan = await stack.scan_and_wait(project, intake["snapshot_id"])
         assert scan["state"] in {"SUCCEEDED", "PARTIAL"}
+        engines = {e["engine"]: e for e in scan["engines"]}
+        assert engines["nfr"]["state"] == "SUCCEEDED"
         data = await stack.ok("GET", url)
         assert data["basis"]["snapshot_id"] == intake["snapshot_id"]
         questions = _questions(data)
 
         recovery = questions["recoverability.recovery-time"]
         signals = {e["signal"]: e for e in recovery["evidence"]}
-        assert set(signals) == {"health-endpoints", "ci-pipeline"}
+        assert set(signals) == {"health-endpoints", "ci-pipeline", "k8s-probes"}
         assert signals["health-endpoints"]["locations"] == [
             {
                 "path": "pom.xml",
                 "line": 9,
                 "detail": "org.springframework.boot:spring-boot-starter-actuator",
-            }
+            },
+            {
+                "path": "src/main/resources/application.yml",
+                "line": 7,
+                "detail": "management.endpoint.health.probes.enabled",
+            },
+        ]
+        assert signals["k8s-probes"]["locations"] == [
+            {"path": "deploy/k8s/deployment.yaml", "line": 20, "detail": "shop: readinessProbe"}
         ]
         # Evidence alone does not answer it: the recovery time objective is the team's.
         assert recovery["status"] == "needs_input" and recovery["team_required"] is True
@@ -70,7 +81,16 @@ async def test_nfr_readiness_from_a_real_review(settings: Settings, tmp_path: Pa
         assert questions["recoverability.data"]["evidence"][0]["signal"] == "db-migrations"
         availability = questions["availability.continuous"]
         assert availability["status"] == "needs_input"
-        assert [e["signal"] for e in availability["context"]] == ["deployment-manifests"]
+        assert availability["context"] == []  # the configuration checks read the manifest
+        shown = {e["signal"]: e for e in availability["evidence"]}
+        assert {"multiple-instances", "k8s-probes", "graceful-shutdown"} <= set(shown)
+        assert shown["multiple-instances"]["locations"] == [
+            {
+                "path": "deploy/k8s/deployment.yaml",
+                "line": 6,
+                "detail": "Deployment shop: replicas: 2",
+            }
+        ]
         assert questions["usability.simplicity"]["status"] == "not_checked"
 
         # The team adds targets and answers; a new profile version.

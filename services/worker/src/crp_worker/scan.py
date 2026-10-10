@@ -44,6 +44,7 @@ with workflow.unsafe.imports_passed_through():
     )
     from crp_analysis.engines.eslint import EslintAdapter
     from crp_analysis.engines.frameworks import FrameworkRulesAdapter
+    from crp_analysis.engines.nfr import ConfigChecksAdapter
     from crp_analysis.engines.opengrep import OpengrepAdapter
     from crp_analysis.engines.pmd import APEX, PmdAdapter
     from crp_analysis.engines.smells import RULESET_ID as SMELLS_RULESET
@@ -196,6 +197,8 @@ def default_adapters(settings: Settings) -> dict[str, EngineAdapter]:
             ruleset=APEX,
         ),
         "frameworks": FrameworkRulesAdapter(settings.intake_max_text_file_bytes),
+        # NFR configuration evidence (P12): manifests and application settings, read as data.
+        "nfr": ConfigChecksAdapter(settings.intake_max_text_file_bytes),
         # Intended architecture (P10): bound per review to the project's rules and the
         # dependency map of the same review.
         "architecture": ArchitectureRulesAdapter(),

@@ -150,6 +150,39 @@ def test_trivy_finds_known_vulnerable_dependencies_and_secrets(tmp_path: Path) -
     assert dep.anchor == "dependency" and dep.severity == "critical" and dep.in_catalog
 
 
+def test_trivy_misconfigurations_use_embedded_checks_and_never_download(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, "nfr-config")
+    outcome = trivy().run(root, _files(root), cancel=CancelToken(), heartbeat=_noop)
+    assert outcome.state is EngineState.SUCCEEDED, outcome.error_message
+    found = {(f.path, f.rule_id) for f in outcome.findings}
+    assert ("Dockerfile", "misconfig:DS-0002") in found  # runs as root
+    assert ("Dockerfile", "misconfig:DS-0026") in found  # no HEALTHCHECK
+    assert not any(path == "services/hardened/Dockerfile" for path, _ in found)
+    privileged = next(
+        f
+        for f in outcome.findings
+        if f.path == "deploy/base/shop.yaml" and f.rule_id == "misconfig:KSV-0017"
+    )
+    assert privileged.severity == "high" and privileged.category == "security"
+    assert privileged.start_line is not None and privileged.start_line <= 23 <= (
+        privileged.end_line or 0
+    )
+    assert privileged.guidance and privileged.guidance.recommendation
+    assert privileged.guidance.url == "https://avd.aquasec.com/misconfig/ksv-0017"
+    assert "Container 'shop' of Deployment 'shop'" in privileged.message
+    assert ("deploy/base/api.yaml", "misconfig:KSV-0017") not in found
+    # Terraform is left out (its scanner downloads remote modules); nothing was fetched, and the
+    # chart whose dependency is not vendored is reported as not rendered instead of clean.
+    assert not any(rule.startswith("misconfig:AWS-") for _, rule in found)
+    assert outcome.diagnostics["misconfig_unrendered"] == ["chart"]
+    assert outcome.diagnostics["config_files"] >= 8
+    assert not list((tmp_path / "work" / "home").rglob(".aqua"))
+    assert b'"Lines"' not in (outcome.raw_report or b""), "code excerpts must not be stored"
+    normalized = normalize("trivy", root, outcome.findings)
+    dockerfile = next(n for n in normalized if n.raw.rule_id == "misconfig:DS-0002")
+    assert dockerfile.title == "Image user should not be 'root'" and dockerfile.anchor == "file"
+
+
 def test_trivy_without_database_is_unavailable(tmp_path: Path) -> None:
     root = _workspace(tmp_path, "clean-mixed")
     outcome = trivy(cache=tmp_path / "no-db").run(

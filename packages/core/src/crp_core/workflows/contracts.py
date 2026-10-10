@@ -88,6 +88,7 @@ ENGINE_NAMES = (
     "trivy",
     "pmd-apex",
     "frameworks",
+    "nfr",
     "architecture",
     "smells",
 )

@@ -14,7 +14,7 @@ from functools import cache
 from importlib import resources
 
 SCHEMA = "crp-nfr-questionnaire-v1"
-MAPPING_VERSION = "crp-nfr-mapping-v1"
+MAPPING_VERSION = "crp-nfr-mapping-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +86,28 @@ _ACCESS_FAMILIES = frozenset(
 _ACCESS_RULES = frozenset(
     {("pmd-apex", "ApexCRUDViolation"), ("pmd-apex", "ApexSharingViolations")}
 )
+# Configuration checks (engine ``nfr``, P12 slice 2) by rule family.
+_CONFIG_FAMILIES = {
+    "availability.single-instance": ("availability.continuous", "availability.fault-tolerance"),
+    "availability.probes": ("availability.continuous", "recoverability.recovery-time"),
+    "availability.downtime-deploy": ("availability.continuous",),
+    "data.schema-auto-ddl": ("recoverability.data", "reliability.consistency"),
+    "security.actuator-exposure": ("security.access",),
+}
+# Trivy's Kubernetes checks for CPU and memory requests and limits.
+CAPACITY_CHECKS = frozenset(
+    {"misconfig:KSV-0011", "misconfig:KSV-0015", "misconfig:KSV-0016", "misconfig:KSV-0018"}
+)
 
 
 def questions_for_rule(
     engine: str, rule_id: str, category: str, family: str | None
 ) -> tuple[str, ...]:
     """The questions an open issue of this rule is a gap for (empty: none)."""
+    if family in _CONFIG_FAMILIES:
+        return _CONFIG_FAMILIES[family]
+    if engine == "trivy" and rule_id in CAPACITY_CHECKS:
+        return ("security.attacks", "scalability.demand")
     if (
         (engine == "trivy" and rule_id.startswith("secret:"))
         or (engine, rule_id) in _ACCESS_RULES

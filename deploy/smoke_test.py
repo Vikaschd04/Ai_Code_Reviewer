@@ -158,9 +158,9 @@ def demo_sample_review(base: str, origin: str) -> dict[str, Any] | None:
     )
     engines = {e["engine"]: e["state"] for e in done["engines"]}
     # Core checks must succeed; platform packs (Salesforce Apex, SAP/Salesforce configuration)
-    # have no files in the sample, and the sample has no architecture rules: each must say so
-    # rather than claim a clean result.
-    platform = {"pmd-apex", "frameworks", "architecture"}
+    # and deployment configuration checks have no files in the sample, and the sample has no
+    # architecture rules: each must say so rather than claim a clean result.
+    platform = {"pmd-apex", "frameworks", "nfr", "architecture"}
     check(
         all(state == "SUCCEEDED" for name, state in engines.items() if name not in platform)
         and all(engines.get(name) == "NOT_APPLICABLE" for name in platform),

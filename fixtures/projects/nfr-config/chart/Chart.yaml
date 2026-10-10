@@ -1,0 +1,7 @@
+apiVersion: v2
+name: storefront
+version: 0.1.0
+dependencies:
+  - name: session-store
+    version: 1.0.0
+    repository: https://charts.example.invalid/stable
