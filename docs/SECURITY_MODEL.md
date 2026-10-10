@@ -170,6 +170,15 @@ Residual risk: checks are source-level; an edited project can still fail to comp
 | Isolation | Rules, checks and exports are project-scoped (404 for other workspaces); members edit, viewers read | test_members_edit_rules_and_other_workspaces_see_nothing |
 | Nothing executed | Evaluation reads the dependency map the platform built from source; no project code or configuration runs | crp_analysis/engines/architecture.py |
 
+### NFR readiness (P12 slice 1, ADR 0021)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Statements, not detections | Team targets and answers are versioned with their author and shown as attested; evidence shows a mechanism is declared or present, never that it works; nothing found is "not checked yet"; compliance is never certified | test_status_precedence_is_honest, test_exports_list_every_question_and_never_claim_compliance |
+| Audit | Append-only profile versions with author, note and hash; stale saves are conflicts (409) | test_p12_nfr.py |
+| Isolation | View, profile and exports are project-scoped (404 for other workspaces); members edit, viewers read | test_members_save_profiles_and_other_workspaces_see_nothing |
+| Nothing executed or fetched | Evidence comes from the stored file list and the dependency map's declared dependencies; nothing is downloaded or run | crp_analysis/nfr/signals.py |
+
 ### GitHub (P06, ADR 0015)
 
 | Control | Implementation | Evidence |

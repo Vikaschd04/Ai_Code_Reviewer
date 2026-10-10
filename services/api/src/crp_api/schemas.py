@@ -1610,3 +1610,153 @@ class ArchitectureRulesCheckResponse(ApiModel):
     expired_exceptions: list[str]
     dependencies_checked: int
     notes: list[str]
+
+
+# -- NFR assessment (P12 slice 1; docs/NFR_ASSESSMENT.md) -----------------------------------------
+
+NfrStatus = Literal[
+    "needs_work", "needs_input", "evidence", "answered", "not_applicable", "not_checked"
+]
+
+
+class NfrTargets(ApiModel):
+    availability_percent: float | None = Field(default=None, ge=1, le=100)
+    latency_p95_ms: int | None = Field(default=None, ge=1, le=600_000)
+    page_load_seconds: float | None = Field(default=None, ge=0.1, le=120)
+    typical_users: int | None = Field(default=None, ge=0, le=1_000_000_000)
+    peak_concurrent_users: int | None = Field(default=None, ge=0, le=1_000_000_000)
+    rto_minutes: int | None = Field(default=None, ge=0, le=525_600)
+    rpo_minutes: int | None = Field(default=None, ge=0, le=525_600)
+    growth: str | None = Field(default=None, max_length=300)
+    downtime_cost: str | None = Field(default=None, max_length=300)
+    accessibility: str | None = Field(default=None, max_length=300)
+
+
+class NfrAnswerDocument(ApiModel):
+    text: str | None = Field(default=None, max_length=2000)
+    not_applicable: bool = False
+    reason: str | None = Field(default=None, max_length=300)
+
+
+class NfrProfileDocument(ApiModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    profile_schema: Literal["crp-nfr-profile-v1"] = Field(
+        default="crp-nfr-profile-v1", alias="schema"
+    )
+    targets: NfrTargets = Field(default_factory=NfrTargets)
+    regulations: list[Annotated[str, StringConstraints(max_length=100)]] = Field(
+        default_factory=list, max_length=20
+    )
+    platforms: list[Annotated[str, StringConstraints(max_length=100)]] = Field(
+        default_factory=list, max_length=20
+    )
+    answers: dict[str, NfrAnswerDocument] = Field(
+        default_factory=dict, description="Attested answers by question id"
+    )
+
+
+class NfrProfileUpdate(ApiModel):
+    document: NfrProfileDocument
+    note: str | None = Field(default=None, max_length=500)
+    base_version: int = Field(ge=0, description="The version you edited (0 when none)")
+
+
+class NfrEvidenceLocation(ApiModel):
+    path: str
+    line: int | None
+    detail: str | None = Field(description="For example the declared library")
+
+
+class NfrEvidenceItem(ApiModel):
+    signal: str
+    label: str
+    kind: Literal["supports", "context"]
+    count: int
+    locations: list[NfrEvidenceLocation] = Field(description="Up to 5")
+
+
+class NfrIssueRef(ApiModel):
+    id: UUID
+    title: str
+    severity: str
+    path: str
+    engine: str
+    rule_id: str
+
+
+class NfrGaps(ApiModel):
+    open: int
+    accepted: int = Field(description="Accepted risks (still gaps, accepted by the team)")
+    by_severity: dict[str, int]
+    top: list[NfrIssueRef] = Field(description="Most severe open issues, up to 5")
+
+
+class NfrAnswerView(ApiModel):
+    text: str | None
+    not_applicable: bool
+    reason: str | None
+
+
+class NfrQuestionResult(ApiModel):
+    id: str
+    text: str
+    help: str
+    status: NfrStatus
+    team_required: bool
+    profile_fields: list[str]
+    evidence: list[NfrEvidenceItem]
+    context: list[NfrEvidenceItem] = Field(description="In the upload, not assessed yet")
+    gaps: NfrGaps
+    answer: NfrAnswerView | None
+    values: dict[str, float | int | str | list[str]] = Field(
+        description="The team's targets and lists for this question"
+    )
+
+
+class NfrAspectResult(ApiModel):
+    id: str
+    name: str
+    iso: str = Field(description="ISO/IEC 25010:2023 characteristic")
+    counts: dict[str, int]
+    questions: list[NfrQuestionResult]
+
+
+class NfrBasis(ApiModel):
+    snapshot_id: UUID
+    scan_id: UUID
+    reviewed_at: datetime | None
+
+
+class NfrProfileVersionSummary(ApiModel):
+    version: int
+    sha256: str
+    note: str | None
+    created_at: datetime
+    created_by: str | None
+
+
+class NfrTargetSpec(ApiModel):
+    name: str
+    label: str
+    kind: Literal["int", "float", "text"]
+    unit: str
+    low: float
+    high: float
+
+
+class NfrAssessmentResponse(ApiModel):
+    project_id: UUID
+    questionnaire_source: str
+    basis: NfrBasis | None = Field(description="The reviewed upload the evidence comes from")
+    counts: dict[str, int]
+    status_labels: dict[str, str]
+    aspects: list[NfrAspectResult]
+    profile_version: int = Field(description="0 when no profile was saved")
+    profile: NfrProfileDocument
+    profile_note: str | None
+    profile_saved_by: str | None
+    profile_saved_at: datetime | None
+    can_edit: bool
+    history: list[NfrProfileVersionSummary] = Field(description="Newest first, up to 50")
+    targets: list[NfrTargetSpec]

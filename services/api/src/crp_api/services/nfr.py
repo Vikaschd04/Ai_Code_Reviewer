@@ -1,0 +1,117 @@
+"""Inputs of a project's NFR assessment (P12 slice 1): the newest reviewed upload's files and
+declared libraries, the project's tracked issues, and the newest NFR profile version."""
+
+from __future__ import annotations
+
+import posixpath
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import select
+
+from crp_analysis.catalog import lookup
+from crp_analysis.nfr.assessment import ACCEPTED, OPEN, TrackedIssue
+from crp_analysis.nfr.signals import LibraryUse
+from crp_core.db.models import (
+    FileEntry,
+    GraphBuild,
+    GraphEdge,
+    Issue,
+    NfrProfileVersion,
+    Scan,
+    User,
+)
+from crp_core.domain.states import FileDisposition, GraphBuildState
+
+_ECOSYSTEM = {"pom.xml": "maven", "package.json": "npm"}
+
+
+@dataclass(slots=True)
+class Basis:
+    snapshot_id: uuid.UUID
+    scan_id: uuid.UUID
+    reviewed_at: datetime | None
+
+
+async def basis(session: Any, project_id: uuid.UUID) -> Basis | None:
+    """The newest upload whose review updated the project's issues."""
+    scan = (
+        await session.execute(
+            select(Scan)
+            .where(Scan.project_id == project_id, Scan.lifecycle_applied.is_(True))
+            .order_by(Scan.finished_at.desc().nulls_last())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    return Basis(scan.snapshot_id, scan.id, scan.finished_at) if scan else None
+
+
+async def paths(session: Any, snapshot_id: uuid.UUID) -> list[str]:
+    rows = await session.execute(
+        select(FileEntry.path).where(
+            FileEntry.snapshot_id == snapshot_id,
+            FileEntry.disposition == FileDisposition.ANALYZABLE.value,
+        )
+    )
+    return [path for (path,) in rows.all()]
+
+
+async def libraries(session: Any, snapshot_id: uuid.UUID) -> list[LibraryUse]:
+    """Dependencies declared in the manifests, from the snapshot's current dependency map."""
+    build = (
+        await session.execute(
+            select(GraphBuild).where(
+                GraphBuild.snapshot_id == snapshot_id, GraphBuild.is_current.is_(True)
+            )
+        )
+    ).scalar_one_or_none()
+    if build is None or build.state == GraphBuildState.FAILED.value:
+        return []
+    rows = await session.execute(
+        select(GraphEdge.target_ref, FileEntry.path, GraphEdge.evidence_start_line)
+        .join(FileEntry, FileEntry.id == GraphEdge.evidence_file_entry_id)
+        .where(GraphEdge.build_id == build.id, GraphEdge.relation == "depends_on")
+    )
+    uses: list[LibraryUse] = []
+    for name, path, line in rows.all():
+        ecosystem = _ECOSYSTEM.get(posixpath.basename(path))
+        if ecosystem is not None:
+            uses.append(LibraryUse(ecosystem, name, path, line))
+    return uses
+
+
+async def issues(session: Any, project_id: uuid.UUID) -> list[TrackedIssue]:
+    rows = (
+        await session.execute(
+            select(Issue).where(Issue.project_id == project_id, Issue.status.in_([*OPEN, ACCEPTED]))
+        )
+    ).scalars()
+    return [
+        TrackedIssue(
+            str(i.id),
+            i.engine,
+            i.rule_id,
+            i.category,
+            lookup(i.engine, i.rule_id, None, None).family,
+            i.severity,
+            i.title,
+            i.path,
+            i.status,
+        )
+        for i in rows
+    ]
+
+
+async def history(
+    session: Any, project_id: uuid.UUID, limit: int = 50
+) -> list[tuple[NfrProfileVersion, str | None]]:
+    rows = await session.execute(
+        select(NfrProfileVersion, User.display_name)
+        .outerjoin(User, User.id == NfrProfileVersion.created_by)
+        .where(NfrProfileVersion.project_id == project_id)
+        .order_by(NfrProfileVersion.version.desc())
+        .limit(limit)
+    )
+    return [(version, name) for version, name in rows.all()]

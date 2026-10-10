@@ -1270,6 +1270,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/nfr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Nfr Assessment
+         * @description NFR readiness: every question with evidence, open issues and the team's answers.
+         */
+        get: operations["get_nfr_assessment_v1_projects__project_id__nfr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{project_id}/nfr/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Nfr Assessment
+         * @description The questionnaire with every answer, as CSV (spreadsheets) or a Markdown report.
+         */
+        get: operations["export_nfr_assessment_v1_projects__project_id__nfr_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{project_id}/nfr/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Nfr Profile
+         * @description Save the team's targets and attested answers as a new profile version (members).
+         */
+        put: operations["save_nfr_profile_v1_projects__project_id__nfr_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/overview": {
         parameters: {
             query?: never;
@@ -4322,6 +4382,294 @@ export interface components {
             node: components["schemas"]["GraphNodeResponse"];
             /** Types */
             types: number;
+        };
+        /** NfrAnswerDocument */
+        NfrAnswerDocument: {
+            /**
+             * Not Applicable
+             * @default false
+             */
+            not_applicable: boolean;
+            /** Reason */
+            reason?: string | null;
+            /** Text */
+            text?: string | null;
+        };
+        /** NfrAnswerView */
+        NfrAnswerView: {
+            /** Not Applicable */
+            not_applicable: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Text */
+            text: string | null;
+        };
+        /** NfrAspectResult */
+        NfrAspectResult: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Iso
+             * @description ISO/IEC 25010:2023 characteristic
+             */
+            iso: string;
+            /** Name */
+            name: string;
+            /** Questions */
+            questions: components["schemas"]["NfrQuestionResult"][];
+        };
+        /** NfrAssessmentResponse */
+        NfrAssessmentResponse: {
+            /** Aspects */
+            aspects: components["schemas"]["NfrAspectResult"][];
+            /** @description The reviewed upload the evidence comes from */
+            basis: components["schemas"]["NfrBasis"] | null;
+            /** Can Edit */
+            can_edit: boolean;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * History
+             * @description Newest first, up to 50
+             */
+            history: components["schemas"]["NfrProfileVersionSummary"][];
+            profile: components["schemas"]["NfrProfileDocument"];
+            /** Profile Note */
+            profile_note: string | null;
+            /** Profile Saved At */
+            profile_saved_at: string | null;
+            /** Profile Saved By */
+            profile_saved_by: string | null;
+            /**
+             * Profile Version
+             * @description 0 when no profile was saved
+             */
+            profile_version: number;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Questionnaire Source */
+            questionnaire_source: string;
+            /** Status Labels */
+            status_labels: {
+                [key: string]: string;
+            };
+            /** Targets */
+            targets: components["schemas"]["NfrTargetSpec"][];
+        };
+        /** NfrBasis */
+        NfrBasis: {
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Scan Id
+             * Format: uuid
+             */
+            scan_id: string;
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+        };
+        /** NfrEvidenceItem */
+        NfrEvidenceItem: {
+            /** Count */
+            count: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "supports" | "context";
+            /** Label */
+            label: string;
+            /**
+             * Locations
+             * @description Up to 5
+             */
+            locations: components["schemas"]["NfrEvidenceLocation"][];
+            /** Signal */
+            signal: string;
+        };
+        /** NfrEvidenceLocation */
+        NfrEvidenceLocation: {
+            /**
+             * Detail
+             * @description For example the declared library
+             */
+            detail: string | null;
+            /** Line */
+            line: number | null;
+            /** Path */
+            path: string;
+        };
+        /** NfrGaps */
+        NfrGaps: {
+            /**
+             * Accepted
+             * @description Accepted risks (still gaps, accepted by the team)
+             */
+            accepted: number;
+            /** By Severity */
+            by_severity: {
+                [key: string]: number;
+            };
+            /** Open */
+            open: number;
+            /**
+             * Top
+             * @description Most severe open issues, up to 5
+             */
+            top: components["schemas"]["NfrIssueRef"][];
+        };
+        /** NfrIssueRef */
+        NfrIssueRef: {
+            /** Engine */
+            engine: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Path */
+            path: string;
+            /** Rule Id */
+            rule_id: string;
+            /** Severity */
+            severity: string;
+            /** Title */
+            title: string;
+        };
+        /** NfrProfileDocument */
+        NfrProfileDocument: {
+            /**
+             * Answers
+             * @description Attested answers by question id
+             */
+            answers?: {
+                [key: string]: components["schemas"]["NfrAnswerDocument"];
+            };
+            /** Platforms */
+            platforms?: string[];
+            /** Regulations */
+            regulations?: string[];
+            /**
+             * Schema
+             * @default crp-nfr-profile-v1
+             * @constant
+             */
+            schema: "crp-nfr-profile-v1";
+            targets?: components["schemas"]["NfrTargets"];
+        };
+        /** NfrProfileUpdate */
+        NfrProfileUpdate: {
+            /**
+             * Base Version
+             * @description The version you edited (0 when none)
+             */
+            base_version: number;
+            document: components["schemas"]["NfrProfileDocument"];
+            /** Note */
+            note?: string | null;
+        };
+        /** NfrProfileVersionSummary */
+        NfrProfileVersionSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Note */
+            note: string | null;
+            /** Sha256 */
+            sha256: string;
+            /** Version */
+            version: number;
+        };
+        /** NfrQuestionResult */
+        NfrQuestionResult: {
+            answer: components["schemas"]["NfrAnswerView"] | null;
+            /**
+             * Context
+             * @description In the upload, not assessed yet
+             */
+            context: components["schemas"]["NfrEvidenceItem"][];
+            /** Evidence */
+            evidence: components["schemas"]["NfrEvidenceItem"][];
+            gaps: components["schemas"]["NfrGaps"];
+            /** Help */
+            help: string;
+            /** Id */
+            id: string;
+            /** Profile Fields */
+            profile_fields: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "needs_work" | "needs_input" | "evidence" | "answered" | "not_applicable" | "not_checked";
+            /** Team Required */
+            team_required: boolean;
+            /** Text */
+            text: string;
+            /**
+             * Values
+             * @description The team's targets and lists for this question
+             */
+            values: {
+                [key: string]: number | string | string[];
+            };
+        };
+        /** NfrTargetSpec */
+        NfrTargetSpec: {
+            /** High */
+            high: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "int" | "float" | "text";
+            /** Label */
+            label: string;
+            /** Low */
+            low: number;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+        };
+        /** NfrTargets */
+        NfrTargets: {
+            /** Accessibility */
+            accessibility?: string | null;
+            /** Availability Percent */
+            availability_percent?: number | null;
+            /** Downtime Cost */
+            downtime_cost?: string | null;
+            /** Growth */
+            growth?: string | null;
+            /** Latency P95 Ms */
+            latency_p95_ms?: number | null;
+            /** Page Load Seconds */
+            page_load_seconds?: number | null;
+            /** Peak Concurrent Users */
+            peak_concurrent_users?: number | null;
+            /** Rpo Minutes */
+            rpo_minutes?: number | null;
+            /** Rto Minutes */
+            rto_minutes?: number | null;
+            /** Typical Users */
+            typical_users?: number | null;
         };
         /**
          * OverallReadiness
@@ -10174,6 +10522,215 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_nfr_assessment_v1_projects__project_id__nfr_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NfrAssessmentResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_nfr_assessment_v1_projects__project_id__nfr_export_get: {
+        parameters: {
+            query?: {
+                format?: "csv" | "md";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                    "text/markdown": unknown;
+                    "text/plain": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_nfr_profile_v1_projects__project_id__nfr_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NfrProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NfrAssessmentResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

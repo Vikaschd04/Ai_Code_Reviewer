@@ -1,0 +1,262 @@
+{
+ "schema": "crp-nfr-questionnaire-v1",
+ "source": "Questionnaire for Non functional requirements, Sridharrajdevelopment, Medium, 10 December 2023 (questions verbatim); mapped to ISO/IEC 25010:2023",
+ "aspects": [
+  {
+   "id": "performance",
+   "name": "Performance",
+   "iso": "Performance efficiency"
+  },
+  {
+   "id": "security",
+   "name": "Security and compliance",
+   "iso": "Security"
+  },
+  {
+   "id": "recoverability",
+   "name": "Recoverability",
+   "iso": "Reliability (recoverability)"
+  },
+  {
+   "id": "operations",
+   "name": "Maintainability and operational excellence",
+   "iso": "Maintainability"
+  },
+  {
+   "id": "reliability",
+   "name": "Reliability",
+   "iso": "Reliability (faultlessness, fault tolerance)"
+  },
+  {
+   "id": "availability",
+   "name": "High availability",
+   "iso": "Reliability (availability)"
+  },
+  {
+   "id": "scalability",
+   "name": "Scalability and elasticity",
+   "iso": "Flexibility (scalability)"
+  },
+  {
+   "id": "usability",
+   "name": "Usability and accessibility",
+   "iso": "Interaction capability"
+  },
+  {
+   "id": "portability",
+   "name": "Portability and interoperability",
+   "iso": "Flexibility, Compatibility (interoperability)"
+  }
+ ],
+ "questions": [
+  {
+   "id": "performance.load-time",
+   "aspect": "performance",
+   "text": "What will be the application load time/pre-load time for clients/users?",
+   "help": "Code can show page-performance measurement; load times themselves need a measurement or your target.",
+   "team_required": false,
+   "profile_fields": [
+    "page_load_seconds"
+   ]
+  },
+  {
+   "id": "performance.access-pattern",
+   "aspect": "performance",
+   "text": "What is the access pattern — number of users, concurrent access?",
+   "help": "User numbers are your input; the code can show connection pools, caching and rate limits.",
+   "team_required": true,
+   "profile_fields": [
+    "typical_users",
+    "peak_concurrent_users"
+   ]
+  },
+  {
+   "id": "performance.latency",
+   "aspect": "performance",
+   "text": "How can we handle the network latency for each action or interaction made to the applications?",
+   "help": "Caching and performance defects (database work in loops, costly operations) come from the code; latency targets come from you.",
+   "team_required": false,
+   "profile_fields": [
+    "latency_p95_ms"
+   ]
+  },
+  {
+   "id": "performance.growth",
+   "aspect": "performance",
+   "text": "What would be the projected growth in consumption/transactions?",
+   "help": "Growth is your input; the code can show unbounded queries that will not cope with it.",
+   "team_required": true,
+   "profile_fields": [
+    "growth"
+   ]
+  },
+  {
+   "id": "security.access",
+   "aspect": "security",
+   "text": "How can we secure the applications/data from unauthorised access?",
+   "help": "Authentication libraries, hard-coded secrets and missing access checks come from the code; your identity provider and roles from you.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "security.attacks",
+   "aspect": "security",
+   "text": "How can we protect the applications/data from malicious attacks?",
+   "help": "Injection, weak cryptography, unsafe HTML and vulnerable dependencies come from the code checks.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "security.compliance",
+   "aspect": "security",
+   "text": "How can we adhere to the local laws, regulations and auditing standards?",
+   "help": "Your team names the regulations and signs off; refactorX collects evidence and never certifies compliance.",
+   "team_required": true,
+   "profile_fields": [
+    "regulations"
+   ]
+  },
+  {
+   "id": "recoverability.outage",
+   "aspect": "recoverability",
+   "text": "How can we recover the application from an outage?",
+   "help": "Retries and messaging libraries come from the code; your recovery plan from you.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "recoverability.recovery-time",
+   "aspect": "recoverability",
+   "text": "How can we minimise the recovery time from the time the event of an outage is identified?",
+   "help": "Health endpoints and an automated build pipeline come from the upload; the recovery time objective (RTO) from you.",
+   "team_required": true,
+   "profile_fields": [
+    "rto_minutes"
+   ]
+  },
+  {
+   "id": "recoverability.data",
+   "aspect": "recoverability",
+   "text": "How can we recover the lost data?",
+   "help": "Versioned database migrations come from the code; backups and the recovery point objective (RPO) from you.",
+   "team_required": true,
+   "profile_fields": [
+    "rpo_minutes"
+   ]
+  },
+  {
+   "id": "recoverability.cost",
+   "aspect": "recoverability",
+   "text": "What would be the impact in terms of costs, between the time the disaster happens and the system if recovered?",
+   "help": "Only your team can answer this.",
+   "team_required": true,
+   "profile_fields": [
+    "downtime_cost"
+   ]
+  },
+  {
+   "id": "operations.monitoring",
+   "aspect": "operations",
+   "text": "How can we ensure the application is continuously monitored and automated alerts are in place?",
+   "help": "Metrics, tracing and logging libraries and alert rules kept in the upload; alert routing from you.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "operations.remediation",
+   "aspect": "operations",
+   "text": "What about the application support in case manual remediation is required?",
+   "help": "Runbooks in the upload and maintainability problems (architecture smells, rule breaches, hard-to-read code).",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "reliability.consistency",
+   "aspect": "reliability",
+   "text": "How can we make sure the application performs consistently?",
+   "help": "Automated tests, retry and circuit-breaker libraries, and defects that cause inconsistent behaviour.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "reliability.glitches",
+   "aspect": "reliability",
+   "text": "How can we inspect and correct glitches?",
+   "help": "Tracing, structured logging and error-tracking libraries.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "availability.continuous",
+   "aspect": "availability",
+   "text": "How can we ensure the high/continued availability of an application?",
+   "help": "Health endpoints and job locking across instances come from the code; deployment checks come later; the availability target from you.",
+   "team_required": true,
+   "profile_fields": [
+    "availability_percent"
+   ]
+  },
+  {
+   "id": "availability.fault-tolerance",
+   "aspect": "availability",
+   "text": "How can we make an application fault tolerant?",
+   "help": "Circuit breakers, fallbacks and messaging; hub-like parts are potential single points of failure.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "scalability.demand",
+   "aspect": "scalability",
+   "text": "How can we meet the increasing demand for any kind of resources?",
+   "help": "Caching and asynchronous processing; database work in loops limits scale.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "scalability.spikes",
+   "aspect": "scalability",
+   "text": "How can we achieve a good scale for a sudden spike in utilisation demand?",
+   "help": "Queues and rate limiting come from the code; autoscaling checks come later; peak load from you.",
+   "team_required": false,
+   "profile_fields": [
+    "peak_concurrent_users"
+   ]
+  },
+  {
+   "id": "usability.simplicity",
+   "aspect": "usability",
+   "text": "How can we simplify an application’s use?",
+   "help": "Little comes from code (internationalisation); usability testing is your input.",
+   "team_required": false,
+   "profile_fields": []
+  },
+  {
+   "id": "usability.experience",
+   "aspect": "usability",
+   "text": "How can we achieve a seamless user experience?",
+   "help": "Accessibility checks kept in the upload; your accessibility target (for example WCAG 2.2 AA).",
+   "team_required": false,
+   "profile_fields": [
+    "accessibility"
+   ]
+  },
+  {
+   "id": "portability.platforms",
+   "aspect": "portability",
+   "text": "What operating systems the applications might have to get deployed/supported?",
+   "help": "Container definitions and pinned runtime versions come from the upload; supported platforms from you.",
+   "team_required": false,
+   "profile_fields": [
+    "platforms"
+   ]
+  },
+  {
+   "id": "portability.data-exchange",
+   "aspect": "portability",
+   "text": "How should data exchange happen between different kinds of application tires/layers?",
+   "help": "API descriptions (OpenAPI, AsyncAPI) and messaging libraries.",
+   "team_required": false,
+   "profile_fields": []
+  }
+ ]
+}

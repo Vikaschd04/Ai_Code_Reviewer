@@ -24,7 +24,7 @@ honest coverage. Before industry use, four things are missing:
 
 ## refactorX answers its own NFR questionnaire
 
-The same 24 questions P12 will answer for customers, answered for refactorX (state as in
+The same 23 questions P12 will answer for customers, answered for refactorX (state as in
 NFR_ASSESSMENT.md).
 
 | Aspect | What exists (evidence) | Gaps | State |

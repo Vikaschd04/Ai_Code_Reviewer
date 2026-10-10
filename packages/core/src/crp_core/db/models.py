@@ -916,6 +916,37 @@ class ArchitectureRuleVersion(Base):
     )
 
 
+class NfrProfileVersion(Base):
+    """One saved version of a project's NFR profile (P12; docs/NFR_ASSESSMENT.md): the team's
+    targets, regulations, platforms and attested answers. Append-only: the history is the audit
+    trail; the newest version applies."""
+
+    __tablename__ = "nfr_profile_versions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+        UniqueConstraint("project_id", "version"),
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256_format"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    document: Mapped[dict[str, object]] = mapped_column(JsonDocument, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AiRun(TimestampMixin, Base):
     """One bounded AI investigation of a snapshot: a question, a finding review or a file review.
 

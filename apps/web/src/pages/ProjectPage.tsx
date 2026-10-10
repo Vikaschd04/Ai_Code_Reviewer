@@ -36,6 +36,7 @@ import { AiView } from "./AiView";
 import { FixesView } from "./FixesView";
 import { GitHubView } from "./GitHubView";
 import { ArchitectureView } from "./ArchitectureView";
+import { NfrView } from "./NfrView";
 import { IssuesView } from "./IssuesView";
 import { WorkspacesView } from "./WorkspacesView";
 
@@ -419,6 +420,7 @@ export function ProjectPage({
           { id: "overview", label: "Overview", href: base },
           { id: "issues", label: "Issues", href: `${base}?tab=issues` },
           { id: "architecture", label: "Architecture", href: `${base}?tab=architecture` },
+          { id: "nfr", label: "NFR readiness", href: `${base}?tab=nfr` },
           { id: "ai", label: "AI review", href: `${base}?tab=ai` },
           { id: "workspaces", label: "Fix workspaces", href: `${base}?tab=workspaces` },
           { id: "fixes", label: "Fixes", href: `${base}?tab=fixes` },
@@ -439,6 +441,7 @@ export function ProjectPage({
       {tab === "issues" ? (
         <IssuesView key={check ?? ""} projectId={projectId} check={check} />
       ) : null}
+      {tab === "nfr" ? <NfrView projectId={projectId} /> : null}
       {tab === "ai" ? <AiView projectId={projectId} snapshotId={snapshot?.id ?? null} /> : null}
       {tab === "fixes" ? <FixesView projectId={projectId} /> : null}
       {tab === "workspaces" ? (

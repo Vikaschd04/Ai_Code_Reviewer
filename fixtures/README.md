@@ -12,6 +12,7 @@ to exercise intake, inventory, parsers and engines.
 | `projects/clean-mixed` | Java + TypeScript with no findings under the trusted rules (verified by tests) |
 | `projects/sap-commerce-mixed` | Synthetic SAP Commerce CCv2 layout (`manifest.json` 2211.28): extensions `shopcore`/`shopfacades`/`shopocc`, a deliberate `shopimport`↔`shopexport` cycle and a malformed `shopbroken` descriptor; Spring XML, items.xml, ImpEx and Java with a positive and a negative example per SAP rule (incl. a generated `gensrc` Jalo class that must not be reported). No SAP code or SDK |
 | `projects/salesforce-mixed` | Synthetic SFDX project (API 62.0): Apex classes/tests/trigger with a positive and a negative per Apex rule, one class at retired API 29.0, an LWC with Apex/schema imports and decorators, objects/fields, a record-triggered Flow, a permission set, custom metadata and an object file with an XXE attempt (must be refused) |
+| `projects/nfr-mixed` | Synthetic Spring/JS service for NFR readiness (P12): `pom.xml` declaring Actuator (line 9), Resilience4j and Flyway, a Dockerfile, a CI workflow, an OpenAPI file, a Kubernetes manifest, a test class, and two seeded defects in `web/cart.js` (empty catch, `eval`) |
 
 Expected findings are asserted in `packages/analysis/tests/test_engines.py` and the P01 E2E tests.
 

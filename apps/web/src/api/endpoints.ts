@@ -7,6 +7,8 @@ import {
   type ArchitectureMetrics,
   type ArchitectureRules,
   type ArchitectureRulesCheck,
+  type NfrAssessment,
+  type NfrProfileDocument,
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
@@ -1088,6 +1090,35 @@ export async function openWorkspacePullRequest(
 }
 
 /** Components, structural metrics and cycles of an upload's current architecture map (P10). */
+/** NFR readiness: every questionnaire question with evidence, open issues and team answers. */
+export async function fetchNfr(projectId: string, signal?: Sig): Promise<NfrAssessment> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/nfr", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Save the team's NFR profile as a new version (members); ``baseVersion`` guards conflicts. */
+export async function saveNfrProfile(
+  projectId: string,
+  document: NfrProfileDocument,
+  baseVersion: number,
+  note: string,
+): Promise<NfrAssessment> {
+  const { data, error, response } = await api.PUT("/v1/projects/{project_id}/nfr/profile", {
+    params: { path: { project_id: projectId } },
+    body: { document, base_version: baseVersion, note: note.trim() || null },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+export function nfrExportUrl(projectId: string, format: "csv" | "md"): string {
+  return `/v1/projects/${encodeURIComponent(projectId)}/nfr/export?format=${format}`;
+}
+
 /** A project's architecture rules (newest or a given version) and their history. */
 export async function fetchArchitectureRules(
   projectId: string,

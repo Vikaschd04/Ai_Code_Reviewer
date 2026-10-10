@@ -59,7 +59,7 @@ Every owner requirement, the phase that delivers it, and how it is verified. "Se
 | **8 (current development)** | **P08 Fix workspace** | Change sets, manual and AI fixes in bulk, re-check, simplified compare, export (patch, changed files, full ZIP, PR) | P05; P03 for AI; P06 for PRs | BLOCKED (all slices done; live AI quality needs the owner's key) |
 | **9** | **P09 Isolated build** | Tiered compile and build in the portal; completes P05 tests and build steps | P05, P08; paid compute (owner) | IN_PROGRESS (Tier 0 done; Tiers 1–2 need compute) |
 | **10 (next phase focus)** | **P10 Architecture intelligence** | Architecture model, metrics, intended-architecture rules, smell, performance and scalability catalogs, Git-history hotspots, runtime import, recommendations, grounded AI architect | P02, P04, P06; P03 for AI | IN_PROGRESS (slices 1–3: metrics, cycles, Structure health; architecture rules with breaches as issues; structural smells) |
-| **11 (next phase)** | **P12 NFR assessment** | Questionnaire with ISO/IEC 25010 mapping, NFR profile and attested answers, configuration/infrastructure/code evidence, gaps as issues, measured evidence import, AI NFR analyst, readiness view and reports | P10 slices 1–3; P10 slice 5 for measured answers; P03 for AI | NOT_STARTED |
+| **11 (next phase)** | **P12 NFR assessment** | Questionnaire with ISO/IEC 25010 mapping, NFR profile and attested answers, configuration/infrastructure/code evidence, gaps as issues, measured evidence import, AI NFR analyst, readiness view and reports | P10 slices 1–3; P10 slice 5 for measured answers; P03 for AI | IN_PROGRESS (slice 1: questionnaire, profile, evidence, readiness view) |
 | 12 | P11 Architecture remediation | Deterministic refactorings, what-if simulation, AI multi-file plans, verified migrations | P08, P09, P10 | NOT_STARTED |
 | 13 | P07 Production hardening | SSO/tenancy, isolation qualification, retention, scale, release (readiness track B) | Applicable earlier gates; owner decisions | NOT_STARTED |
 
@@ -118,7 +118,7 @@ protection for the first time.
 
 ### P12 NFR assessment (next phase)
 
-1. Questionnaire (owner's 9 aspects and 24 questions, ISO/IEC 25010:2023 mapping), NFR profile
+1. Questionnaire (owner's 9 aspects and 23 questions, ISO/IEC 25010:2023 mapping), NFR profile
    with attested answers, existing findings tagged by aspect, readiness view, CSV and report
    export.
 2. Configuration and infrastructure evidence (Kubernetes, Helm, Terraform, Dockerfile via Trivy's

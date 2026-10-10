@@ -9,7 +9,7 @@ found" as "requirement met".
 ## Deliver (slices, each shippable and tested)
 
 1. **Questionnaire and readiness view.**
-   - Built-in question bank: the owner's 9 aspects and 24 questions, mapped to ISO/IEC
+   - Built-in question bank: the owner's 9 aspects and 23 questions, mapped to ISO/IEC
      25010:2023; teams can add questions.
    - NFR profile per project: targets, regulations, platforms, attested answers; versioned and
      audited.

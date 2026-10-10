@@ -1,6 +1,8 @@
 # NFR assessment — answering non-functional requirement questionnaires with evidence (P12)
 
-Status: specification (10 October 2026), not implemented. Phase prompt:
+Status: slice 1 implemented (10 October 2026; ADR 0021, validation/P12_REPORT.md): questionnaire,
+profile, evidence from declared libraries and files, gaps from tracked issues, readiness view, CSV
+and Markdown exports. Slices 2–6 planned. Phase prompt:
 [prompts/P12_NFR_ASSESSMENT.md](../prompts/P12_NFR_ASSESSMENT.md).
 
 ## Goal
@@ -19,7 +21,7 @@ completes and signs off.
 ## Questionnaire and quality model
 
 The built-in questionnaire starts from the owner-supplied list ("Questionnaire for Non functional
-requirements", Sridharrajdevelopment, Medium, 10 December 2023): 9 aspects, 24 questions. Each
+requirements", Sridharrajdevelopment, Medium, 10 December 2023): 9 aspects, 23 questions. Each
 aspect is mapped to ISO/IEC 25010:2023 product quality characteristics, so that reports use a
 recognised vocabulary and teams can add their own questions.
 

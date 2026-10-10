@@ -192,6 +192,14 @@ Every review plans the engine `architecture` with the project's newest rules (NO
 
 Every review runs the engine `smells` after the graph step (no new endpoints). Findings use rule ids `crp.arch.cycle`, `crp.arch.unstable-dependency` and `crp.arch.hub` (catalog `crp-rules-v4`, category maintainability, labelled potential): one per part, at the part's first file with the evidence, with a specific `title` and `details` (`component`, `anchor_key`, `evidence: potential`, the part's files, and per smell the cycle and cut, the less stable parts with instabilities, or fan-in and fan-out with the quartiles). The run's `diagnostics` hold the thresholds and `parts_affected` per smell. Issues of part-level findings follow their part when the anchor file changes (issue event `moved`); comparisons pair them by `anchor_key`. `GET /v1/snapshots/{id}/architecture` adds `summary.generated_files` (generated code left out of the model) and a note.
 
+## Implemented in P12 slice 1 (NFR readiness, ADR 0021)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/projects/{id}/nfr | viewer | The questionnaire answered for the project: `basis` (newest upload whose review updated the issues; null without one), `counts` per status (`needs_work`, `needs_input`, `evidence`, `answered`, `not_applicable`, `not_checked`), `status_labels`, `aspects` (ISO/IEC 25010:2023 label, counts, questions with `status`, `help`, `team_required`, `evidence` and `context` items with up to 5 locations each — path, line, detail —, `gaps` with open and accepted counts, by severity and the 5 most severe open issues, the team's `answer` and `values`), the newest `profile` with version, note, author and time, `history` (up to 50), `targets` (field specs), `can_edit` (members) |
+| PUT /v1/projects/{id}/nfr/profile | member | Body: `document` (`targets`, `regulations`, `platforms`, `answers` by question id with `text`, `not_applicable`, `reason`), optional `note`, `base_version`. Adds the next version unless identical; returns the recomputed view. 409 `version_conflict`; 422 `invalid_profile` with `details.problems`; 400 for request ranges |
+| GET /v1/projects/{id}/nfr/export?format=csv\|md | viewer | `nfr-readiness.csv` (one row per question) or `nfr-readiness.md` (report with the basis, the profile version and per-question details; states that compliance is not certified) |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

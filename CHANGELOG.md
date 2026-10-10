@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — P12 NFR readiness (10 October 2026)
+
+- New project tab **NFR readiness** (ADR 0021): the non-functional requirements questionnaire (9 aspects, 23 questions, mapped to ISO/IEC 25010:2023) answered for your project.
+- Each question shows what the code shows (for example "Health and readiness endpoints — pom.xml line 9", a CI pipeline, a Dockerfile, an OpenAPI file), what needs work (open issues that affect it), and what only your team can tell.
+- Record your targets (availability, response time, RTO, RPO, users, growth, …), regulations, platforms and answers; mark questions that do not apply, with a reason. Every save is a new version with your name.
+- Honest statuses: Needs work, Needs your input, Evidence found, Answered by your team, Not applicable, Not checked yet. Nothing found is never shown as met, and compliance is never certified.
+- Download the questionnaire as a spreadsheet (CSV) or a report (Markdown).
+
 ## Unreleased — P10 architecture smells (9 October 2026)
 
 - **Architecture smells** on every review (ADR 0020), reported as issues and labelled *potential* (found in the code structure):
