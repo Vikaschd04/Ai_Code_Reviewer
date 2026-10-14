@@ -159,7 +159,8 @@ async def save_project_ai_model(
         raise ApiError(
             409,
             "keys_unavailable",
-            "This server cannot store API keys yet. An administrator must set CRP_SECRETS_KEY.",
+            "This server cannot store API keys yet. Add CRP_SECRETS_KEY (a random value of at "
+            "least 32 characters) to the server's environment and redeploy.",
         )
     key = body.api_key.get_secret_value().strip()
     if not MIN_KEY_LENGTH <= len(key) <= MAX_KEY_LENGTH or any(c.isspace() for c in key):

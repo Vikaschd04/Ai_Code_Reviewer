@@ -521,7 +521,9 @@ function ProjectModelCard({
       </div>
       {!current.can_store_keys ? (
         <Alert tone="warn">
-          This server cannot store API keys yet. An administrator must set CRP_SECRETS_KEY.
+          {current.can_edit
+            ? "This server cannot store API keys yet. Add CRP_SECRETS_KEY (a random value of at least 32 characters) to the server's environment and redeploy. On Render, syncing the Blueprint adds it."
+            : "This server cannot store API keys yet."}
         </Alert>
       ) : null}
       {current.configured && !editing ? (

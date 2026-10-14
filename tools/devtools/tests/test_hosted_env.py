@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from crp_core.secret_box import secret_box
 from crp_devtools.dbtasks import settings_from_env
 from crp_devtools.hosted import hosted_env
 from crp_devtools.infra import InfraError
@@ -58,6 +59,7 @@ def test_token_rotation_overwrites_the_token_file(tmp_path: Path) -> None:
         ({"CRP_ACCESS_TOKEN": "short"}, "CRP_ACCESS_TOKEN"),
         ({"RENDER_EXTERNAL_HOSTNAME": ""}, "CRP_PUBLIC_HOST"),
         ({"DATABASE_URL": ""}, "CRP_DATABASE_URL"),
+        ({"CRP_SECRETS_KEY": "short"}, "CRP_SECRETS_KEY"),
     ],
 )
 def test_missing_or_weak_configuration_refuses_to_start(
@@ -90,3 +92,21 @@ def test_lite_profile_uses_postgres_artifacts_and_small_resources(tmp_path: Path
     assert env["CRP_TRIVY_DB_AUTO_REFRESH"] == "1"
     standard, _ = hosted_env(_environ(tmp_path), REPO)
     assert settings_from_env(standard).artifact_backend.value == "filesystem"
+
+
+def test_secrets_key_and_github_settings_reach_the_services(tmp_path: Path) -> None:
+    """Render's CRP_SECRETS_KEY (own AI keys, ADR 0026) and CRP_GITHUB_* must reach the API and
+    worker: child processes only get what hosted_env returns."""
+    secret = "s" * 44
+    environ = _environ(tmp_path, CRP_SECRETS_KEY=secret, CRP_GITHUB_APP_ID="12345")
+    env, data = hosted_env(environ, REPO)
+    key_file = data / "secrets" / "secrets-key"
+    assert key_file.read_text().strip() == secret
+    assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
+    assert "CRP_SECRETS_KEY" not in env and secret not in env.values()  # a file, like the token
+    settings = settings_from_env(env)
+    assert secret_box(settings) is not None
+    assert settings.github_app_id == 12345
+    without, _ = hosted_env(_environ(tmp_path / "other"), REPO)
+    assert "CRP_SECRETS_KEY_FILE" not in without
+    assert secret_box(settings_from_env(without)) is None  # Settings explains what to set

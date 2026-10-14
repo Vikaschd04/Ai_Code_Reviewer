@@ -10,6 +10,8 @@
   (only its last four characters). Remove it at any time.
 - Works with the newest Claude models (which no longer accept a forced tool choice and send back
   thinking blocks).
+- **Fix:** on Render, Codespaces and Docker the server now receives `CRP_SECRETS_KEY` (so keys
+  can be saved) and the `CRP_GITHUB_*` settings; before, the hosted start-up dropped them.
 
 ## Unreleased — choose the AI model per project (14 October 2026)
 

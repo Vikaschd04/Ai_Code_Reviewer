@@ -13,7 +13,8 @@ Required environment: ``CRP_ACCESS_TOKEN`` (>= 32 characters; the sign-in secret
 (this service's public host name). Optional: ``CRP_ALLOWED_WEB_ORIGINS`` (default: the service's
 own https origin; add others if the UI is also hosted elsewhere), ``CRP_ALLOWED_WEB_ORIGIN_REGEX``,
 ``CRP_EXTRA_PUBLIC_HOSTS`` (custom domains), ``CRP_DATA_DIR`` (default ``/data``),
-``CRP_TRIVY_DB_AUTO_REFRESH=0`` (keep the current DB).
+``CRP_TRIVY_DB_AUTO_REFRESH=0`` (keep the current DB), ``CRP_SECRETS_KEY`` (>= 32 characters;
+encrypts projects' own AI keys), ``CRP_AI_*`` and ``CRP_GITHUB_*``.
 """
 
 from __future__ import annotations
@@ -47,6 +48,7 @@ _PASS_THROUGH_PREFIXES = (
     "CRP_ARTIFACT_",
     "CRP_DEMO_",
     "CRP_AI_",
+    "CRP_GITHUB_",
 )
 # Lite profile (free tiers: ~512 MB memory, no persistent disk; ADR 0010): one process, no
 # Temporal server, artifacts in PostgreSQL, one engine at a time with small heaps, and smaller
@@ -85,6 +87,9 @@ def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Pat
     engines = repo / ".local" / "engines"
     token_file = data / "secrets" / "access-token"
     write_secret_file(token_file, token, overwrite=True)  # rotation takes effect on restart
+    secrets_key = environ.get("CRP_SECRETS_KEY", "").strip()  # encrypts own AI keys (ADR 0026)
+    if secrets_key and len(secrets_key) < 32:
+        raise InfraError("CRP_SECRETS_KEY must be a random value of at least 32 characters")
     hosts = [host, *(h.strip() for h in environ.get("CRP_EXTRA_PUBLIC_HOSTS", "").split(",") if h)]
     env = {
         "CRP_ENVIRONMENT": "hosted",
@@ -106,6 +111,10 @@ def hosted_env(environ: dict[str, str], repo: Path) -> tuple[dict[str, str], Pat
         "CRP_PMD_JAVA_HEAP": environ.get("CRP_PMD_JAVA_HEAP", "512m"),
         "CRP_LOG_FORMAT": "json",
     }
+    if secrets_key:  # as a file, like the token: the raw secret never reaches child processes
+        key_file = data / "secrets" / "secrets-key"
+        write_secret_file(key_file, secrets_key, overwrite=True)
+        env["CRP_SECRETS_KEY_FILE"] = str(key_file)
     static = Path(environ.get("CRP_WEB_STATIC_DIR", str(repo / "web-dist")))
     if (static / "index.html").is_file():
         env["CRP_WEB_STATIC_DIR"] = str(static)

@@ -91,7 +91,7 @@ refactorX works fully without AI. To let reviewers ask questions about their cod
 
 No AI variables are needed for this. After a project admin switches AI review on, **Settings** shows **AI model and API key**: choose the provider (Anthropic, or UnoRouter's free models), the model, paste your own API key and press **Test and save**. The key is tested first (no code is sent), stored encrypted and used only for that project's AI.
 
-- Keys are encrypted with `CRP_SECRETS_KEY`. The Blueprint (`render.yaml`) generates it on the first deploy. On a service created before 14 October 2026, sync the Blueprint (Render → Blueprint → **Sync**) or add `CRP_SECRETS_KEY` yourself (Environment → Add → a random value of at least 32 characters, mark it secret). Without it, Settings says keys cannot be stored.
+- Keys are encrypted with `CRP_SECRETS_KEY`. The Blueprint (`render.yaml`) generates it. Check Render → your service → **Environment**: if `CRP_SECRETS_KEY` is missing, sync the Blueprint (Render → Blueprints → your Blueprint → sync) or add it yourself (key `CRP_SECRETS_KEY`, value: a random string of at least 32 characters, for example the output of `openssl rand -base64 32`) and **Save and deploy**. Without it, Settings says keys cannot be stored. (Before the fix of 14 October 2026 the hosted start-up did not pass this variable, or `CRP_GITHUB_*`, to the app; redeploy the latest version.)
 - Keep `CRP_SECRETS_KEY` unchanged: changing it makes saved keys unreadable and users must add them again.
 - The server connections below remain optional (for example a shared key for all projects).
 

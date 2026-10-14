@@ -105,6 +105,11 @@ Consequences and migration/reversal approach:
 
 - Migration 0016 adds the table and allows `project` in both connection CHECKs. A downgrade drops
   the table and moves `project` back to `primary`.
+- Hosted mode (`crp-dev hosted`, used by Render, Codespaces and Docker) passes `CRP_SECRETS_KEY` to
+  the API and worker as an owner-only file, like the sign-in token. The first release missed this,
+  so Render showed "cannot store API keys" even with the secret set; fixed the same day.
+- Deriving the key from the sign-in token when no dedicated secret is set was considered and
+  rejected: it would tie stored keys to a credential people type and may share.
 - Rotating `CRP_SECRETS_KEY` makes saved keys unreadable. Runs then fail with "add the key again",
   and nothing is sent. Re-entering the key fixes it.
 - A free UnoRouter model forwards prompts to upstream providers that may keep them. The data note
