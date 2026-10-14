@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from email.header import Header
 from email.utils import format_datetime
 from pathlib import Path
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
@@ -26,7 +26,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.background import BackgroundTask
 
-from crp_analysis.ai.config import Connection, resolve
 from crp_analysis.ai.prompts import FIX_PROMPT_VERSION
 from crp_analysis.fixes import recipes
 from crp_analysis.fixes.changeset import (
@@ -82,6 +81,7 @@ from crp_api.schemas import (
 )
 from crp_api.services import change_sets as workspace
 from crp_api.services import git as git_service
+from crp_api.services.ai_models import connection_setup
 from crp_api.services.scope import decode_offset, encode_offset, get_scoped
 from crp_api.services.snapshot_files import read_blob_bytes, read_blob_text, sfdx_reader
 from crp_core.artifacts import ArtifactKey
@@ -207,9 +207,9 @@ async def _ai_status(
         return WorkspaceAiStatus(
             available=False,
             reason="AI is switched off for this project. A workspace admin can switch it on in "
-            "the project's AI review tab.",
+            "the project's Settings.",
         )
-    setup = resolve(container.settings, cast(Connection, policy.connection))
+    setup = await connection_setup(session, container.settings, policy)
     if not setup.available:
         return WorkspaceAiStatus(available=False, reason=f"{setup.label}: {setup.reason}")
     return WorkspaceAiStatus(available=True, reason=None)

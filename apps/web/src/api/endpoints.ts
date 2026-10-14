@@ -2,12 +2,14 @@
 import {
   api,
   toApiError,
+  type AiCatalog,
   type AiPolicy,
   type AiRun,
   type ArchitectureMetrics,
   type ArchitectureRules,
   type ArchitectureRulesCheck,
   type Insights,
+  type ProjectAiModel,
   type AiRunCreate,
   type AiStatus,
   type AuthOptions,
@@ -559,6 +561,50 @@ export async function fetchAiPolicy(projectId: string, signal?: Sig): Promise<Ai
   throw toApiError(response, error);
 }
 
+/** Providers and models a project can use with its own API key. */
+export async function fetchAiCatalog(signal?: Sig): Promise<AiCatalog> {
+  const { data, error, response } = await api.GET("/v1/ai/catalog", { signal: signal ?? null });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** The project's own AI model (the key itself is never returned). */
+export async function fetchProjectAiModel(
+  projectId: string,
+  signal?: Sig,
+): Promise<ProjectAiModel> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/ai-model", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Test the key with the provider, then save the model and key for the project (admins). */
+export async function saveProjectAiModel(
+  projectId: string,
+  provider: ProjectAiModel["provider"] & string,
+  model: string,
+  apiKey: string,
+): Promise<ProjectAiModel> {
+  const { data, error, response } = await api.PUT("/v1/projects/{project_id}/ai-model", {
+    params: { path: { project_id: projectId } },
+    body: { provider, model, api_key: apiKey },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** Remove the project's own model and key (admins). */
+export async function deleteProjectAiModel(projectId: string): Promise<ProjectAiModel> {
+  const { data, error, response } = await api.DELETE("/v1/projects/{project_id}/ai-model", {
+    params: { path: { project_id: projectId } },
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
 /** Switch AI review on or off for one project (workspace admins; audited). */
 export async function updateAiPolicy(
   current: AiPolicy,
@@ -570,7 +616,8 @@ export async function updateAiPolicy(
     body: {
       enabled,
       max_excerpt_lines: current.max_excerpt_lines,
-      connection: connection ?? current.connection,
+      // Only an explicit choice changes the connection; omitted, the server keeps it.
+      ...(connection ? { connection } : {}),
       version: current.version,
     },
   });

@@ -60,6 +60,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ai Catalog
+         * @description Providers and models a project can use with its own API key.
+         */
+        get: operations["ai_catalog_v1_ai_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ai/status": {
         parameters: {
             query?: never;
@@ -1053,6 +1073,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/ai-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Ai Model
+         * @description The project's own AI model (without the key).
+         */
+        get: operations["get_project_ai_model_v1_projects__project_id__ai_model_get"];
+        /**
+         * Save Project Ai Model
+         * @description Test the API key with the provider, then save the model and the encrypted key and use
+         *     them for the project's AI (workspace admins; AI must be switched on for the project).
+         */
+        put: operations["save_project_ai_model_v1_projects__project_id__ai_model_put"];
+        post?: never;
+        /**
+         * Delete Project Ai Model
+         * @description Remove the project's own model and key (workspace admins).
+         */
+        delete: operations["delete_project_ai_model_v1_projects__project_id__ai_model_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/ai-policy": {
         parameters: {
             query?: never;
@@ -1973,6 +2022,64 @@ export interface components {
             explanation: string;
             /** Verdict */
             verdict: string;
+        };
+        /**
+         * AiCatalog
+         * @description Providers and models a project can use with its own API key (ADR 0026).
+         */
+        AiCatalog: {
+            /**
+             * Can Store Keys
+             * @description The server can store API keys (encryption set up)
+             */
+            can_store_keys: boolean;
+            /** Providers */
+            providers: components["schemas"]["AiCatalogProvider"][];
+        };
+        /** AiCatalogModel */
+        AiCatalogModel: {
+            /** Free */
+            free: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Price Input Per Mtok Usd
+             * @description List price, USD per million
+             */
+            price_input_per_mtok_usd: number | null;
+            /** Price Output Per Mtok Usd */
+            price_output_per_mtok_usd: number | null;
+        };
+        /** AiCatalogProvider */
+        AiCatalogProvider: {
+            /**
+             * Data Note
+             * @description How the provider handles code it receives
+             */
+            data_note: string;
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "anthropic" | "unorouter";
+            /**
+             * Key Hint
+             * @description Where to get an API key
+             */
+            key_hint: string;
+            /**
+             * Live
+             * @description The model list was read from the provider just now
+             */
+            live: boolean;
+            /** Models */
+            models: components["schemas"]["AiCatalogModel"][];
+            /** Name */
+            name: string;
         };
         /**
          * AiConnection
@@ -4733,6 +4840,59 @@ export interface components {
             /** Workspaces */
             workspaces: components["schemas"]["WorkspaceGrantResponse"][];
         };
+        /** ProjectAiModelResponse */
+        ProjectAiModelResponse: {
+            /**
+             * Can Edit
+             * @description Workspace admins may change it
+             */
+            can_edit: boolean;
+            /** Can Store Keys */
+            can_store_keys: boolean;
+            /** Configured */
+            configured: boolean;
+            /**
+             * In Use
+             * @description The project's AI runs use this model and key
+             */
+            in_use: boolean;
+            /**
+             * Key Hint
+             * @description The key's last characters; the key is never shown
+             */
+            key_hint: string | null;
+            /** Model */
+            model: string | null;
+            /** Model Label */
+            model_label: string | null;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Provider */
+            provider: ("anthropic" | "unorouter") | null;
+            /** Tested At */
+            tested_at: string | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** ProjectAiModelUpdate */
+        ProjectAiModelUpdate: {
+            /**
+             * Api Key
+             * Format: password
+             * @description Tested before saving; stored encrypted
+             */
+            api_key: string;
+            /** Model */
+            model: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "anthropic" | "unorouter";
+        };
         /** ProjectAiPolicyResponse */
         ProjectAiPolicyResponse: {
             /**
@@ -4742,10 +4902,10 @@ export interface components {
             can_edit: boolean;
             /**
              * Connection
-             * @description The AI connection that receives code
+             * @description The AI connection that receives code ('project': the project's own key)
              * @enum {string}
              */
-            connection: "primary" | "alt";
+            connection: "primary" | "alt" | "project";
             /** Connection Label */
             connection_label: string;
             /** Enabled */
@@ -4757,6 +4917,11 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /**
+             * Ready
+             * @description The project's AI connection can be used now
+             */
+            ready: boolean;
             /** Updated At */
             updated_at: string | null;
             /** Version */
@@ -4766,9 +4931,9 @@ export interface components {
         ProjectAiPolicyUpdate: {
             /**
              * Connection
-             * @description The AI connection that receives code (unchanged when omitted)
+             * @description The AI connection that receives code (unchanged when omitted); 'project' needs a saved project model and key
              */
-            connection?: ("primary" | "alt") | null;
+            connection?: ("primary" | "alt" | "project") | null;
             /** Enabled */
             enabled: boolean;
             /**
@@ -5638,6 +5803,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_catalog_v1_ai_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiCatalog"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -9234,6 +9464,220 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_ai_model_v1_projects__project_id__ai_model_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAiModelResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_project_ai_model_v1_projects__project_id__ai_model_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectAiModelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAiModelResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_project_ai_model_v1_projects__project_id__ai_model_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectAiModelResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

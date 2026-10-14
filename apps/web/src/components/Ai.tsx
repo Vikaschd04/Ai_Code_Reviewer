@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { describeError, type AiAnchor, type AiRun, type AiStatus } from "../api/client";
-import { fetchAiPolicy, fetchAiStatus, listAiRuns, startAiRun } from "../api/endpoints";
+import { fetchAiPolicy, listAiRuns, startAiRun } from "../api/endpoints";
 import { formatRelative } from "../lib/format";
 import { plural } from "../lib/labels";
 import { navigate } from "../lib/router";
@@ -141,7 +141,6 @@ function runOutcome(run: AiRun): string {
 
 /** On a finding: earlier AI second opinions, and asking for a new one when AI is set up. */
 export function AiFindingCheck({ projectId, findingId }: { projectId: string; findingId: string }) {
-  const status = useAsync((signal) => fetchAiStatus(signal), []);
   const policy = useAsync((signal) => fetchAiPolicy(projectId, signal), [projectId]);
   const earlier = useAsync(
     (signal) => listAiRuns(projectId, signal, findingId),
@@ -150,7 +149,7 @@ export function AiFindingCheck({ projectId, findingId }: { projectId: string; fi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const runs = earlier.data ?? [];
-  const canAsk = status.data?.available === true && policy.data?.enabled === true;
+  const canAsk = policy.data?.enabled === true && policy.data.ready; // the project's model
   if (!canAsk && runs.length === 0) return null; // AI off and no earlier opinions: nothing to show
   return (
     <section className="card stack" aria-labelledby="ai-check-title" data-testid="ai-check">

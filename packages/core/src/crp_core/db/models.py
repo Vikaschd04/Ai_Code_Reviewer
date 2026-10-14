@@ -830,6 +830,37 @@ class ArtifactObject(Base):
     )
 
 
+class ProjectAiModel(Base):
+    """A project's own AI provider, model and API key (ADR 0026). The key is stored only
+    encrypted (``crp_core.secret_box``, bound to the project and provider) and is never
+    returned; ``key_hint`` holds its last characters so people can tell keys apart."""
+
+    __tablename__ = "project_ai_models"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("provider IN ('anthropic', 'unorouter')", name="provider_valid"),
+        CheckConstraint("key_ciphertext LIKE 'v1.%'", name="key_encrypted"),
+    )
+
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    key_hint: Mapped[str] = mapped_column(String(8), nullable=False)
+    tested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class ProjectAiPolicy(Base):
     """Per-project source-disclosure policy for AI review (default: off). ADR 0012.
 
@@ -845,7 +876,7 @@ class ProjectAiPolicy(Base):
             ondelete="CASCADE",
         ),
         CheckConstraint("max_excerpt_lines BETWEEN 10 AND 400", name="max_excerpt_lines_range"),
-        CheckConstraint("connection IN ('primary', 'alt')", name="connection_valid"),
+        CheckConstraint("connection IN ('primary', 'alt', 'project')", name="connection_valid"),
     )
 
     project_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
@@ -984,7 +1015,7 @@ class AiRun(TimestampMixin, Base):
             "kind <> 'finding_review' OR finding_id IS NOT NULL OR state <> 'QUEUED'",
             name="finding_review_requires_finding",
         ),
-        CheckConstraint("connection IN ('primary', 'alt')", name="connection_valid"),
+        CheckConstraint("connection IN ('primary', 'alt', 'project')", name="connection_valid"),
         Index("ix_ai_runs_project_id_created_at", "project_id", "created_at"),
     )
 

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crp_analysis.ai.config import AiSetup, Connection, configured, default_connection, resolve
+from crp_analysis.ai.config import AiSetup, configured, default_connection, resolve
 from crp_analysis.ai.export import build_ai_export, build_ai_sarif
 from crp_analysis.ai.prompts import PROMPT_VERSION
 from crp_api import __version__
@@ -36,6 +36,7 @@ from crp_api.schemas import (
     ProjectAiPolicyResponse,
     ProjectAiPolicyUpdate,
 )
+from crp_api.services.ai_models import connection_setup, project_model
 from crp_api.services.scope import get_scoped
 from crp_core.config import Settings
 from crp_core.db.ai_usage import MonthUsage, month_usage
@@ -126,18 +127,26 @@ async def ai_status(principal: CurrentPrincipal, container: Container) -> AiStat
     )
 
 
-def _policy_response(
-    settings: Settings, project: Project, policy: ProjectAiPolicy | None, can_edit: bool
+async def _policy_response(
+    session: AsyncSession,
+    settings: Settings,
+    project: Project,
+    policy: ProjectAiPolicy | None,
+    can_edit: bool,
 ) -> ProjectAiPolicyResponse:
-    connection: Connection = (
-        cast(Connection, policy.connection) if policy else default_connection(settings)
-    )
+    if policy is None:
+        connection: str = default_connection(settings)
+        setup = resolve(settings, default_connection(settings))
+    else:
+        connection = policy.connection
+        setup = await connection_setup(session, settings, policy)
     return ProjectAiPolicyResponse(
         project_id=project.id,
         enabled=bool(policy and policy.enabled),
         max_excerpt_lines=policy.max_excerpt_lines if policy else 120,
-        connection=connection,
-        connection_label=resolve(settings, connection).label,
+        connection=cast(Any, connection),
+        connection_label=setup.label,
+        ready=setup.available,
         updated_at=policy.updated_at if policy else None,
         version=policy.version if policy else 0,
         can_edit=can_edit,
@@ -155,7 +164,8 @@ async def get_ai_policy(
             session, principal, Project, project_id, not_found="project_not_found"
         )
         policy = await session.get(ProjectAiPolicy, project.id)
-        return _policy_response(
+        return await _policy_response(
+            session,
             container.settings,
             project,
             policy,
@@ -175,7 +185,7 @@ async def update_ai_policy(
     """Allow or stop sending masked code excerpts of this project to an AI connection (admins).
     A connection can be chosen only when it is set up and usable on this server."""
     settings = container.settings
-    if body.connection is not None:
+    if body.connection in ("primary", "alt"):
         chosen = resolve(settings, body.connection)
         if not chosen.available:
             raise ApiError(
@@ -199,6 +209,10 @@ async def update_ai_policy(
                 .with_for_update()
             )
         ).scalar_one_or_none()
+        if body.connection == "project" and await project_model(session, project.id) is None:
+            raise ApiError(
+                422, "no_project_model", "Save a model and API key for this project first."
+            )
         if policy is not None and body.version is not None and body.version != policy.version:
             raise ApiError(
                 409,
@@ -245,7 +259,7 @@ async def update_ai_policy(
             )
         await session.flush()
         await session.refresh(policy)
-        return _policy_response(settings, project, policy, can_edit=True)
+        return await _policy_response(session, settings, project, policy, can_edit=True)
 
 
 # -- runs --------------------------------------------------------------------------------------
@@ -341,12 +355,13 @@ async def ai_gate(
             "ai_policy_disabled",
             "AI review is switched off for this project. A workspace admin can switch it on.",
         )
-    setup = resolve(settings, cast(Connection, policy.connection))
+    setup = await connection_setup(session, settings, policy)
     if not setup.available or setup.model is None:
         raise ApiError(
             409, "ai_unavailable", f"{setup.label}: {setup.reason or 'AI review is not set up'}"
         )
     usage = await month_usage(session, connection=setup.connection)
+    # A project's own key has no server budget (monthly_token_limit 0, no cost limit).
     if setup.monthly_token_limit and usage.total_tokens >= setup.monthly_token_limit:
         raise ApiError(429, "ai_monthly_limit", "This month's AI token limit is used up")
     if (

@@ -29,7 +29,17 @@ class ToolResultBlock:
     type: Literal["tool_result"] = "tool_result"
 
 
-Block = TextBlock | ToolUseBlock | ToolResultBlock
+@dataclass(frozen=True, slots=True)
+class ProviderBlock:
+    """A provider-specific block kept verbatim (for example Anthropic ``thinking`` blocks, which
+    must be sent back unchanged on the next turn); other providers ignore it."""
+
+    provider: str
+    data: dict[str, Any]
+    type: Literal["provider"] = "provider"
+
+
+Block = TextBlock | ToolUseBlock | ToolResultBlock | ProviderBlock
 
 
 @dataclass(frozen=True, slots=True)

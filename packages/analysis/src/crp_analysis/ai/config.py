@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import SecretStr
 
+from crp_analysis.ai import catalog
 from crp_analysis.ai.providers import (
     AnthropicClient,
     ClientOptions,
@@ -28,8 +29,9 @@ from crp_analysis.ai.providers import (
 from crp_core.config import AiProvider, Settings
 from crp_core.local_secrets import SecretFileError, read_secret_file
 
-Connection = Literal["primary", "alt"]
+Connection = Literal["primary", "alt"]  # set up by the operator (environment)
 CONNECTIONS: tuple[Connection, ...] = ("primary", "alt")
+RunConnection = Literal["primary", "alt", "project"]  # "project": the project's own key (ADR 0026)
 
 DEFAULT_MODELS = {AiProvider.ANTHROPIC: "claude-opus-5-5"}
 DEFAULT_BASE_URLS = {
@@ -67,7 +69,7 @@ class Prices:
 
 @dataclass(frozen=True, slots=True)
 class AiSetup:
-    connection: Connection
+    connection: RunConnection
     label: str  # what users see, for example "Claude (Anthropic)" or "Free test model"
     data_note: str | None  # how the provider handles code it receives, shown before opting in
     provider: AiProvider
@@ -289,8 +291,55 @@ def configured(settings: Settings) -> list[AiSetup]:
 def default_connection(settings: Settings) -> Connection:
     """The connection new project policies start with: the configured default if usable,
     otherwise the first usable one, otherwise the primary."""
-    preferred = resolve(settings, settings.ai_default_connection)
-    if preferred.available:
-        return preferred.connection
-    usable = next((s for s in configured(settings) if s.available), None)
-    return usable.connection if usable else "primary"
+    if resolve(settings, settings.ai_default_connection).available:
+        return settings.ai_default_connection
+    return next((c for c in CONNECTIONS if resolve(settings, c).available), "primary")
+
+
+def project_setup(settings: Settings, provider_id: str, model_id: str, key: str | None) -> AiSetup:
+    """The configuration for a project's own provider, model and key (ADR 0026). ``key`` is
+    None where only the configuration is needed (the API never calls the provider for runs)."""
+    chosen = catalog.provider(provider_id)
+    if chosen is None:
+        raise ValueError(f"unknown AI provider {provider_id!r}")
+    model = catalog.find_model(provider_id, model_id) or catalog.CatalogModel(
+        model_id, model_id, True, None, 0.0, 0.0, catalog.FREE_OUTPUT_CAP
+    )
+    anthropic = chosen.kind == "anthropic"
+    base_url = settings.ai_anthropic_base_url if anthropic else settings.ai_unorouter_base_url
+    secure = _encrypted_or_local(base_url)
+    return AiSetup(
+        connection="project",
+        label=f"{model.label} ({chosen.name}, your key)",
+        data_note=chosen.data_note,
+        provider=AiProvider.ANTHROPIC if anthropic else AiProvider.OPENAI_COMPATIBLE,
+        model=model.id,
+        base_url=base_url,
+        available=secure,
+        reason=None if secure else "The provider address is not encrypted (https).",
+        admin_hint=None,
+        limits=Limits(
+            max_model_calls=settings.ai_run_max_model_calls,
+            max_tool_calls=settings.ai_run_max_tool_calls,
+            max_tokens=settings.ai_run_max_tokens,
+            timeout_seconds=chosen.run_timeout_seconds or settings.ai_run_timeout_seconds,
+            max_output_tokens=model.max_output_tokens,
+            max_cost_usd=settings.ai_run_max_cost_usd,
+        ),
+        prices=Prices(model.price_input, model.price_output),
+        monthly_token_limit=0,  # the project's own key: its owner's budget, not the server's
+        monthly_cost_limit_usd=None,
+        keep_transcripts=settings.ai_keep_transcripts,
+        _api_key=key if secure else None,
+        _timeout=settings.ai_request_timeout_seconds,
+        _retries=max(settings.ai_max_retries, 3) if model.free else settings.ai_max_retries,
+        _min_interval=chosen.min_interval_seconds,
+        _max_retry_after=90.0 if model.free else 30.0,
+        _auth_header="bearer",
+        _max_tokens_field="max_completion_tokens",
+    )
+
+
+def project_key_context(project_id: object, provider_id: str) -> str:
+    """Associated data that binds an encrypted project key to its project and provider."""
+    return f"project-ai-key:{project_id}:{provider_id}"

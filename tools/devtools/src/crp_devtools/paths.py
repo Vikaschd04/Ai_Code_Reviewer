@@ -46,6 +46,11 @@ class DevPaths:
         return self.secrets / "postgres-password"
 
     @property
+    def secrets_key_file(self) -> Path:
+        """Encrypts projects' own AI keys at rest (ADR 0026)."""
+        return self.secrets / "secrets-key"
+
+    @property
     def postgres_data(self) -> Path:
         return self.state / "postgres"
 

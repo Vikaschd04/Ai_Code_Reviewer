@@ -369,6 +369,140 @@
         "title": "AiAssessmentResponse",
         "type": "object"
       },
+      "AiCatalog": {
+        "additionalProperties": false,
+        "description": "Providers and models a project can use with its own API key (ADR 0026).",
+        "properties": {
+          "can_store_keys": {
+            "description": "The server can store API keys (encryption set up)",
+            "title": "Can Store Keys",
+            "type": "boolean"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/AiCatalogProvider"
+            },
+            "title": "Providers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers",
+          "can_store_keys"
+        ],
+        "title": "AiCatalog",
+        "type": "object"
+      },
+      "AiCatalogModel": {
+        "additionalProperties": false,
+        "properties": {
+          "free": {
+            "title": "Free",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "price_input_per_mtok_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List price, USD per million",
+            "title": "Price Input Per Mtok Usd"
+          },
+          "price_output_per_mtok_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Output Per Mtok Usd"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "free",
+          "note",
+          "price_input_per_mtok_usd",
+          "price_output_per_mtok_usd"
+        ],
+        "title": "AiCatalogModel",
+        "type": "object"
+      },
+      "AiCatalogProvider": {
+        "additionalProperties": false,
+        "properties": {
+          "data_note": {
+            "description": "How the provider handles code it receives",
+            "title": "Data Note",
+            "type": "string"
+          },
+          "id": {
+            "enum": [
+              "anthropic",
+              "unorouter"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "key_hint": {
+            "description": "Where to get an API key",
+            "title": "Key Hint",
+            "type": "string"
+          },
+          "live": {
+            "description": "The model list was read from the provider just now",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/AiCatalogModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "data_note",
+          "key_hint",
+          "models",
+          "live"
+        ],
+        "title": "AiCatalogProvider",
+        "type": "object"
+      },
       "AiConnection": {
         "additionalProperties": false,
         "description": "One AI connection the operator set up (ADR 0025).",
@@ -8119,6 +8253,155 @@
         "title": "PrincipalResponse",
         "type": "object"
       },
+      "ProjectAiModelResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "can_edit": {
+            "description": "Workspace admins may change it",
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "can_store_keys": {
+            "title": "Can Store Keys",
+            "type": "boolean"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "in_use": {
+            "description": "The project's AI runs use this model and key",
+            "title": "In Use",
+            "type": "boolean"
+          },
+          "key_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The key's last characters; the key is never shown",
+            "title": "Key Hint"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "model_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Label"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "anthropic",
+                  "unorouter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "tested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "project_id",
+          "configured",
+          "provider",
+          "model",
+          "model_label",
+          "key_hint",
+          "tested_at",
+          "updated_at",
+          "in_use",
+          "can_edit",
+          "can_store_keys"
+        ],
+        "title": "ProjectAiModelResponse",
+        "type": "object"
+      },
+      "ProjectAiModelUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "description": "Tested before saving; stored encrypted",
+            "format": "password",
+            "title": "Api Key",
+            "type": "string",
+            "writeOnly": true
+          },
+          "model": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "anthropic",
+              "unorouter"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "api_key"
+        ],
+        "title": "ProjectAiModelUpdate",
+        "type": "object"
+      },
       "ProjectAiPolicyResponse": {
         "additionalProperties": false,
         "properties": {
@@ -8128,10 +8411,11 @@
             "type": "boolean"
           },
           "connection": {
-            "description": "The AI connection that receives code",
+            "description": "The AI connection that receives code ('project': the project's own key)",
             "enum": [
               "primary",
-              "alt"
+              "alt",
+              "project"
             ],
             "title": "Connection",
             "type": "string"
@@ -8152,6 +8436,11 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "ready": {
+            "description": "The project's AI connection can be used now",
+            "title": "Ready",
+            "type": "boolean"
           },
           "updated_at": {
             "anyOf": [
@@ -8176,6 +8465,7 @@
           "max_excerpt_lines",
           "connection",
           "connection_label",
+          "ready",
           "updated_at",
           "version",
           "can_edit"
@@ -8191,7 +8481,8 @@
               {
                 "enum": [
                   "primary",
-                  "alt"
+                  "alt",
+                  "project"
                 ],
                 "type": "string"
               },
@@ -8199,7 +8490,7 @@
                 "type": "null"
               }
             ],
-            "description": "The AI connection that receives code (unchanged when omitted)",
+            "description": "The AI connection that receives code (unchanged when omitted); 'project' needs a saved project model and key",
             "title": "Connection"
           },
           "enabled": {
@@ -10193,6 +10484,78 @@
           }
         },
         "summary": "Export Ai Run",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/v1/ai/catalog": {
+      "get": {
+        "description": "Providers and models a project can use with its own API key.",
+        "operationId": "ai_catalog_v1_ai_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Ai Catalog",
         "tags": [
           "ai"
         ]
@@ -14884,6 +15247,274 @@
         "summary": "Get Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/ai-model": {
+      "delete": {
+        "description": "Remove the project's own model and key (workspace admins).",
+        "operationId": "delete_project_ai_model_v1_projects__project_id__ai_model_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAiModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Delete Project Ai Model",
+        "tags": [
+          "ai"
+        ]
+      },
+      "get": {
+        "description": "The project's own AI model (without the key).",
+        "operationId": "get_project_ai_model_v1_projects__project_id__ai_model_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAiModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Get Project Ai Model",
+        "tags": [
+          "ai"
+        ]
+      },
+      "put": {
+        "description": "Test the API key with the provider, then save the model and the encrypted key and use\nthem for the project's AI (workspace admins; AI must be switched on for the project).",
+        "operationId": "save_project_ai_model_v1_projects__project_id__ai_model_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectAiModelUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectAiModelResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        },
+        "summary": "Save Project Ai Model",
+        "tags": [
+          "ai"
         ]
       }
     },

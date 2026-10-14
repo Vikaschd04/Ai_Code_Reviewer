@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import httpx
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -25,6 +26,8 @@ class AppContainer:
     identity: LocalTokenProvider
     login_throttle: FailedAttemptThrottle
     github: GitHubClient | None = None  # set when a GitHub App is configured (P06)
+    # Tests only: an in-process double for AI provider calls (key tests, model lists).
+    ai_transport: httpx.AsyncBaseTransport | None = None
 
 
 def get_container(request: Request) -> AppContainer:

@@ -9,7 +9,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
 
 from crp_core.config import DeploymentEnvironment
 from crp_core.domain.states import (
@@ -768,10 +768,11 @@ class ProjectAiPolicyResponse(ApiModel):
     project_id: UUID
     enabled: bool
     max_excerpt_lines: int
-    connection: Literal["primary", "alt"] = Field(
-        description="The AI connection that receives code"
+    connection: Literal["primary", "alt", "project"] = Field(
+        description="The AI connection that receives code ('project': the project's own key)"
     )
     connection_label: str
+    ready: bool = Field(description="The project's AI connection can be used now")
     updated_at: datetime | None
     version: int
     can_edit: bool = Field(description="Only workspace admins and owners may change the policy")
@@ -780,12 +781,59 @@ class ProjectAiPolicyResponse(ApiModel):
 class ProjectAiPolicyUpdate(ApiModel):
     enabled: bool
     max_excerpt_lines: Annotated[int, Field(ge=10, le=400)] = 120
-    connection: Literal["primary", "alt"] | None = Field(
-        default=None, description="The AI connection that receives code (unchanged when omitted)"
+    connection: Literal["primary", "alt", "project"] | None = Field(
+        default=None,
+        description="The AI connection that receives code (unchanged when omitted); 'project' "
+        "needs a saved project model and key",
     )
     version: int | None = Field(
         default=None, description="Current version for optimistic concurrency (omit on first save)"
     )
+
+
+class AiCatalogModel(ApiModel):
+    id: str
+    label: str
+    free: bool
+    note: str | None
+    price_input_per_mtok_usd: float | None = Field(description="List price, USD per million")
+    price_output_per_mtok_usd: float | None
+
+
+class AiCatalogProvider(ApiModel):
+    id: Literal["anthropic", "unorouter"]
+    name: str
+    data_note: str = Field(description="How the provider handles code it receives")
+    key_hint: str = Field(description="Where to get an API key")
+    models: list[AiCatalogModel]
+    live: bool = Field(description="The model list was read from the provider just now")
+
+
+class AiCatalog(ApiModel):
+    """Providers and models a project can use with its own API key (ADR 0026)."""
+
+    providers: list[AiCatalogProvider]
+    can_store_keys: bool = Field(description="The server can store API keys (encryption set up)")
+
+
+class ProjectAiModelResponse(ApiModel):
+    project_id: UUID
+    configured: bool
+    provider: Literal["anthropic", "unorouter"] | None
+    model: str | None
+    model_label: str | None
+    key_hint: str | None = Field(description="The key's last characters; the key is never shown")
+    tested_at: datetime | None
+    updated_at: datetime | None
+    in_use: bool = Field(description="The project's AI runs use this model and key")
+    can_edit: bool = Field(description="Workspace admins may change it")
+    can_store_keys: bool
+
+
+class ProjectAiModelUpdate(ApiModel):
+    provider: Literal["anthropic", "unorouter"]
+    model: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+    api_key: Annotated[SecretStr, Field(description="Tested before saving; stored encrypted")]
 
 
 class AiRunCreate(ApiModel):

@@ -120,3 +120,25 @@ Not measured: the free model's answer and fix quality on the labelled AI evaluat
 (`crp-dev ai-eval --live` needs the owner to run it with the key; the free tier's one request per
 minute makes a full run take hours).
 
+## A project's own model and key (14 October 2026; ADR 0026)
+
+Owner request: choose the provider and model per project in Settings, add your own API key,
+test it before saving, use it only for that project. Implemented: catalog, key test, encrypted
+storage (migration 0016), per-project connection `project`, worker decryption at run time,
+Settings card; Claude adapter made compatible with current models.
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Encryption | Round trip; fresh nonce; another project, provider, server secret or a tampered token cannot decrypt; no or short server secret means no storage | PASS | `test_keys_are_encrypted_and_bound_to_their_project_and_provider` |
+| Catalog | Claude list (Opus 5.5 first, no Mythos, prices); UnoRouter filter keeps only free, online, OpenAI-endpoint chat models with tools and text output, newest first, output capped at 8K; fallback when the list cannot be read | PASS | `test_catalog_offers_current_claude_models_and_free_tool_capable_unorouter_models`, `test_live_unorouter_list_falls_back_when_unreadable` |
+| Key tests | Anthropic: GET model, no body, 401/404/429 mapped to plain messages without the key; UnoRouter: a reply without the tool call is refused | PASS | `test_anthropic_key_check_reads_the_model_and_maps_errors`, `test_unorouter_key_check_needs_a_tool_call` |
+| Claude compatibility | Opus 5.5 gets `tool_choice: auto` plus the instruction; Opus 4.8 keeps the forced choice; thinking blocks echoed unchanged and kept in order; OpenAI-compatible requests never get them | PASS | `test_claude_requests_keep_thinking_blocks_and_avoid_forced_tool_choice_where_rejected`, `test_claude_responses_keep_thinking_blocks_in_order` |
+| Real stack | Server without AI: saving before AI is on refused; wrong key refused, nothing stored; unknown model refused; working key saved as `v1.` ciphertext only; policy ready on `project`; a question run calls Anthropic with the user's key and model, with a thinking block in the reply, and succeeds; removing the key stops AI (409); the 11th key test in an hour gets 429 | PASS | `test_a_project_uses_its_own_tested_and_encrypted_key` |
+| Authorization | Choosing `project` without a model 422; bad keys 422; unknown provider 400; another workspace 404 on GET/PUT/DELETE; members see but cannot change (403); no server secret 409 | PASS | `test_own_model_needs_admins_key_storage_and_stays_in_its_workspace`, `test_own_keys_cannot_be_saved_without_a_server_secret` |
+| Browser | Settings after switching AI on: Claude list, UnoRouter free list, data note; wrong key shows the reason; working key "In use" with "Key ending …"; the page never contains the key; a question runs on `glm-5.3:free`; Remove key; light, dark, 390 px without overflow | PASS | `e2e/ai-model.spec.ts` (`ai-model-form.png`, `ai-model-saved.png`, `ai-model-saved-dark.png`, `ai-model-mobile.png`) |
+
+Gates (14 October 2026, macOS arm64): `make check` exit 0; `make test` 616 pytest + 30 vitest passed; `make test-e2e` 22/22 passed.
+
+Not measured: live calls with a real user key (the tests use labelled fakes for Anthropic and
+UnoRouter). The owner can check by adding their key in Settings; the test call uses no tokens on
+Anthropic and one small request on UnoRouter.

@@ -14,14 +14,15 @@ fi
 state=.local/codespace
 mkdir -p "$state"
 chmod 700 "$state"
-for secret in access-token db-password; do
+for secret in access-token db-password secrets-key; do
   if [ ! -s "$state/$secret" ]; then
     python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > "$state/$secret"
   fi
   chmod 600 "$state/$secret"
 done
-export CRP_ACCESS_TOKEN CRP_DB_PASSWORD CRP_PUBLIC_HOST
+export CRP_ACCESS_TOKEN CRP_DB_PASSWORD CRP_PUBLIC_HOST CRP_SECRETS_KEY
 CRP_ACCESS_TOKEN="$(cat "$state/access-token")"
+CRP_SECRETS_KEY="$(cat "$state/secrets-key")"
 CRP_DB_PASSWORD="$(cat "$state/db-password")"
 if [ -n "${CODESPACE_NAME:-}" ] && [ -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]; then
   CRP_PUBLIC_HOST="${CODESPACE_NAME}-8080.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"

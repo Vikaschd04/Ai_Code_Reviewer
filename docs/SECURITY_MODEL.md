@@ -127,6 +127,18 @@ Residual risk: masking is heuristic, so a secret the redactor misses would reach
 | Keys stay server-side | `CRP_AI_ALT_API_KEY` or a key file, never stored, logged or returned (status responses omit it) | `test_projects_choose_an_ai_connection_and_runs_use_it` |
 | Encrypted transport | The alternate base URL must be `https://` (plain http only for localhost) | `test_two_connections_resolve_with_their_own_label_note_budget_and_pacing` |
 
+### A project's own AI key (ADR 0026)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Tested before saving, no code sent | Anthropic: model lookup (no tokens); UnoRouter: one toy tool call; a failed test stores nothing; plain messages never echo the key or provider text | `test_anthropic_key_check_reads_the_model_and_maps_errors`, `test_a_project_uses_its_own_tested_and_encrypted_key` |
+| Encrypted and bound to the project | AES-256-GCM with a key derived (HKDF-SHA256) from `CRP_SECRETS_KEY`; associated data `project-ai-key:{project}:{provider}`, so a copied ciphertext is unreadable elsewhere; saving is refused without the server secret | `test_keys_are_encrypted_and_bound_to_their_project_and_provider`, `test_own_keys_cannot_be_saved_without_a_server_secret` |
+| Never returned or logged | Responses carry the last 4 characters only; audit events name provider, model and hint; the worker decrypts at run time and the key goes only into the provider's auth header | `test_a_project_uses_its_own_tested_and_encrypted_key`, `e2e/ai-model.spec.ts` (page never contains the key) |
+| Fixed provider endpoints | Users choose from a catalog; base URLs are fixed (operator override for tests; plain http only for localhost); unknown models are refused | `test_project_setup_uses_the_catalog_and_no_server_budget` |
+| Authorization and abuse limits | Admins only; AI review must be on; other workspaces get 404; 10 key tests per project per hour | `test_own_model_needs_admins_key_storage_and_stays_in_its_workspace` |
+
+Residual risk: whoever holds both the database and `CRP_SECRETS_KEY` can decrypt saved keys; keep the secret only in the host's secret settings. Rotating it makes saved keys unreadable (runs fail before sending anything; users add the key again).
+
 ### Framework packs (P04, ADR 0013)
 
 | Control | Implementation | Evidence |

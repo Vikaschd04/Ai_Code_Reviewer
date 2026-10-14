@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — your own AI model and API key per project (14 October 2026)
+
+- **Choose the AI model in Settings:** once AI review is on, a project admin picks the provider
+  (Anthropic or UnoRouter's free models) and the model — for example Claude Opus 5.5, Fable 5.1,
+  Sonnet 5.5, Opus 4.8, or `glm-5.3:free`, `gemini-3.6-flash:free`, `deepseek-v4.1-flash:free`.
+- **Your own API key:** it is tested with the provider before it is saved (no code is sent),
+  stored encrypted, used only for that project's questions, plans and fixes, and never shown again
+  (only its last four characters). Remove it at any time.
+- Works with the newest Claude models (which no longer accept a forced tool choice and send back
+  thinking blocks).
+
 ## Unreleased — choose the AI model per project (14 October 2026)
 
 - **A second AI model:** keep Claude for real work and add a cheaper or free model (for example

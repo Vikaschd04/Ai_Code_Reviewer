@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,6 +22,7 @@ from crp_api.middleware import (
 )
 from crp_api.routes import (
     ai,
+    ai_models,
     architecture_rules,
     auth,
     change_sets,
@@ -54,6 +56,7 @@ def create_app(
     *,
     workflow_gateway: WorkflowGateway | None = None,
     artifact_store: ArtifactStore | None = None,
+    ai_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
     """Build the API. Optional collaborators allow tests to simulate dependency failures."""
 
@@ -81,6 +84,7 @@ def create_app(
             identity=identity,
             login_throttle=FailedAttemptThrottle(),
             github=github,
+            ai_transport=ai_transport,
         )
         # In-process gateways (lite profile) resume unfinished work once the API is ready.
         start = getattr(workflows, "start", None)
@@ -124,6 +128,7 @@ def create_app(
         architecture_rules.router,
         insights.router,
         ai.router,
+        ai_models.router,
         fixes.router,
         change_sets.router,
         github.router,

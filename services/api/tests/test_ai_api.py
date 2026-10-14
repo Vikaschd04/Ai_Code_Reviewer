@@ -411,3 +411,56 @@ async def test_projects_choose_an_ai_connection_and_runs_use_it(api_factory: Api
         headers=plain.auth,
     )
     assert gated.status_code == 409 and gated.json()["code"] == "ai_unavailable"
+
+
+# -- a project's own model and key (ADR 0026) -------------------------------------------------
+
+OWN_KEYS = {"secrets_key": "k" * 48, "ai_catalog_live": False}
+
+
+async def test_own_model_needs_admins_key_storage_and_stays_in_its_workspace(
+    api_factory: ApiFactory,
+) -> None:
+    api = await api_factory(demo_enabled=True, **OWN_KEYS)
+    project = await _project(api)
+    url = f"/v1/projects/{project}/ai-model"
+    body = {"provider": "anthropic", "model": "claude-opus-5-5", "api_key": KEY}
+    choose = await api.client.put(
+        f"/v1/projects/{project}/ai-policy",
+        json={"enabled": True, "connection": "project"},
+        headers=api.auth,
+    )
+    assert choose.status_code == 422 and choose.json()["code"] == "no_project_model"
+    await _enable(api, project)
+    for short in ("short", "has a space in it"):
+        bad = await api.client.put(url, json={**body, "api_key": short}, headers=api.auth)
+        assert bad.status_code == 422 and bad.json()["code"] == "invalid_key"
+    other = await api.client.put(url, json={**body, "provider": "openai"}, headers=api.auth)
+    assert other.status_code == 400  # only the listed providers (schema validation)
+
+    await api.client.post("/v1/auth/demo-session", headers=ORIGIN)
+    for method in ("GET", "PUT", "DELETE"):
+        hidden = await api.client.request(method, url, json=body, headers=ORIGIN)
+        assert hidden.status_code == 404, (method, hidden.text)
+    workspace = (await api.client.get("/v1/auth/me")).json()["workspaces"][0]["workspace_id"]
+    mine = await api.client.post(
+        "/v1/projects", json={"workspace_id": workspace, "name": "Demo AI"}, headers=ORIGIN
+    )
+    member_url = f"/v1/projects/{mine.json()['id']}/ai-model"
+    view = (await api.client.get(member_url)).json()
+    assert view["configured"] is False and view["can_edit"] is False
+    for method in ("PUT", "DELETE"):
+        refused = await api.client.request(method, member_url, json=body, headers=ORIGIN)
+        assert refused.status_code == 403, (method, refused.text)
+
+
+async def test_own_keys_cannot_be_saved_without_a_server_secret(api: ApiHarness) -> None:
+    project = await _project(api)
+    catalog = (await api.client.get("/v1/ai/catalog", headers=api.auth)).json()
+    assert catalog["can_store_keys"] is False and len(catalog["providers"]) == 2
+    saved = await api.client.put(
+        f"/v1/projects/{project}/ai-model",
+        json={"provider": "anthropic", "model": "claude-opus-5-5", "api_key": KEY},
+        headers=api.auth,
+    )
+    assert saved.status_code == 409 and saved.json()["code"] == "keys_unavailable"

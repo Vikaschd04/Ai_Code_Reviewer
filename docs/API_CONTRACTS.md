@@ -229,6 +229,17 @@ No new endpoints. Every review plans the engine `nfr` (NOT_APPLICABLE without YA
 | GET/PUT /v1/projects/{id}/ai-policy | viewer/admin | Response adds `connection` and `connection_label`; the update accepts `connection` (unchanged when omitted); 422 `connection_unavailable` when it is not set up |
 | AI runs, advisor plans, AI fix suggestions | member | Use the project's connection: `provider` and `model` are that connection's; budgets count that connection only; 409 `ai_unavailable` names the connection |
 
+
+## Implemented with a project's own model and key (ADR 0026)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/ai/catalog | any | `providers` (`id` anthropic/unorouter, `name`, `data_note`, `key_hint`, `models` with `id`, `label`, `free`, `note`, prices per million tokens; `live` when UnoRouter's list was read live) and `can_store_keys` (the server has `CRP_SECRETS_KEY`) |
+| GET /v1/projects/{id}/ai-model | viewer | `configured`, `provider`, `model`, `model_label`, `key_hint` (last 4 characters), `tested_at`, `updated_at`, `in_use`, `can_edit`, `can_store_keys`; never the key |
+| PUT /v1/projects/{id}/ai-model | admin | Body `provider`, `model`, `api_key`. Tests the key with the provider (no code sent), then stores it encrypted and sets the project's connection to `project`. 409 `keys_unavailable` (no server secret), 409 `ai_policy_disabled` (switch AI on first), 422 `invalid_key` (8–400 characters, no spaces), 422 `unknown_model`, 422 `key_test_failed` (plain reason, never the key), 429 `key_test_limit` (10 tests per project per hour); 400 for an unknown provider |
+| DELETE /v1/projects/{id}/ai-model | admin | Removes the model and key; a project using it returns to the server's default connection |
+| GET/PUT /v1/projects/{id}/ai-policy | viewer/admin | `connection` may be `project`; response adds `ready` (the project's connection can run now); 422 `no_project_model` when choosing `project` without a saved model |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

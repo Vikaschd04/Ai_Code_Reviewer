@@ -269,7 +269,11 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
     temporal = TemporalDevServer(port=free_port(), log_file=logs / "temporal.log")
     supervisor = Supervisor(echo=False)
     fake_ai_key = generate_token()
-    fake_ai = FakeAiProvider(fake_ai_key)  # labelled test double: no real model is called
+    # A project's own key (ADR 0026) typed in the browser journey; accepted only by the fake.
+    user_ai_key = "sk-e2e-" + generate_token()
+    fake_ai = FakeAiProvider(
+        fake_ai_key, user_ai_key
+    )  # labelled test double: no real model is called
     fake_github: FakeGitHub | None = None  # labelled test double: github.com is never contacted
     exit_code = 1
     try:
@@ -307,6 +311,10 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
                 "CRP_AI_ALT_DATA_NOTE": "Test double: scripted answers, nothing leaves this host.",
                 "CRP_AI_ALT_PRICE_INPUT_PER_MTOK_USD": "0",
                 "CRP_AI_ALT_PRICE_OUTPUT_PER_MTOK_USD": "0",
+                # Projects' own keys (ADR 0026): UnoRouter's address is the fake; fixed model list.
+                "CRP_SECRETS_KEY": generate_token(),
+                "CRP_AI_UNOROUTER_BASE_URL": fake_ai.base_url,
+                "CRP_AI_CATALOG_LIVE": "false",
             }
         )
         fake_github, github_env = _e2e_github(
@@ -345,6 +353,7 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
                 "CRP_E2E_SAP_ZIP": str(fixtures["sap"]),
                 "CRP_E2E_SALESFORCE_ZIP": str(fixtures["salesforce"]),
                 "CRP_E2E_NFR_ZIP": str(fixtures["nfr"]),
+                "CRP_E2E_AI_USER_KEY": user_ai_key,
                 "CRP_E2E_MALICIOUS_ZIP": str(fixtures["malicious"]),
                 "CRP_E2E_GITHUB_URL": fake_github.base_url,
             }

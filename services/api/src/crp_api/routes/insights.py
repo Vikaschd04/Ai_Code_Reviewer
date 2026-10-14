@@ -16,7 +16,6 @@ from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from crp_analysis.ai.config import Connection, resolve
 from crp_analysis.insights import decisions
 from crp_analysis.insights.advisor import ADVISOR_PROMPT_VERSION
 from crp_analysis.insights.engine import (
@@ -44,6 +43,7 @@ from crp_api.schemas import (
     InsightsResponse,
 )
 from crp_api.services import insights
+from crp_api.services.ai_models import connection_setup
 from crp_api.services.scope import get_scoped
 from crp_core.config import Settings
 from crp_core.db.models import AiRun, NfrProfileVersion, Project, ProjectAiPolicy
@@ -99,7 +99,7 @@ async def _response(
     gathered = await insights.gather(session, project.id)
     report = gathered.report()
     policy = await session.get(ProjectAiPolicy, project.id)
-    setup = resolve(settings, cast(Connection, policy.connection) if policy else "primary")
+    setup = await connection_setup(session, settings, policy)
     latest = (
         await session.execute(
             select(AiRun)

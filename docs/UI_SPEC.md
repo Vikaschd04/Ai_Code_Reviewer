@@ -141,6 +141,22 @@ This section supersedes the per-phase tab lists above where they differ.
 - The sidebar has no "Coming soon" list; capabilities stay on System status for operators.
 - Checked in light, dark and 390 px by `e2e/insights.spec.ts` and `e2e/p12-nfr.spec.ts` (screenshots `insights*.png`, `p12-nfr*.png`).
 
+
+## AI model and API key in Settings (14 October 2026; ADR 0026)
+
+- Shown in **Settings** below "AI review is on" once an admin switches AI review on (members see
+  the saved model without actions; nothing is shown while AI is off).
+- Form: "Provider" (Anthropic; UnoRouter marked "(free models)"), "Model" (Claude models with
+  "Recommended" and short notes; free models marked "— free"), the provider's data note, "API key"
+  (password field, where to get a key), "Test and save" ("Testing the key…" while busy) and the
+  line "The key is tested first, stored encrypted, used only for this project and never shown
+  again." A refused key shows the plain reason in an error alert; nothing is saved.
+- Saved: "In use" (or "Saved, not in use" with "Use this model"), the model and provider, "Key
+  ending ····", when it was tested, "Change model or key" (opens the form on the saved choice) and
+  "Remove key". The AI review line names the model with "your key".
+- When the server cannot store keys, a warning names `CRP_SECRETS_KEY` for the administrator.
+- Checked in light, dark and 390 px by `e2e/ai-model.spec.ts` (screenshots `ai-model-*.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

@@ -201,6 +201,15 @@ class Settings(BaseSettings):
     ai_alt_price_output_per_mtok_usd: Annotated[float, Field(ge=0, le=10_000)] | None = None
     # The connection new project policies start with (an admin can change it per project).
     ai_default_connection: Literal["primary", "alt"] = "primary"
+    # Projects' own AI keys (ADR 0026): a project admin picks a provider and model and adds their
+    # own API key, which is tested, then stored encrypted with a key derived from
+    # CRP_SECRETS_KEY (Render's Blueprint generates it). Without it, own keys cannot be saved.
+    secrets_key: SecretStr | None = None
+    secrets_key_file: Path | None = None
+    ai_anthropic_base_url: str = "https://api.anthropic.com"
+    ai_unorouter_base_url: str = "https://api.unorouter.com/v1"
+    # Read UnoRouter's public model list for the free models (falls back to a fixed list).
+    ai_catalog_live: bool = True
 
     # GitHub (P06; ADR 0015). One GitHub App registered by the operator: its private key signs
     # short-lived app tokens; each operation then uses an installation token limited to one

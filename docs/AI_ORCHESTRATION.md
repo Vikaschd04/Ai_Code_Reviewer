@@ -70,3 +70,17 @@ A fourth run kind, `fix`, asks for up to `CRP_AI_FIX_MAX_CANDIDATES` (default 3)
 - The grounding checks do not depend on the model: weaker models produce fewer kept plan steps
   and fewer passing fix candidates, never unchecked ones.
 
+## A project's own model and key (ADR 0026)
+
+- A project admin picks the provider (Anthropic or UnoRouter) and a model from `GET /v1/ai/catalog`
+  and adds their own API key in Settings once AI review is on. The key is tested before it is
+  saved: Anthropic `GET /v1/models/{model}` (no tokens), UnoRouter one toy tool call. No code is
+  sent by the test.
+- The project's connection becomes `project`; every run kind uses that model and the key, which
+  only the worker decrypts at run time. Server monthly budgets do not apply to the user's own
+  key; per-run limits do. Free models are paced like the alternate connection (61 s, retry-after
+  cap 90 s, 30-minute runs).
+- Claude compatibility: models that reject a forced tool choice (Opus 5.5, Fable 5.1, Mythos 5.1,
+  Sonnet 5.5) get `tool_choice: auto` plus an instruction to call the required tool; the run fails
+  if the final tool is not called. Thinking blocks are kept as provider blocks and sent back
+  unchanged in later turns, never to other providers, and not stored with their signature.

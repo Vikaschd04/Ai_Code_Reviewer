@@ -29,6 +29,7 @@ services:
         condition: service_healthy
     environment:
       CRP_ACCESS_TOKEN: ${CRP_ACCESS_TOKEN:?set CRP_ACCESS_TOKEN}
+      CRP_SECRETS_KEY: ${CRP_SECRETS_KEY:-} # encrypts projects' own AI keys (codespace.sh sets it)
       CRP_PUBLIC_HOST: ${CRP_PUBLIC_HOST:?set CRP_PUBLIC_HOST (the public https host name)}
       CRP_EXTRA_PUBLIC_HOSTS: localhost,127.0.0.1
       CRP_ALLOWED_WEB_ORIGINS: ${CRP_ALLOWED_WEB_ORIGINS:-}

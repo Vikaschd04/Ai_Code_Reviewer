@@ -32,7 +32,7 @@ class DevPorts:
 def ensure_secrets(paths: DevPaths) -> list[str]:
     """Create missing local secrets (owner-only). Returns the names of files created."""
     created = []
-    for path in (paths.token_file, paths.postgres_password_file):
+    for path in (paths.token_file, paths.postgres_password_file, paths.secrets_key_file):
         if write_secret_file(path, generate_token()):
             created.append(path.name)
     return created
@@ -102,7 +102,10 @@ def service_env(
 
 def dev_service_env(paths: DevPaths, ports: DevPorts) -> dict[str, str]:
     cluster = dev_postgres(paths, ports)
-    return service_env(
+    secrets_key = {"CRP_SECRETS_KEY_FILE": str(paths.secrets_key_file)}
+    if not paths.secrets_key_file.is_file():
+        secrets_key = {}  # created by ensure_secrets; without it, own AI keys cannot be saved
+    return secrets_key | service_env(
         repo=paths.repo,
         token_file=paths.token_file,
         database_url=cluster.url(DATABASE_NAME),

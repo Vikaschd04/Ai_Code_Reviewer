@@ -280,7 +280,9 @@ def respond(body: dict[str, Any]) -> dict[str, Any]:
     tools = {t["function"]["name"] for t in body.get("tools") or []}
     first = _first_user_text(messages)
     results = [str(m.get("content") or "") for m in messages if m.get("role") == "tool"]
-    if "submit_plan" in tools:
+    if "report_connection" in tools:  # the key test before a project's own key is saved
+        call = _tool_call("report_connection", {"ok": True})
+    elif "submit_plan" in tools:
         call = _plan(first)
     elif "submit_fixes" in tools:
         call = _fix(first)
@@ -322,15 +324,15 @@ def respond(body: dict[str, Any]) -> dict[str, Any]:
 class FakeAiProvider:
     """Serve ``respond`` at ``{base_url}/chat/completions`` on a free loopback port."""
 
-    def __init__(self, api_key: str) -> None:
-        expected = f"Bearer {api_key}"
+    def __init__(self, api_key: str, *more_keys: str) -> None:
+        expected = {f"Bearer {key}" for key in (api_key, *more_keys)}
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self) -> None:
                 if self.path != "/v1/chat/completions":
                     self._send(404, {"error": {"message": "not found"}})
                     return
-                if self.headers.get("Authorization") != expected:
+                if self.headers.get("Authorization") not in expected:
                     self._send(401, {"error": {"message": "invalid key"}})
                     return
                 length = int(self.headers.get("Content-Length") or 0)

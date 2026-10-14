@@ -24,6 +24,7 @@ from crp_analysis.ai.models import (
     Block,
     ModelRequest,
     ModelResponse,
+    ProviderBlock,
     ProviderError,
     ProviderErrorCode,
     StopReason,
@@ -226,17 +227,35 @@ def _int(value: object) -> int:
 # ---- Anthropic ------------------------------------------------------------------------------
 
 
-def _anthropic_block(block: Block) -> dict[str, Any]:
+def _anthropic_block(block: Block) -> dict[str, Any] | None:
     if isinstance(block, TextBlock):
         return {"type": "text", "text": block.text}
     if isinstance(block, ToolUseBlock):
         return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+    if isinstance(block, ProviderBlock):
+        # Thinking and other model-internal blocks go back unchanged (dropping or editing them
+        # breaks the turn on current Claude models); another provider's blocks are left out.
+        return dict(block.data) if block.provider == "anthropic" else None
     return {
         "type": "tool_result",
         "tool_use_id": block.tool_use_id,
         "content": block.content,
         "is_error": block.is_error,
     }
+
+
+# Models that reject forced tool choice (tool_choice "any" / "tool") with a 400: the request
+# uses "auto" and names the tool in an instruction instead.
+_NO_FORCED_TOOL_CHOICE = (
+    "claude-fable-5-1",
+    "claude-mythos-5-1",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
+)
+
+
+def _forced_tool_choice_rejected(model: str) -> bool:
+    return any(name in model for name in _NO_FORCED_TOOL_CHOICE)
 
 
 class AnthropicClient:
@@ -266,26 +285,40 @@ class AnthropicClient:
         )
 
     def payload(self, request: ModelRequest) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        for m in request.messages:
+            blocks = [b for b in (_anthropic_block(x) for x in m.content) if b is not None]
+            messages.append({"role": m.role, "content": blocks})
         payload: dict[str, Any] = {
             "model": self.model,
             "max_tokens": request.max_output_tokens,
             "system": request.system,
-            "messages": [
-                {"role": m.role, "content": [_anthropic_block(b) for b in m.content]}
-                for m in request.messages
-            ],
+            "messages": messages,
         }
         if request.tools:
             payload["tools"] = [
                 {"name": t.name, "description": t.description, "input_schema": t.input_schema}
                 for t in request.tools
             ]
-            if request.tool_choice == "auto":
+            choice = request.tool_choice
+            if choice == "auto":
                 payload["tool_choice"] = {"type": "auto"}
-            elif request.tool_choice == "any":
+            elif _forced_tool_choice_rejected(self.model):
+                payload["tool_choice"] = {"type": "auto"}
+                note = (
+                    "Call one of the tools now."
+                    if choice == "any"
+                    else f"Call the {choice} tool now with your final result. "
+                    "Do not call any other tool."
+                )
+                if messages and messages[-1]["role"] == "user":
+                    messages[-1]["content"].append({"type": "text", "text": note})
+                else:
+                    messages.append({"role": "user", "content": [{"type": "text", "text": note}]})
+            elif choice == "any":
                 payload["tool_choice"] = {"type": "any"}
             else:
-                payload["tool_choice"] = {"type": "tool", "name": request.tool_choice}
+                payload["tool_choice"] = {"type": "tool", "name": choice}
         return payload
 
     async def complete(self, request: ModelRequest) -> ModelResponse:
@@ -316,6 +349,8 @@ class AnthropicClient:
                 call = ToolUseBlock(block["id"], block["name"], block["input"])
                 calls.append(call)
                 content.append(call)
+            else:  # thinking, redacted thinking and other model-internal blocks: kept as is
+                content.append(ProviderBlock("anthropic", block))
         stop = {
             "end_turn": StopReason.END_TURN,
             "tool_use": StopReason.TOOL_USE,

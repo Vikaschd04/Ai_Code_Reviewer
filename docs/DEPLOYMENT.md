@@ -87,6 +87,14 @@ refactorX works fully without AI. To let reviewers ask questions about their cod
 3. Optional limits and costs: `CRP_AI_MONTHLY_TOKEN_LIMIT` (default 5,000,000; `0` = none), `CRP_AI_PRICE_INPUT_PER_MTOK_USD` and `CRP_AI_PRICE_OUTPUT_PER_MTOK_USD` (your provider's price per million tokens; without them costs show as unknown), `CRP_AI_MONTHLY_COST_LIMIT_USD`, `CRP_AI_RUN_MAX_COST_USD`, `CRP_AI_KEEP_TRANSCRIPTS=false` (do not keep masked transcripts).
 4. After the deploy, sign in as the owner, open a project → **Settings → AI**, choose the model (when two are set up), tick the confirmation and **Switch on AI review**. Only then can anyone ask questions, plan improvements or ask for AI fixes in that project; the demo account cannot switch it on.
 
+### Each project's own model and API key (recommended; ADR 0026)
+
+No AI variables are needed for this. After a project admin switches AI review on, **Settings** shows **AI model and API key**: choose the provider (Anthropic, or UnoRouter's free models), the model, paste your own API key and press **Test and save**. The key is tested first (no code is sent), stored encrypted and used only for that project's AI.
+
+- Keys are encrypted with `CRP_SECRETS_KEY`. The Blueprint (`render.yaml`) generates it on the first deploy. On a service created before 14 October 2026, sync the Blueprint (Render → Blueprint → **Sync**) or add `CRP_SECRETS_KEY` yourself (Environment → Add → a random value of at least 32 characters, mark it secret). Without it, Settings says keys cannot be stored.
+- Keep `CRP_SECRETS_KEY` unchanged: changing it makes saved keys unreadable and users must add them again.
+- The server connections below remain optional (for example a shared key for all projects).
+
 ### A second, cheaper or free model (optional; ADR 0025)
 
 You can keep Claude for real work and add a second connection for testing, for example a free model through UnoRouter (an OpenAI-compatible gateway, `https://api.unorouter.com/v1`). Each project's admin chooses which of the two receives that project's code.

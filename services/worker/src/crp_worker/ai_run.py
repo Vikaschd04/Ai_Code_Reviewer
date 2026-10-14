@@ -31,7 +31,7 @@ with workflow.unsafe.imports_passed_through():
     from sqlalchemy import func, select, update
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-    from crp_analysis.ai.config import AiSetup, resolve
+    from crp_analysis.ai.config import AiSetup, project_key_context, project_setup, resolve
     from crp_analysis.ai.orchestrator import CallRecord, InvestigationResult, investigate
     from crp_analysis.ai.prompts import (
         Task,
@@ -71,11 +71,13 @@ with workflow.unsafe.imports_passed_through():
         GraphBuild,
         GraphEdge,
         GraphNode,
+        ProjectAiModel,
         ProjectAiPolicy,
         Scan,
     )
     from crp_core.db.session import transaction
     from crp_core.domain.states import AiEvidenceClass, AiRunKind, AiRunState, FileDisposition
+    from crp_core.secret_box import SecretBoxError, secret_box
     from crp_core.workflows.contracts import (
         AI_RUN_WORKFLOW_NAME,
         AiRunFinalize,
@@ -356,6 +358,28 @@ class AiRunActivities:
     def setup(self, connection: str = "primary") -> AiSetup:
         return resolve(self._settings, "alt" if connection == "alt" else "primary")
 
+    async def run_setup(
+        self, session: AsyncSession, connection: str, project_id: UUID
+    ) -> AiSetup | str:
+        """The configuration for a run: an operator connection, or the project's own model with
+        its key decrypted here (ADR 0026). A string is the reason it cannot run."""
+        if connection != "project":
+            return self.setup(connection)
+        row = await session.get(ProjectAiModel, project_id)
+        if row is None:
+            return "No AI model and API key are saved for this project; no code was sent."
+        box = secret_box(self._settings)
+        if box is None:
+            return "This server cannot read stored API keys (CRP_SECRETS_KEY); no code was sent."
+        try:
+            key = box.decrypt(row.key_ciphertext, project_key_context(project_id, row.provider))
+        except SecretBoxError:
+            return (
+                "The project's saved API key cannot be read (the server's secret changed); "
+                "enter it again in Settings. No code was sent."
+            )
+        return project_setup(self._settings, row.provider, row.model, key)
+
     async def _fail(self, run_id: UUID, state: AiRunState, code: str, message: str) -> AiRunPlan:
         async with transaction(self._sessions) as session:
             run = await session.get(AiRun, run_id, with_for_update=True)
@@ -388,6 +412,7 @@ class AiRunActivities:
             policy = await session.get(ProjectAiPolicy, run.project_id)
             project_id = run.project_id
             connection = run.connection
+            prepared = await self.run_setup(session, connection, project_id)
         if policy is not None and policy.enabled and policy.connection != connection:
             return await self._fail(
                 payload.run_id,
@@ -403,7 +428,9 @@ class AiRunActivities:
                 "ai_policy_disabled",
                 "AI review is switched off for this project; no code was sent.",
             )
-        setup = self.setup(connection)
+        if isinstance(prepared, str):
+            return await self._fail(payload.run_id, AiRunState.FAILED, "ai_unavailable", prepared)
+        setup = prepared
         if not setup.available:
             return await self._fail(
                 payload.run_id,
@@ -596,8 +623,12 @@ class AiRunActivities:
                 return AiRunResult(run_id=payload.run_id, state=run.state if run else "MISSING")
             policy = await session.get(ProjectAiPolicy, run.project_id)
             usage_now = await month_usage(session, connection=run.connection)
+            prepared = await self.run_setup(session, run.connection, run.project_id)
             session.expunge(run)
-        setup = self.setup(run.connection)
+        if isinstance(prepared, str):
+            await self._fail(payload.run_id, AiRunState.FAILED, "ai_unavailable", prepared)
+            return AiRunResult(run_id=payload.run_id, state=AiRunState.FAILED.value)
+        setup = prepared
         reader = DbSnapshotReader(
             self._sessions,
             self._store,

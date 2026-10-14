@@ -232,7 +232,9 @@ async def lite_stack(
     gateway = InlineWorkflowGateway(
         settings, store, create_engine_from_settings(settings), ai_transport=transport
     )
-    server = LiveServer(settings, workflow_gateway=gateway, artifact_store=store)
+    server = LiveServer(
+        settings, workflow_gateway=gateway, artifact_store=store, ai_transport=transport
+    )
     await asyncio.to_thread(server.start)
     assert settings.local_token_file is not None
     token = read_secret_file(settings.local_token_file)

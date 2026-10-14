@@ -24,6 +24,7 @@ from crp_analysis.ai.models import (
     Message,
     ModelRequest,
     ModelResponse,
+    ProviderBlock,
     ProviderError,
     TextBlock,
     ToolResultBlock,
@@ -109,6 +110,8 @@ def _estimate_tokens(request: ModelRequest) -> int:
                 size += len(block.text)
             elif isinstance(block, ToolResultBlock):
                 size += len(block.content)
+            elif isinstance(block, ProviderBlock):
+                size += len(json.dumps(block.data))
             else:
                 size += len(json.dumps(block.input))
     return size // 4 + 1
@@ -121,6 +124,8 @@ def _serialize(message: Message) -> dict[str, Any]:
             blocks.append({"type": "text", "text": block.text})
         elif isinstance(block, ToolUseBlock):
             blocks.append({"type": "tool_use", "name": block.name, "input": block.input})
+        elif isinstance(block, ProviderBlock):
+            blocks.append({"type": str(block.data.get("type", "provider"))})  # no signatures
         else:
             blocks.append(
                 {"type": "tool_result", "content": block.content, "is_error": block.is_error}
