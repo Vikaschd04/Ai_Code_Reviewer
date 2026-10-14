@@ -353,8 +353,8 @@ class AiRunActivities:
         self._transport = transport  # tests only: an in-process provider double
         self._adapters = adapters or {}  # trusted engines that check fix candidates
 
-    def setup(self) -> AiSetup:
-        return resolve(self._settings)
+    def setup(self, connection: str = "primary") -> AiSetup:
+        return resolve(self._settings, "alt" if connection == "alt" else "primary")
 
     async def _fail(self, run_id: UUID, state: AiRunState, code: str, message: str) -> AiRunPlan:
         async with transaction(self._sessions) as session:
@@ -387,6 +387,15 @@ class AiRunActivities:
                 return AiRunPlan(run_id=run.id, terminal=True)
             policy = await session.get(ProjectAiPolicy, run.project_id)
             project_id = run.project_id
+            connection = run.connection
+        if policy is not None and policy.enabled and policy.connection != connection:
+            return await self._fail(
+                payload.run_id,
+                AiRunState.FAILED,
+                "ai_connection_changed",
+                "The project's AI connection changed after this request; no code was sent. "
+                "Start it again.",
+            )
         if policy is None or not policy.enabled:
             return await self._fail(
                 payload.run_id,
@@ -394,7 +403,7 @@ class AiRunActivities:
                 "ai_policy_disabled",
                 "AI review is switched off for this project; no code was sent.",
             )
-        setup = self.setup()
+        setup = self.setup(connection)
         if not setup.available:
             return await self._fail(
                 payload.run_id,
@@ -403,7 +412,7 @@ class AiRunActivities:
                 setup.reason or "AI unavailable",
             )
         async with transaction(self._sessions) as session:
-            usage = await month_usage(session)
+            usage = await month_usage(session, connection=connection)
         if (
             setup.monthly_token_limit
             and usage.total_tokens + MIN_MONTHLY_TOKENS > setup.monthly_token_limit
@@ -586,9 +595,9 @@ class AiRunActivities:
             if run is None or AiRunState(run.state) is not AiRunState.RUNNING:
                 return AiRunResult(run_id=payload.run_id, state=run.state if run else "MISSING")
             policy = await session.get(ProjectAiPolicy, run.project_id)
-            usage_now = await month_usage(session)
+            usage_now = await month_usage(session, connection=run.connection)
             session.expunge(run)
-        setup = self.setup()
+        setup = self.setup(run.connection)
         reader = DbSnapshotReader(
             self._sessions,
             self._store,

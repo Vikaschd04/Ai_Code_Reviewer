@@ -118,6 +118,15 @@ Residual risk: demo visitors share one workspace (they see each other's uploads)
 
 Residual risk: masking is heuristic, so a secret the redactor misses would reach the provider for projects with AI switched on; the provider's own retention terms apply to what it receives. Switch AI on only for code you may share with that provider.
 
+### AI connections (ADR 0025)
+
+| Control | Implementation | Evidence |
+|---|---|---|
+| Consent names the receiver | An admin chooses the connection per project; the consent sentence names it and its data note (for example that a free gateway forwards prompts to providers that may keep them) is shown first; changes are audited | `e2e/insights.spec.ts`, `test_projects_choose_an_ai_connection_and_runs_use_it` |
+| No silent switch | A run records its connection; if the project's connection changed before the run starts, nothing is sent (`ai_connection_changed`) | `crp_worker/ai_run.py` |
+| Keys stay server-side | `CRP_AI_ALT_API_KEY` or a key file, never stored, logged or returned (status responses omit it) | `test_projects_choose_an_ai_connection_and_runs_use_it` |
+| Encrypted transport | The alternate base URL must be `https://` (plain http only for localhost) | `test_two_connections_resolve_with_their_own_label_note_budget_and_pacing` |
+
 ### Framework packs (P04, ADR 0013)
 
 | Control | Implementation | Evidence |

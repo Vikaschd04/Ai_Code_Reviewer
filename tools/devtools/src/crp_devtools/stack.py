@@ -39,6 +39,7 @@ from crp_devtools.localenv import (
 )
 from crp_devtools.paths import DevPaths
 from crp_devtools.supervisor import ServiceSpec, Supervisor
+from crp_devtools.testing.fake_ai import FREE_MODEL as FAKE_AI_FREE_MODEL
 from crp_devtools.testing.fake_ai import MODEL as FAKE_AI_MODEL
 from crp_devtools.testing.fake_ai import FakeAiProvider
 from crp_devtools.testing.fake_github import FakeGitHub, generate_app_key
@@ -297,6 +298,15 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
                 "CRP_AI_MODEL": FAKE_AI_MODEL,
                 "CRP_AI_BASE_URL": fake_ai.base_url,
                 "CRP_AI_API_KEY": fake_ai_key,
+                # A second connection (ADR 0025): the same labelled fake as a free test model.
+                "CRP_AI_ALT_PROVIDER": "openai_compatible",
+                "CRP_AI_ALT_MODEL": FAKE_AI_FREE_MODEL,
+                "CRP_AI_ALT_BASE_URL": fake_ai.base_url,
+                "CRP_AI_ALT_API_KEY": fake_ai_key,
+                "CRP_AI_ALT_LABEL": "Free test model",
+                "CRP_AI_ALT_DATA_NOTE": "Test double: scripted answers, nothing leaves this host.",
+                "CRP_AI_ALT_PRICE_INPUT_PER_MTOK_USD": "0",
+                "CRP_AI_ALT_PRICE_OUTPUT_PER_MTOK_USD": "0",
             }
         )
         fake_github, github_env = _e2e_github(

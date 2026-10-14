@@ -1,17 +1,23 @@
 """Server-side AI configuration: provider, model, credentials, limits and prices.
 
-The API key comes from ``CRP_AI_API_KEY`` (e.g. a Render environment variable) or an owner-only
-file named by ``CRP_AI_API_KEY_FILE``; it is never stored in the database, logged or returned.
-``resolve`` either returns a usable configuration or a plain-language reason (for users) plus a
-setup hint (for administrators) so deterministic reviews keep working without AI.
+Two connections (ADR 0025): ``primary`` (``CRP_AI_*``, for example Anthropic Claude) and an
+optional ``alt`` (``CRP_AI_ALT_*``, for example a free or cheaper OpenAI-compatible model used for
+testing). Each project's admin chooses which one receives the project's code. API keys come from
+the environment (e.g. Render environment variables) or owner-only files; they are never stored
+in the database, logged or returned. ``resolve`` either returns a usable configuration or a
+plain-language reason (for users) plus a setup hint (for administrators) so deterministic reviews
+keep working without AI.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
+from pydantic import SecretStr
 
 from crp_analysis.ai.providers import (
     AnthropicClient,
@@ -21,6 +27,9 @@ from crp_analysis.ai.providers import (
 )
 from crp_core.config import AiProvider, Settings
 from crp_core.local_secrets import SecretFileError, read_secret_file
+
+Connection = Literal["primary", "alt"]
+CONNECTIONS: tuple[Connection, ...] = ("primary", "alt")
 
 DEFAULT_MODELS = {AiProvider.ANTHROPIC: "claude-opus-5-5"}
 DEFAULT_BASE_URLS = {
@@ -58,6 +67,9 @@ class Prices:
 
 @dataclass(frozen=True, slots=True)
 class AiSetup:
+    connection: Connection
+    label: str  # what users see, for example "Claude (Anthropic)" or "Free test model"
+    data_note: str | None  # how the provider handles code it receives, shown before opting in
     provider: AiProvider
     model: str | None
     base_url: str | None
@@ -74,7 +86,12 @@ class AiSetup:
     def client(self, transport: httpx.AsyncBaseTransport | None = None) -> ModelClient:
         if not self.available or self._api_key is None or self.model is None:
             raise RuntimeError("AI is not configured")
-        options = ClientOptions(timeout_seconds=self._timeout, max_retries=self._retries)
+        options = ClientOptions(
+            timeout_seconds=self._timeout,
+            max_retries=self._retries,
+            min_interval_seconds=self._min_interval,
+            max_retry_after_seconds=self._max_retry_after,
+        )
         if self.provider is AiProvider.ANTHROPIC:
             return AnthropicClient(
                 api_key=self._api_key,
@@ -93,21 +110,96 @@ class AiSetup:
             transport=transport,
         )
 
+    @property
+    def free(self) -> bool:
+        """Both prices are configured as zero (a free tier)."""
+        return self.prices.input_per_mtok_usd == 0 and self.prices.output_per_mtok_usd == 0
+
     _timeout: float = 120.0
     _retries: int = 2
+    _min_interval: float = 0.0
+    _max_retry_after: float = 30.0
     _auth_header: str = "bearer"
     _max_tokens_field: str = "max_completion_tokens"
 
 
-def _key(settings: Settings) -> tuple[str | None, str | None]:
-    if settings.ai_api_key is not None and settings.ai_api_key.get_secret_value().strip():
-        return settings.ai_api_key.get_secret_value().strip(), None
-    if settings.ai_api_key_file is not None:
+@dataclass(frozen=True, slots=True)
+class _Source:
+    """The settings of one connection (the primary's limits are the alternate's defaults)."""
+
+    env: str  # environment variable prefix, for hints
+    provider: AiProvider
+    model: str | None
+    base_url: str | None
+    api_key: SecretStr | None
+    api_key_file: Path | None
+    label: str | None
+    data_note: str | None
+    max_output_tokens: int
+    run_timeout_seconds: int
+    monthly_token_limit: int
+    price_input: float | None
+    price_output: float | None
+    max_retries: int
+    min_interval: float
+    max_retry_after: float
+
+
+def _source(settings: Settings, connection: Connection) -> _Source:
+    if connection == "primary":
+        return _Source(
+            "CRP_AI",
+            settings.ai_provider,
+            settings.ai_model,
+            settings.ai_base_url,
+            settings.ai_api_key,
+            settings.ai_api_key_file,
+            settings.ai_label,
+            settings.ai_data_note,
+            settings.ai_max_output_tokens,
+            settings.ai_run_timeout_seconds,
+            settings.ai_monthly_token_limit,
+            settings.ai_price_input_per_mtok_usd,
+            settings.ai_price_output_per_mtok_usd,
+            settings.ai_max_retries,
+            0.0,
+            30.0,
+        )
+    return _Source(
+        "CRP_AI_ALT",
+        settings.ai_alt_provider,
+        settings.ai_alt_model,
+        settings.ai_alt_base_url,
+        settings.ai_alt_api_key,
+        settings.ai_alt_api_key_file,
+        settings.ai_alt_label,
+        settings.ai_alt_data_note,
+        settings.ai_alt_max_output_tokens or settings.ai_max_output_tokens,
+        settings.ai_alt_run_timeout_seconds or settings.ai_run_timeout_seconds,
+        settings.ai_alt_monthly_token_limit
+        if settings.ai_alt_monthly_token_limit is not None
+        else settings.ai_monthly_token_limit,
+        settings.ai_alt_price_input_per_mtok_usd,
+        settings.ai_alt_price_output_per_mtok_usd,
+        settings.ai_alt_max_retries
+        if settings.ai_alt_max_retries is not None
+        else settings.ai_max_retries,
+        settings.ai_alt_min_interval_seconds,
+        settings.ai_alt_max_retry_after_seconds,
+    )
+
+
+def _key(source: _Source) -> tuple[str | None, str | None]:
+    if source.api_key is not None and source.api_key.get_secret_value().strip():
+        return source.api_key.get_secret_value().strip(), None
+    if source.api_key_file is not None:
         try:
-            return read_secret_file(settings.ai_api_key_file, min_length=1), None
+            return read_secret_file(source.api_key_file, min_length=1), None
         except SecretFileError as exc:
             return None, f"the API key file cannot be used: {exc}"
-    return None, "no API key is configured (set CRP_AI_API_KEY or CRP_AI_API_KEY_FILE)"
+    return None, (
+        f"no API key is configured (set {source.env}_API_KEY or {source.env}_API_KEY_FILE)"
+    )
 
 
 def _encrypted_or_local(url: str) -> bool:
@@ -117,15 +209,27 @@ def _encrypted_or_local(url: str) -> bool:
     return parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
 
 
-def resolve(settings: Settings) -> AiSetup:
-    provider = settings.ai_provider
-    model = settings.ai_model or DEFAULT_MODELS.get(provider)
+def _label(source: _Source, model: str | None) -> str:
+    if source.label:
+        return source.label
+    vendor = "Anthropic" if source.provider is AiProvider.ANTHROPIC else "OpenAI-compatible"
+    return f"{model} ({vendor})" if model else vendor
+
+
+def resolve(settings: Settings, connection: Connection = "primary") -> AiSetup:
+    source = _source(settings, connection)
+    provider = source.provider
+    model = source.model or DEFAULT_MODELS.get(provider)
+    env = source.env
 
     def setup(reason: str | None, hint: str | None, key: str | None = None) -> AiSetup:
         return AiSetup(
+            connection=connection,
+            label=_label(source, model),
+            data_note=source.data_note,
             provider=provider,
             model=model,
-            base_url=settings.ai_base_url or DEFAULT_BASE_URLS.get(provider),
+            base_url=source.base_url or DEFAULT_BASE_URLS.get(provider),
             available=key is not None,
             reason=reason,
             admin_hint=hint,
@@ -133,19 +237,19 @@ def resolve(settings: Settings) -> AiSetup:
                 max_model_calls=settings.ai_run_max_model_calls,
                 max_tool_calls=settings.ai_run_max_tool_calls,
                 max_tokens=settings.ai_run_max_tokens,
-                timeout_seconds=settings.ai_run_timeout_seconds,
-                max_output_tokens=settings.ai_max_output_tokens,
+                timeout_seconds=source.run_timeout_seconds,
+                max_output_tokens=source.max_output_tokens,
                 max_cost_usd=settings.ai_run_max_cost_usd,
             ),
-            prices=Prices(
-                settings.ai_price_input_per_mtok_usd, settings.ai_price_output_per_mtok_usd
-            ),
-            monthly_token_limit=settings.ai_monthly_token_limit,
+            prices=Prices(source.price_input, source.price_output),
+            monthly_token_limit=source.monthly_token_limit,
             monthly_cost_limit_usd=settings.ai_monthly_cost_limit_usd,
             keep_transcripts=settings.ai_keep_transcripts,
             _api_key=key,
             _timeout=settings.ai_request_timeout_seconds,
-            _retries=settings.ai_max_retries,
+            _retries=source.max_retries,
+            _min_interval=source.min_interval,
+            _max_retry_after=source.max_retry_after,
             _auth_header=settings.ai_openai_auth_header.value,
             _max_tokens_field=settings.ai_openai_max_tokens_field,
         )
@@ -153,24 +257,40 @@ def resolve(settings: Settings) -> AiSetup:
     if provider is AiProvider.NONE:
         return setup(
             "AI review is not set up on this server.",
-            "Set CRP_AI_PROVIDER to anthropic or openai_compatible and add an API key.",
+            f"Set {env}_PROVIDER to anthropic or openai_compatible and add an API key.",
         )
     if model is None:
         return setup(
             "AI review is not fully set up on this server.",
-            "Set CRP_AI_MODEL to the model name your provider offers.",
+            f"Set {env}_MODEL to the model name your provider offers.",
         )
-    base_url = settings.ai_base_url or DEFAULT_BASE_URLS.get(provider) or ""
+    base_url = source.base_url or DEFAULT_BASE_URLS.get(provider) or ""
     if not _encrypted_or_local(base_url):
         return setup(
             "AI review is not fully set up on this server.",
-            "CRP_AI_BASE_URL must use https:// (plain http is allowed only for localhost), "
+            f"{env}_BASE_URL must use https:// (plain http is allowed only for localhost), "
             "otherwise the API key and code excerpts would travel unencrypted.",
         )
-    key, problem = _key(settings)
+    key, problem = _key(source)
     if key is None:
         return setup(
             "AI review is not fully set up on this server.",
             f"AI provider {provider.value}: {problem}.",
         )
     return setup(None, None, key)
+
+
+def configured(settings: Settings) -> list[AiSetup]:
+    """The connections the operator set up (a provider chosen), usable or not."""
+    found = [resolve(settings, c) for c in CONNECTIONS]
+    return [s for s in found if s.provider is not AiProvider.NONE]
+
+
+def default_connection(settings: Settings) -> Connection:
+    """The connection new project policies start with: the configured default if usable,
+    otherwise the first usable one, otherwise the primary."""
+    preferred = resolve(settings, settings.ai_default_connection)
+    if preferred.available:
+        return preferred.connection
+    usable = next((s for s in configured(settings) if s.available), None)
+    return usable.connection if usable else "primary"

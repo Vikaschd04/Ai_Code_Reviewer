@@ -12,7 +12,7 @@ import os
 import re
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
@@ -178,6 +178,29 @@ class Settings(BaseSettings):
     ai_run_max_cost_usd: Annotated[float, Field(gt=0, le=10_000)] | None = None
     ai_monthly_cost_limit_usd: Annotated[float, Field(gt=0, le=1_000_000)] | None = None
     ai_keep_transcripts: bool = True
+    # A second AI connection (ADR 0025), for example a free or cheaper model for testing. A
+    # project's admin chooses which connection the project sends code to; budgets, pacing and the
+    # data note are per connection. Unset fields fall back to the primary connection's limits.
+    ai_label: Annotated[str, Field(max_length=80)] | None = None
+    ai_data_note: Annotated[str, Field(max_length=500)] | None = None
+    ai_alt_provider: AiProvider = AiProvider.NONE
+    ai_alt_model: str | None = None
+    ai_alt_base_url: str | None = None
+    ai_alt_api_key: SecretStr | None = None
+    ai_alt_api_key_file: Path | None = None
+    ai_alt_label: Annotated[str, Field(max_length=80)] | None = None
+    ai_alt_data_note: Annotated[str, Field(max_length=500)] | None = None
+    # Free tiers often allow about one request per minute: space requests and wait out 429s.
+    ai_alt_min_interval_seconds: Annotated[float, Field(ge=0, le=600)] = 0.0
+    ai_alt_max_retry_after_seconds: Annotated[float, Field(ge=1, le=600)] = 90.0
+    ai_alt_max_retries: Annotated[int, Field(ge=0, le=10)] | None = None
+    ai_alt_run_timeout_seconds: Annotated[int, Field(ge=30, le=7200)] | None = None
+    ai_alt_max_output_tokens: Annotated[int, Field(ge=256, le=64_000)] | None = None
+    ai_alt_monthly_token_limit: Annotated[int, Field(ge=0, le=10_000_000_000)] | None = None
+    ai_alt_price_input_per_mtok_usd: Annotated[float, Field(ge=0, le=10_000)] | None = None
+    ai_alt_price_output_per_mtok_usd: Annotated[float, Field(ge=0, le=10_000)] | None = None
+    # The connection new project policies start with (an admin can change it per project).
+    ai_default_connection: Literal["primary", "alt"] = "primary"
 
     # GitHub (P06; ADR 0015). One GitHub App registered by the operator: its private key signs
     # short-lived app tokens; each operation then uses an installation token limited to one

@@ -16,7 +16,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from crp_analysis.ai.config import resolve
+from crp_analysis.ai.config import Connection, resolve
 from crp_analysis.insights import decisions
 from crp_analysis.insights.advisor import ADVISOR_PROMPT_VERSION
 from crp_analysis.insights.engine import (
@@ -96,10 +96,10 @@ def _checkpoint(result: CheckpointResult) -> CheckpointResponse:
 async def _response(
     session: Any, settings: Settings, principal: Principal, project: Project
 ) -> InsightsResponse:
-    setup = resolve(settings)
     gathered = await insights.gather(session, project.id)
     report = gathered.report()
     policy = await session.get(ProjectAiPolicy, project.id)
+    setup = resolve(settings, cast(Connection, policy.connection) if policy else "primary")
     latest = (
         await session.execute(
             select(AiRun)
@@ -113,7 +113,7 @@ async def _response(
     if not (policy and policy.enabled):
         reason: str | None = "AI is switched off for this project (Settings)."
     elif not setup.available:
-        reason = setup.reason or "AI is not set up on this server."
+        reason = f"{setup.label}: {setup.reason or 'AI is not set up on this server.'}"
     elif gathered.basis is None:
         reason = "Review an upload first; the advisor plans from its evidence."
     elif not report.failing():
@@ -254,7 +254,6 @@ async def request_plan(
 ) -> AiRunResponse:
     """Ask the advisor agent for an improvement plan (members; AI must be on for the project).
     The checkpoints and facts it may use are frozen now; every step is checked later."""
-    setup = resolve(container.settings)
     async with transaction(container.session_factory) as session:
         project = await get_scoped(
             session,
@@ -264,7 +263,7 @@ async def request_plan(
             not_found="project_not_found",
             required=MembershipRole.MEMBER,
         )
-        policy = await ai_gate(session, setup, project.id)
+        policy, setup = await ai_gate(session, container.settings, project.id)
         gathered = await insights.gather(session, project.id)
         if gathered.basis is None:
             raise ApiError(409, "no_review", "Review an upload first; the advisor needs evidence")
@@ -294,6 +293,7 @@ async def request_plan(
             kind=AiRunKind.ADVISOR.value,
             state=AiRunState.QUEUED.value,
             context=context,
+            connection=setup.connection,
             provider=setup.provider.value,
             model=setup.model or "",
             prompt_version=ADVISOR_PROMPT_VERSION,

@@ -560,10 +560,19 @@ export async function fetchAiPolicy(projectId: string, signal?: Sig): Promise<Ai
 }
 
 /** Switch AI review on or off for one project (workspace admins; audited). */
-export async function updateAiPolicy(current: AiPolicy, enabled: boolean): Promise<AiPolicy> {
+export async function updateAiPolicy(
+  current: AiPolicy,
+  enabled: boolean,
+  connection?: AiPolicy["connection"],
+): Promise<AiPolicy> {
   const { data, error, response } = await api.PUT("/v1/projects/{project_id}/ai-policy", {
     params: { path: { project_id: current.project_id } },
-    body: { enabled, max_excerpt_lines: current.max_excerpt_lines, version: current.version },
+    body: {
+      enabled,
+      max_excerpt_lines: current.max_excerpt_lines,
+      connection: connection ?? current.connection,
+      version: current.version,
+    },
   });
   if (data) return data;
   throw toApiError(response, error);

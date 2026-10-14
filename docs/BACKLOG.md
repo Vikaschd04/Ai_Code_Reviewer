@@ -116,3 +116,15 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 | P10-F2 | Framework-aware components (SAP Commerce extensions, Salesforce packages and objects) | Mapped from P04 packs; fixtures per platform |
 | P10-F3 | Cyclomatic complexity per component (Tree-sitter) | Hand-counted fixture |
 
+
+## Add-ons from the user-challenge research (14 October 2026)
+
+From [research/USER_CHALLENGES_AND_ADDONS_2026.md](research/USER_CHALLENGES_AND_ADDONS_2026.md); not started, in recommended order:
+
+- **ADD-A1** Fix everything safe for a checkpoint (one button: all recipes in a workspace, check started).
+- **ADD-A2** Dependency upgrades as fixes (Trivy's fixed version written into `pom.xml`/`package.json`; re-check confirms).
+- **ADD-A3** Duplicate code detection with PMD CPD, plus an AI "extract shared function" proposal checked like every fix.
+- **ADD-A4** "Fix first" queue across checkpoints.
+- **ADD-A5** Reviewer summary of a workspace (changes, checks, impact, what needs a human).
+- **ADD-A6** Health over time and a merge gate; **ADD-A7** code tour for newcomers.
+- Owner decision: **ADD-A8** build and tests on the copy (P09 Tiers 1–2), which unlocks safety-net tests (A9), the multi-file refactoring agent (A10, P11), framework migrations (A11) and mutation checks (A12).

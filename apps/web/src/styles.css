@@ -2595,6 +2595,19 @@ button.tile[aria-pressed="true"] {
   white-space: pre;
 }
 
+/* A group of choices (radio buttons) without the browser's fieldset frame. */
+.choice-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.choice-group > legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
 .checkbox-row {
   display: flex;
   align-items: flex-start;

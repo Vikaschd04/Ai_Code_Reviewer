@@ -38,6 +38,48 @@ function NotSetUp({ status }: { status: AiStatus }) {
   );
 }
 
+type Connection = AiStatus["connections"][number];
+
+/** The AI models an admin may choose for the project, with how each handles code. */
+function ConnectionChoice({
+  connections,
+  value,
+  onChange,
+}: {
+  connections: Connection[];
+  value: string;
+  onChange: (id: Connection["id"]) => void;
+}) {
+  return (
+    <fieldset className="choice-group stack stack-xs" data-testid="ai-connection-choice">
+      <legend className="small">
+        <strong>AI model for this project</strong>
+      </legend>
+      {connections.map((connection) => (
+        <label key={connection.id} className="checkbox-row small" data-connection={connection.id}>
+          <input
+            type="radio"
+            name="ai-connection"
+            checked={value === connection.id}
+            onChange={() => {
+              onChange(connection.id);
+            }}
+          />
+          <span className="stack stack-xs">
+            <span>
+              {connection.label}{" "}
+              {connection.free ? <span className="badge badge-neutral">Free</span> : null}
+            </span>
+            {connection.data_note ? (
+              <span className="secondary">{connection.data_note}</span>
+            ) : null}
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 function PolicyCard({
   status,
   policy,
@@ -47,18 +89,27 @@ function PolicyCard({
   policy: AiPolicy;
   onChange: (next: AiPolicy) => void;
 }) {
+  const usable = status.connections.filter((c) => c.available);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const provider = providerName(status);
+  const [choice, setChoice] = useState<Connection["id"]>(
+    usable.some((c) => c.id === policy.connection)
+      ? policy.connection
+      : (usable[0]?.id ?? policy.connection),
+  );
+  const [changing, setChanging] = useState(false);
+  const chosen = usable.find((c) => c.id === choice);
+  const provider = chosen?.label ?? providerName(status);
 
-  function save(enabled: boolean) {
+  function save(enabled: boolean, connection?: Connection["id"]) {
     setBusy(true);
     setError(null);
-    updateAiPolicy(policy, enabled).then(
+    updateAiPolicy(policy, enabled, connection).then(
       (next) => {
         setBusy(false);
         setAgreed(false);
+        setChanging(false);
         onChange(next);
       },
       (caught: unknown) => {
@@ -68,31 +119,98 @@ function PolicyCard({
     );
   }
 
+  const consent = (
+    <>
+      {usable.length > 1 ? (
+        <ConnectionChoice
+          connections={usable}
+          value={choice}
+          onChange={(id) => {
+            setChoice(id);
+            setAgreed(false);
+          }}
+        />
+      ) : chosen?.data_note ? (
+        <p className="small secondary">{chosen.data_note}</p>
+      ) : null}
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(event) => {
+            setAgreed(event.target.checked);
+          }}
+        />
+        I am allowed to share this project's code with {provider}.
+      </label>
+    </>
+  );
+
   if (policy.enabled) {
     return (
-      <section className="card" data-testid="ai-policy" data-enabled="true">
+      <section className="card stack" data-testid="ai-policy" data-enabled="true">
         <div className="row row-between">
           <div className="row">
             <span className="badge badge-ok">
               <Icon name="check" size={13} /> AI review is on
             </span>
-            <span className="small secondary">
-              Masked excerpts of this project's code go to {provider} only when someone asks.
+            <span className="small secondary" data-testid="ai-policy-connection">
+              Masked excerpts of this project's code go to {policy.connection_label} only when
+              someone asks.
             </span>
           </div>
           {policy.can_edit ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              disabled={busy}
-              onClick={() => {
-                save(false);
-              }}
-            >
-              Switch off
-            </button>
+            <div className="row">
+              {usable.length > 1 && !changing ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setChanging(true);
+                  }}
+                >
+                  Change model
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  save(false);
+                }}
+              >
+                Switch off
+              </button>
+            </div>
           ) : null}
         </div>
+        {changing ? (
+          <div className="stack stack-sm">
+            {consent}
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!agreed || busy || choice === policy.connection}
+                onClick={() => {
+                  save(true, choice);
+                }}
+              >
+                Use this model
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setChanging(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
         {error ? <Alert tone="bad">{error}</Alert> : null}
       </section>
     );
@@ -109,31 +227,22 @@ function PolicyCard({
           <Icon name="lock" size={16} /> AI review is off for this project
         </h2>
         <p className="card-sub">
-          Switching it on lets refactorX send short excerpts of this project's code to {provider}{" "}
-          when someone asks a question or starts an AI review, and never otherwise. Values that look
-          like passwords or keys are masked first, every request is logged, and answers are checked
-          against your code.
+          Switching it on lets refactorX send short excerpts of this project's code to the AI model
+          you choose when someone asks a question, plans improvements or asks for a fix, and never
+          otherwise. Values that look like passwords or keys are masked first, every request is
+          logged, and answers are checked against your code.
         </p>
       </div>
       {policy.can_edit ? (
         <>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(event) => {
-                setAgreed(event.target.checked);
-              }}
-            />
-            I am allowed to share this project's code with {provider}.
-          </label>
+          {consent}
           <div className="row">
             <button
               type="button"
               className="btn btn-primary"
               disabled={!agreed || busy}
               onClick={() => {
-                save(true);
+                save(true, choice);
               }}
             >
               <Icon name="sparkles" size={16} /> Switch on AI review

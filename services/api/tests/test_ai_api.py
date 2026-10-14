@@ -7,6 +7,7 @@ workflow service). The worker tests run them end to end against a local fake pro
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from datetime import UTC, datetime
 
@@ -343,3 +344,70 @@ async def test_runs_of_other_workspaces_are_invisible(api_factory: ApiFactory) -
             assert stored is not None and stored.cancel_requested_at is None
     finally:
         await engine.dispose()
+
+
+ALT = {
+    "ai_alt_provider": "openai_compatible",
+    "ai_alt_model": "glm-5.3:free",
+    "ai_alt_base_url": "https://free.example.test/v1",
+    "ai_alt_api_key": "sk-alt-test-secret-987",
+    "ai_alt_label": "Free test model",
+    "ai_alt_data_note": "Upstream providers may keep prompts; use only shareable code.",
+    "ai_alt_price_input_per_mtok_usd": 0,
+    "ai_alt_price_output_per_mtok_usd": 0,
+    "ai_alt_monthly_token_limit": 1000,
+}
+
+
+async def test_projects_choose_an_ai_connection_and_runs_use_it(api_factory: ApiFactory) -> None:
+    gateway = RecordingGateway()
+    api = await api_factory(gateway=gateway, **AI_ON, **ALT)
+    status = (await api.client.get("/v1/ai/status", headers=api.auth)).json()
+    connections = {c["id"]: c for c in status["connections"]}
+    assert set(connections) == {"primary", "alt"} and status["available"] is True
+    assert connections["primary"]["default"] is True and connections["alt"]["free"] is True
+    assert connections["alt"]["label"] == "Free test model"
+    assert connections["alt"]["data_note"].startswith("Upstream providers may keep prompts")
+    assert "sk-alt-test-secret-987" not in json.dumps(status)
+
+    project = await _project(api)
+    policy = (await api.client.get(f"/v1/projects/{project}/ai-policy", headers=api.auth)).json()
+    assert policy["connection"] == "primary" and policy["enabled"] is False
+    chosen = await api.client.put(
+        f"/v1/projects/{project}/ai-policy",
+        json={"enabled": True, "connection": "alt"},
+        headers=api.auth,
+    )
+    assert chosen.status_code == 200, chosen.text
+    assert (chosen.json()["connection"], chosen.json()["connection_label"]) == (
+        "alt",
+        "Free test model",
+    )
+    await _frozen_upload(api, project, {"src/app.py": "x = 1\n"})
+    created = await api.client.post(
+        f"/v1/projects/{project}/ai-runs",
+        json={"kind": "question", "question": "What does app.py do?"},
+        headers=api.auth,
+    )
+    assert created.status_code == 202, created.text
+    assert (created.json()["provider"], created.json()["model"]) == (
+        "openai_compatible",
+        "glm-5.3:free",
+    )
+
+    # A connection that is not set up cannot be chosen; the policy keeps its connection.
+    plain = await api_factory(gateway=gateway, **AI_ON)  # same database, no alternate set up
+    refused = await plain.client.put(
+        f"/v1/projects/{project}/ai-policy",
+        json={"enabled": True, "connection": "alt"},
+        headers=plain.auth,
+    )
+    assert refused.status_code == 422 and refused.json()["code"] == "connection_unavailable"
+    kept = (await plain.client.get(f"/v1/projects/{project}/ai-policy", headers=plain.auth)).json()
+    assert kept["connection"] == "alt"
+    gated = await plain.client.post(
+        f"/v1/projects/{project}/ai-runs",
+        json={"kind": "question", "question": "What does app.py do?"},
+        headers=plain.auth,
+    )
+    assert gated.status_code == 409 and gated.json()["code"] == "ai_unavailable"

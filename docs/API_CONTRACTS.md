@@ -221,6 +221,14 @@ Fix workspaces offer recipes for every `nfr` rule (`nfr:schema-validate`, `nfr:h
 
 No new endpoints. Every review plans the engine `nfr` (NOT_APPLICABLE without YAML, Spring Boot properties or Terraform files). Its findings use rule ids `crp.nfr.k8s.single-replica`, `crp.nfr.k8s.no-readiness-probe`, `crp.nfr.k8s.recreate-strategy`, `crp.nfr.spring.actuator-exposed`, `crp.nfr.spring.health-details-public` and `crp.nfr.spring.schema-auto-update` (catalog `crp-rules-v5`; `severity` high for `ddl-auto` create and create-drop). The run's `diagnostics` hold `config_version`, `workloads`, `spring_files`, `templates` and `signals` (`signal`, `count`, up to five `locations` as `[path, line, detail]`); templates are file coverage NOT_ATTEMPTED with reason "template; its values are filled in at deploy time". Trivy findings add rule ids `misconfig:<check>` (for example `misconfig:KSV-0017`, category security, Trivy's title, guidance and link, `details.check_id`, `config_type`, `resource`); Trivy's `diagnostics` add `misconfig_scanners`, `misconfig_unrendered` (Helm charts that could not be rendered) and `config_files`. The NFR evidence includes the configuration signals (`multiple-instances`, `autoscaling`, `disruption-budget`, `k8s-probes`, `graceful-shutdown`, `timeouts`, `connection-pool`, `backups`, `multi-zone`, plus locations for `health-endpoints`, `circuit-breakers`, `retries`); the insights' `not_checked` lists `helm-charts` and `terraform` (security settings not checked).
 
+## Implemented with AI connections (ADR 0025)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/ai/status | any | Adds `connections` (set-up connections: `id` primary/alt, `label`, `provider`, `model`, `available`, `reason`, `admin_hint` for operators, `data_note`, `free`, `default`, this month's usage per connection); top-level fields describe the default connection; `available` is true when any connection is usable; `month` sums all connections |
+| GET/PUT /v1/projects/{id}/ai-policy | viewer/admin | Response adds `connection` and `connection_label`; the update accepts `connection` (unchanged when omitted); 422 `connection_unavailable` when it is not set up |
+| AI runs, advisor plans, AI fix suggestions | member | Use the project's connection: `provider` and `model` are that connection's; budgets count that connection only; 409 `ai_unavailable` names the connection |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

@@ -100,3 +100,23 @@ comments on a file's first statement. **They are not model quality.**
    locally with the same settings and record the numbers here; that closes the P03 gate.
 2. Done (30 September 2026, later): per-run JSON/SARIF export (`GET /v1/ai-runs/{id}/export`, schema-validated in `test_ai_export.py` and on real runs in `test_ai_run.py`) and earlier second opinions on the finding page. AI findings intentionally do not become tracked issues (no deterministic re-check).
 3. Re-evaluate OCR only when the conditions in P03_OCR_EVALUATION.md are met.
+
+## AI connections (14 October 2026; ADR 0025)
+
+Owner request: add a cheaper or free model next to Claude, for testing. Implemented: a second
+connection (`CRP_AI_ALT_*`), per-project choice with consent that names the connection, runs and
+budgets per connection, pacing for free tiers (Settings, `GET /v1/ai/status`, migration 0015).
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| UnoRouter compatibility | One chat completion with a toy tool to `glm-5.3:free` (no source code): HTTP 200 in 2 s, `finish_reason: tool_calls`, valid arguments, `max_completion_tokens` accepted | PASS | Manual check, 14 October 2026 |
+| Configuration | Both connections resolve with their own label, note, limits, prices and hints; plain http refused; only-alternate servers default to it; keys never printed | PASS | `test_two_connections_resolve_with_their_own_label_note_budget_and_pacing` |
+| Free-tier pacing | Second request waits for the interval; a 429 with retry-after 70 s is waited out under a 90 s cap | PASS | `test_free_tier_pacing_spaces_requests_and_waits_out_rate_limits` |
+| API | Status lists both connections (no key in the response); a project switches to the free model; its run uses that model; an unavailable connection is refused and a project left on it gets `ai_unavailable` | PASS | `test_projects_choose_an_ai_connection_and_runs_use_it` |
+| Worker | A real run on the alternate connection calls its host with its key and model; usage counts only against it | PASS | `test_ai_run_on_the_alternate_connection` |
+| Browser | Settings shows both models with the data note; the free model is chosen; the advisor plan names its model | PASS | `e2e/insights.spec.ts` (`ai-connection.png`) |
+
+Not measured: the free model's answer and fix quality on the labelled AI evaluation set
+(`crp-dev ai-eval --live` needs the owner to run it with the key; the free tier's one request per
+minute makes a full run take hours).
+

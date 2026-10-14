@@ -1,4 +1,5 @@
-"""Deployment-wide AI usage for the current calendar month (UTC), from ``ai_calls``."""
+"""Deployment-wide AI usage for the current calendar month (UTC), from ``ai_calls``; per AI
+connection when one is given (ADR 0025)."""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from crp_core.db.models import AiCall
+from crp_core.db.models import AiCall, AiRun
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,19 +30,20 @@ def month_start(now: datetime | None = None) -> datetime:
     return current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-async def month_usage(session: AsyncSession, now: datetime | None = None) -> MonthUsage:
+async def month_usage(
+    session: AsyncSession, now: datetime | None = None, connection: str | None = None
+) -> MonthUsage:
     start = month_start(now)
-    row = (
-        await session.execute(
-            select(
-                func.count(AiCall.id),
-                func.coalesce(func.sum(AiCall.input_tokens), 0),
-                func.coalesce(func.sum(AiCall.output_tokens), 0),
-                func.sum(AiCall.cost_usd),
-                func.count(AiCall.id).filter(AiCall.cost_usd.is_(None)),
-            ).where(AiCall.created_at >= start)
-        )
-    ).one()
+    query = select(
+        func.count(AiCall.id),
+        func.coalesce(func.sum(AiCall.input_tokens), 0),
+        func.coalesce(func.sum(AiCall.output_tokens), 0),
+        func.sum(AiCall.cost_usd),
+        func.count(AiCall.id).filter(AiCall.cost_usd.is_(None)),
+    ).where(AiCall.created_at >= start)
+    if connection is not None:
+        query = query.join(AiRun, AiRun.id == AiCall.run_id).where(AiRun.connection == connection)
+    row = (await session.execute(query)).one()
     calls, input_tokens, output_tokens, cost, unknown = row
     return MonthUsage(
         month_start=start,

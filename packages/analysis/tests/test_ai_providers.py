@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from crp_analysis.ai.config import resolve
+from crp_analysis.ai.config import configured, default_connection, resolve
 from crp_analysis.ai.models import (
     Message,
     ModelRequest,
@@ -290,3 +290,86 @@ def test_setup_explains_missing_configuration(
     )
     assert priced.prices.cost(1_000_000, 100_000) == pytest.approx(4.5)
     assert none.prices.cost(10, 10) is None  # unknown prices are never invented
+
+
+def test_two_connections_resolve_with_their_own_label_note_budget_and_pacing(
+    make_settings: Callable[..., Settings],
+) -> None:
+    settings = make_settings(
+        ai_provider="anthropic",
+        ai_api_key=KEY,
+        ai_monthly_token_limit=1_000_000,
+        ai_alt_provider="openai_compatible",
+        ai_alt_model="glm-5.3:free",
+        ai_alt_base_url="https://api.unorouter.com/v1",
+        ai_alt_api_key="sk-alt-secret-value-456",
+        ai_alt_label="Free test model",
+        ai_alt_data_note="Upstream providers may keep prompts; use only shareable code.",
+        ai_alt_min_interval_seconds=61,
+        ai_alt_run_timeout_seconds=1800,
+        ai_alt_monthly_token_limit=0,
+        ai_alt_price_input_per_mtok_usd=0,
+        ai_alt_price_output_per_mtok_usd=0,
+    )
+    primary, alt = resolve(settings), resolve(settings, "alt")
+    assert (primary.connection, primary.label, primary.free) == (
+        "primary",
+        "claude-opus-5-5 (Anthropic)",
+        False,
+    )
+    assert primary.limits.timeout_seconds == 600 and primary.monthly_token_limit == 1_000_000
+    assert alt.available and alt.connection == "alt" and alt.label == "Free test model"
+    assert alt.model == "glm-5.3:free" and alt.base_url == "https://api.unorouter.com/v1"
+    assert alt.data_note and alt.free and alt.prices.cost(1000, 1000) == 0
+    assert alt.limits.timeout_seconds == 1800 and alt.monthly_token_limit == 0
+    assert "sk-alt-secret-value-456" not in repr(alt)
+    assert [c.connection for c in configured(settings)] == ["primary", "alt"]
+    assert default_connection(settings) == "primary"
+
+    missing = resolve(make_settings(ai_alt_provider="openai_compatible", ai_alt_model="m"), "alt")
+    assert not missing.available and "CRP_AI_ALT_API_KEY" in (missing.admin_hint or "")
+    clear = resolve(
+        make_settings(
+            ai_alt_provider="openai_compatible",
+            ai_alt_model="m",
+            ai_alt_api_key=KEY,
+            ai_alt_base_url="http://models.example.com/v1",
+        ),
+        "alt",
+    )
+    assert not clear.available and "CRP_AI_ALT_BASE_URL" in (clear.admin_hint or "")
+    # Only the alternate is usable: new projects start with it even if the primary is preferred.
+    only_alt = make_settings(
+        ai_alt_provider="openai_compatible", ai_alt_model="m", ai_alt_api_key=KEY
+    )
+    assert default_connection(only_alt) == "alt"
+    assert [c.connection for c in configured(make_settings())] == []
+
+
+OPENAI_OK = {"choices": [{"finish_reason": "stop", "message": {"content": "hi"}}]}
+
+
+async def test_free_tier_pacing_spaces_requests_and_waits_out_rate_limits() -> None:
+    sleeps = _Sleeps()
+    handler, seen = _sequence(
+        httpx.Response(200, json=OPENAI_OK),
+        httpx.Response(429, headers={"retry-after": "70"}, json={"error": {"message": "slow"}}),
+        httpx.Response(200, json=OPENAI_OK),
+    )
+    client = OpenAICompatibleClient(
+        api_key=KEY,
+        model="glm-test:free",
+        base_url="https://free.example.test/v1",
+        options=ClientOptions(
+            timeout_seconds=5, max_retries=2, min_interval_seconds=60, max_retry_after_seconds=90
+        ),
+        transport=httpx.MockTransport(handler),
+        sleep=sleeps,
+    )
+    await client.complete(REQUEST)
+    await client.complete(REQUEST)
+    assert len(seen) == 3
+    # The second request waits for the interval; the rate limit's retry-after (70 s) is honoured
+    # because it is under this connection's cap, and the retry is paced as well.
+    assert len(sleeps.delays) == 3
+    assert 59 < sleeps.delays[0] <= 60 and sleeps.delays[1] == 70.0 and sleeps.delays[2] <= 60

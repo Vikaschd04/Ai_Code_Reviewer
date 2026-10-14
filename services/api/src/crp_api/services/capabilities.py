@@ -7,7 +7,7 @@ implementation and validation evidence exist.
 
 from __future__ import annotations
 
-from crp_analysis.ai.config import resolve
+from crp_analysis.ai.config import configured, resolve
 from crp_analysis.sources.github import resolve_github
 from crp_api.schemas import Capability, CapabilityState
 from crp_core.config import Settings
@@ -118,7 +118,8 @@ CAPABILITIES: tuple[Capability, ...] = (
 
 def capabilities_for(settings: Settings) -> list[Capability]:
     """Static entries plus those whose availability depends on this server's configuration."""
-    setup = resolve(settings)
+    usable = [c for c in configured(settings) if c.available]
+    setup = usable[0] if usable else resolve(settings)
     ai = Capability(
         id="ai_investigation",
         label="AI review",

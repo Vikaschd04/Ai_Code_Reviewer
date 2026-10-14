@@ -85,7 +85,28 @@ refactorX works fully without AI. To let reviewers ask questions about their cod
    | `CRP_AI_OPENAI_MAX_TOKENS_FIELD` | — | `max_tokens` for services that do not accept `max_completion_tokens` |
 
 3. Optional limits and costs: `CRP_AI_MONTHLY_TOKEN_LIMIT` (default 5,000,000; `0` = none), `CRP_AI_PRICE_INPUT_PER_MTOK_USD` and `CRP_AI_PRICE_OUTPUT_PER_MTOK_USD` (your provider's price per million tokens; without them costs show as unknown), `CRP_AI_MONTHLY_COST_LIMIT_USD`, `CRP_AI_RUN_MAX_COST_USD`, `CRP_AI_KEEP_TRANSCRIPTS=false` (do not keep masked transcripts).
-4. After the deploy, sign in as the owner, open a project → **AI review**, tick the confirmation and **Switch on AI review**. Only then can anyone ask questions or start AI reviews in that project; the demo account cannot switch it on.
+4. After the deploy, sign in as the owner, open a project → **Settings → AI**, choose the model (when two are set up), tick the confirmation and **Switch on AI review**. Only then can anyone ask questions, plan improvements or ask for AI fixes in that project; the demo account cannot switch it on.
+
+### A second, cheaper or free model (optional; ADR 0025)
+
+You can keep Claude for real work and add a second connection for testing, for example a free model through UnoRouter (an OpenAI-compatible gateway, `https://api.unorouter.com/v1`). Each project's admin chooses which of the two receives that project's code.
+
+| Variable | Example for UnoRouter's free tier | Meaning |
+|---|---|---|
+| `CRP_AI_ALT_PROVIDER` | `openai_compatible` | Required to set the second connection up |
+| `CRP_AI_ALT_BASE_URL` | `https://api.unorouter.com/v1` | Must be `https://` |
+| `CRP_AI_ALT_API_KEY` | your key (mark it **secret**) | Never paste it into a chat or commit it |
+| `CRP_AI_ALT_MODEL` | `glm-5.3:free` | A model your key may use (UnoRouter lists them at unorouter.com/models) |
+| `CRP_AI_ALT_LABEL` | `Free test model (GLM 5.3)` | What admins and users see |
+| `CRP_AI_ALT_DATA_NOTE` | `UnoRouter forwards prompts to upstream providers that may keep or train on them. Use only with sample or shareable code.` | Shown next to the choice before an admin agrees |
+| `CRP_AI_ALT_MIN_INTERVAL_SECONDS` | `61` | Space requests: UnoRouter's free models allow about one request per minute per model |
+| `CRP_AI_ALT_RUN_TIMEOUT_SECONDS` | `1800` | A run makes up to 12 model calls; at one per minute it needs more time |
+| `CRP_AI_ALT_PRICE_INPUT_PER_MTOK_USD`, `CRP_AI_ALT_PRICE_OUTPUT_PER_MTOK_USD` | `0`, `0` | Marks it free; costs show as zero |
+| `CRP_AI_ALT_MONTHLY_TOKEN_LIMIT` | optional | A separate monthly budget (defaults to the primary's limit) |
+| `CRP_AI_DEFAULT_CONNECTION` | `primary` (or `alt`) | What new projects start with |
+| `CRP_AI_LABEL`, `CRP_AI_DATA_NOTE` | e.g. `Claude (Anthropic)` | Label and note for the primary connection |
+
+Notes from the check of 14 October 2026: UnoRouter's free model `glm-5.3:free` answered with standard OpenAI tool calls (which refactorX's agents need) and accepts `max_completion_tokens`; free models are limited to about one request per minute and 8K output tokens; its privacy policy says request content is sent to the upstream provider, "some may retain or train on what they receive", and no legal entity or jurisdiction is named. Use the free connection for test projects with sample code, not for customer code unless the code owner agrees. Free models are also weaker: AI fix suggestions are still checked like every fix, but fewer will pass.
 
 What is sent: only short excerpts of that project's latest upload that the AI asks for, with values that look like passwords or keys masked first. Nothing is sent for projects where AI review is off. Every call's token usage is recorded, runs stop at their limits and are never retried automatically, and each answer shows which cited lines were checked against the code. Design: ADR 0012; evaluation status: docs/validation/P03_REPORT.md.
 

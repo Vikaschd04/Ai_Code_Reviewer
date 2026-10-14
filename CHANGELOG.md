@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — choose the AI model per project (14 October 2026)
+
+- **A second AI model:** keep Claude for real work and add a cheaper or free model (for example
+  a free model through UnoRouter) for testing. Each project's admin chooses which model receives
+  the project's code in **Settings → AI**; the choice shows how that provider handles code.
+- Questions, improvement plans and AI fix suggestions use the project's model; usage and monthly
+  limits are counted per model, and free models are paced to their rate limits.
+
 ## Unreleased — NFR checkpoints instead of the questionnaire (10 October 2026)
 
 - **NFR checkpoints:** Insights now shows 28 checkpoints in six areas (security, reliability and

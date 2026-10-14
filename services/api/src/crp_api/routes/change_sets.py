@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from email.header import Header
 from email.utils import format_datetime
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.background import BackgroundTask
 
-from crp_analysis.ai.config import resolve
+from crp_analysis.ai.config import Connection, resolve
 from crp_analysis.ai.prompts import FIX_PROMPT_VERSION
 from crp_analysis.fixes import recipes
 from crp_analysis.fixes.changeset import (
@@ -209,9 +209,9 @@ async def _ai_status(
             reason="AI is switched off for this project. A workspace admin can switch it on in "
             "the project's AI review tab.",
         )
-    setup = resolve(container.settings)
+    setup = resolve(container.settings, cast(Connection, policy.connection))
     if not setup.available:
-        return WorkspaceAiStatus(available=False, reason=setup.reason)
+        return WorkspaceAiStatus(available=False, reason=f"{setup.label}: {setup.reason}")
     return WorkspaceAiStatus(available=True, reason=None)
 
 
@@ -906,10 +906,9 @@ async def request_ai_fix(
     Only when the project allows AI and the server has a provider with budget left. Candidates
     are checked like automatic fixes before anyone can apply them; nothing changes until then.
     """
-    setup = resolve(container.settings)
     async with transaction(container.session_factory) as session:
         change_set = await _editable(session, principal, change_set_id, None)
-        policy = await ai_gate(session, setup, change_set.project_id)
+        policy, setup = await ai_gate(session, container.settings, change_set.project_id)
         base_scan = await _base_scan(session, change_set)
         row = (
             await session.execute(
@@ -948,6 +947,7 @@ async def request_ai_fix(
             target_paths=[entry.path],
             change_set_id=change_set.id,
             target_sha256=hashlib.sha256(current.encode("utf-8")).hexdigest(),
+            connection=setup.connection,
             provider=setup.provider.value,
             model=setup.model or "",
             prompt_version=FIX_PROMPT_VERSION,

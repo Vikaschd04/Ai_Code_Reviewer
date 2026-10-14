@@ -845,12 +845,15 @@ class ProjectAiPolicy(Base):
             ondelete="CASCADE",
         ),
         CheckConstraint("max_excerpt_lines BETWEEN 10 AND 400", name="max_excerpt_lines_range"),
+        CheckConstraint("connection IN ('primary', 'alt')", name="connection_valid"),
     )
 
     project_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     max_excerpt_lines: Mapped[int] = mapped_column(Integer, nullable=False, server_default="120")
+    # Which AI connection receives this project's code (ADR 0025).
+    connection: Mapped[str] = mapped_column(String(16), nullable=False, server_default="primary")
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -981,6 +984,7 @@ class AiRun(TimestampMixin, Base):
             "kind <> 'finding_review' OR finding_id IS NOT NULL OR state <> 'QUEUED'",
             name="finding_review_requires_finding",
         ),
+        CheckConstraint("connection IN ('primary', 'alt')", name="connection_valid"),
         Index("ix_ai_runs_project_id_created_at", "project_id", "created_at"),
     )
 
@@ -995,10 +999,12 @@ class AiRun(TimestampMixin, Base):
     question: Mapped[str | None] = mapped_column(Text)
     target_paths: Mapped[list[str] | None] = mapped_column(JsonDocument)
     context: Mapped[dict[str, object] | None] = mapped_column(JsonDocument)
-    """Advisor runs: the recommendations, numbered facts and targets frozen at the request."""
+    """Advisor runs: the checkpoints and numbered facts frozen at the request."""
     # Fix runs (P08): the workspace and the exact text of the file the candidates are made for.
     change_set_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
     target_sha256: Mapped[str | None] = mapped_column(String(64))
+    # The AI connection the run uses (ADR 0025); its provider and model are recorded too.
+    connection: Mapped[str] = mapped_column(String(16), nullable=False, server_default="primary")
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)

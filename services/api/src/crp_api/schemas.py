@@ -736,21 +736,42 @@ class AiMonthUsage(ApiModel):
     cost_limit_usd: float | None
 
 
-class AiStatus(ApiModel):
-    available: bool
+class AiConnection(ApiModel):
+    """One AI connection the operator set up (ADR 0025)."""
+
+    id: Literal["primary", "alt"]
+    label: str = Field(description="What users see, for example 'Claude (Anthropic)'")
     provider: str
+    model: str | None
+    available: bool
+    reason: str | None = Field(description="Why it cannot be used, for every user")
+    admin_hint: str | None = Field(description="What to configure; only shown to administrators")
+    data_note: str | None = Field(description="How the provider handles code it receives")
+    free: bool = Field(description="Both prices are configured as zero")
+    default: bool = Field(description="New project policies start with this connection")
+    month: AiMonthUsage
+
+
+class AiStatus(ApiModel):
+    available: bool = Field(description="At least one connection can be used")
+    provider: str = Field(description="The default connection's provider")
     model: str | None
     reason: str | None = Field(description="Why AI review is unavailable, for every user")
     admin_hint: str | None = Field(description="What to configure; only shown to administrators")
     prices_configured: bool
     limits: AiLimits
-    month: AiMonthUsage
+    month: AiMonthUsage = Field(description="Usage of all connections this month")
+    connections: list[AiConnection] = Field(description="The connections set up on this server")
 
 
 class ProjectAiPolicyResponse(ApiModel):
     project_id: UUID
     enabled: bool
     max_excerpt_lines: int
+    connection: Literal["primary", "alt"] = Field(
+        description="The AI connection that receives code"
+    )
+    connection_label: str
     updated_at: datetime | None
     version: int
     can_edit: bool = Field(description="Only workspace admins and owners may change the policy")
@@ -759,6 +780,9 @@ class ProjectAiPolicyResponse(ApiModel):
 class ProjectAiPolicyUpdate(ApiModel):
     enabled: bool
     max_excerpt_lines: Annotated[int, Field(ge=10, le=400)] = 120
+    connection: Literal["primary", "alt"] | None = Field(
+        default=None, description="The AI connection that receives code (unchanged when omitted)"
+    )
     version: int | None = Field(
         default=None, description="Current version for optimistic concurrency (omit on first save)"
     )

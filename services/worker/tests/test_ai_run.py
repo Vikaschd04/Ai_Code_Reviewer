@@ -377,3 +377,52 @@ async def test_ai_run_cancellation_on_the_lite_profile(settings: Settings) -> No
         canceled = await _wait(stack, run["id"])
         assert canceled["state"] == "CANCELED", (canceled["error_code"], canceled["steps"])
         assert len(fake.requests) == 1
+
+
+async def test_ai_run_on_the_alternate_connection(settings: Settings) -> None:
+    """ADR 0025: a project that chose the free test model sends its run to that endpoint with
+    that model and key, and the usage counts against that connection only."""
+    fake = FakeProvider()
+    hosts: list[str] = []
+    keys: list[str] = []
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        keys.append(request.headers.get("authorization", ""))
+        return await fake.handle(request)
+
+    ai = _ai_settings(
+        settings,
+        ai_alt_provider=AiProvider.OPENAI_COMPATIBLE,
+        ai_alt_model="glm-test:free",
+        ai_alt_base_url="https://free.provider.test/v1",
+        ai_alt_api_key=SecretStr("sk-free-provider-key-abcdef0123456789"),
+        ai_alt_label="Free test model",
+        ai_alt_price_input_per_mtok_usd=0.0,
+        ai_alt_price_output_per_mtok_usd=0.0,
+    )
+    async with lite_stack(ai, httpx.MockTransport(handle)) as stack:
+        project = await stack.project("AI alternate")
+        assert (await stack.zip_intake(project, _archive()))["state"] == "READY"
+        await stack.ok(
+            "PUT",
+            f"/v1/projects/{project}/ai-policy",
+            json={"enabled": True, "connection": "alt"},
+        )
+        fake.then(
+            "submit_answer",
+            {"answer": "Not enough evidence.", "abstained": True, "uncertainty": "Thin."},
+        )
+        run = await stack.ok(
+            "POST",
+            f"/v1/projects/{project}/ai-runs",
+            json={"kind": "question", "question": "Who calls order_total?"},
+        )
+        done = await _wait(stack, run["id"])
+        assert done["state"] == "SUCCEEDED", (done["error_code"], done["steps"])
+        assert hosts == ["free.provider.test"] and fake.requests[0]["model"] == "glm-test:free"
+        assert keys == ["Bearer sk-free-provider-key-abcdef0123456789"]
+        status = await stack.ok("GET", "/v1/ai/status")
+        month = {c["id"]: c["month"] for c in status["connections"]}
+        assert month["alt"]["calls"] == 1 and month["alt"]["cost_usd"] == 0
+        assert month["primary"]["calls"] == 0

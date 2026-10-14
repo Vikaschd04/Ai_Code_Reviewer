@@ -34,7 +34,7 @@ from crp_analysis.ai.models import (
 )
 
 ANTHROPIC_VERSION = "2023-06-01"
-_MAX_RETRY_AFTER = 30.0
+_MAX_RETRY_AFTER = 600.0  # absolute bound; each connection caps it lower
 _RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504, 529})
 
 Sleep = Callable[[float], Awaitable[None]]
@@ -52,6 +52,15 @@ class ClientOptions:
     timeout_seconds: float = 120.0
     max_retries: int = 2
     base_backoff_seconds: float = 1.0
+    # Free tiers often allow about one request per minute per model: space requests in this
+    # process and wait as long as the provider's retry-after asks (up to the cap).
+    min_interval_seconds: float = 0.0
+    max_retry_after_seconds: float = 30.0
+
+
+# Last request time per (endpoint, model) in this process, for ``min_interval_seconds``.
+_LAST_REQUEST: dict[str, float] = {}
+_PACING_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def _retry_after(response: httpx.Response) -> float | None:
@@ -117,6 +126,22 @@ class _HttpDriver:
         self._transport = transport
         self._sleep = sleep
 
+    async def _pace(self, model: str) -> None:
+        """Wait until ``min_interval_seconds`` passed since this process's last request to the
+        same endpoint and model."""
+        interval = self._options.min_interval_seconds
+        if interval <= 0:
+            return
+        key = f"{self._base_url}|{model}"
+        lock = _PACING_LOCKS.setdefault(key, asyncio.Lock())
+        async with lock:
+            last = _LAST_REQUEST.get(key)
+            if last is not None:
+                wait = last + interval - time.monotonic()
+                if wait > 0:
+                    await self._sleep(wait)
+            _LAST_REQUEST[key] = time.monotonic()
+
     async def post(
         self, path: str, payload: dict[str, Any]
     ) -> tuple[dict[str, Any], str | None, int, int]:
@@ -130,6 +155,7 @@ class _HttpDriver:
         ) as client:
             while attempts <= self._options.max_retries:
                 attempts += 1
+                await self._pace(str(payload.get("model", "")))
                 started = time.monotonic()
                 try:
                     response = await client.post(f"{self._base_url}{path}", json=payload)
@@ -172,7 +198,11 @@ class _HttpDriver:
                 last.attempts = attempts
                 if not last.retryable or attempts > self._options.max_retries:
                     raise last
-                delay = last.retry_after
+                delay = (
+                    min(last.retry_after, self._options.max_retry_after_seconds)
+                    if last.retry_after is not None
+                    else None
+                )
                 if delay is None:
                     delay = self._options.base_backoff_seconds * (2 ** (attempts - 1))
                     delay += random.uniform(0, delay / 2)  # noqa: S311 - jitter, not security

@@ -74,11 +74,18 @@ test("insights: NFR health, checkpoints, start fixing and a checked AI plan", as
   await expect(page.getByTestId("workspace-issues").locator("tbody tr")).toHaveCount(2);
   await expect(page.getByTestId("workspace-issues")).toContainText("cart.js");
 
-  // An admin switches AI on in Settings; the plan keeps only steps with evidence.
+  // An admin switches AI on in Settings with the free test model (ADR 0025); the plan keeps
+  // only steps with evidence.
   await page.goto(`/#/projects/${project}?tab=settings`);
-  await page.getByLabel(/I am allowed to share this project's code/).check();
+  const choice = page.getByTestId("ai-connection-choice");
+  await expect(choice).toContainText("Free test model");
+  await expect(choice).toContainText("nothing leaves this host");
+  await choice.getByRole("radio", { name: /Free test model/ }).check();
+  await page.getByLabel("I am allowed to share this project's code with Free test model.").check();
+  await page.screenshot({ path: "test-results/screens/ai-connection.png", fullPage: true });
   await page.getByRole("button", { name: "Switch on AI review" }).click();
   await expect(page.getByTestId("ai-policy")).toHaveAttribute("data-enabled", "true");
+  await expect(page.getByTestId("ai-policy-connection")).toContainText("Free test model");
   await sections(page).getByRole("link", { name: "Insights" }).click();
   await page.getByTestId("advisor-request").click();
   const steps = page.getByTestId("advisor-steps");
@@ -88,6 +95,7 @@ test("insights: NFR health, checkpoints, start fixing and a checked AI plan", as
   await expect(rejected).toContainText("2 suggestions removed for lack of evidence");
   await rejected.locator("summary").click();
   await expect(rejected).toContainText("uses numbers not in the cited evidence: 4242");
+  await expect(page.getByTestId("advisor-plan")).toContainText("refactorx-e2e-free");
   await page.getByTestId("advisor").scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/screens/insights-plan.png", fullPage: true });
   await page.getByRole("button", { name: "Switch to dark theme" }).click(); // design review

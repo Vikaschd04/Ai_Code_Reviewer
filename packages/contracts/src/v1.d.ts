@@ -69,7 +69,7 @@ export interface paths {
         };
         /**
          * Ai Status
-         * @description Whether AI review can run on this server, its limits and this month's usage.
+         * @description Whether AI can run on this server, its connections, limits and this month's usage.
          */
         get: operations["ai_status_v1_ai_status_get"];
         put?: never;
@@ -1064,7 +1064,8 @@ export interface paths {
         get: operations["get_ai_policy_v1_projects__project_id__ai_policy_get"];
         /**
          * Update Ai Policy
-         * @description Allow or stop sending masked code excerpts of this project to the AI provider (admins).
+         * @description Allow or stop sending masked code excerpts of this project to an AI connection (admins).
+         *     A connection can be chosen only when it is set up and usable on this server.
          */
         put: operations["update_ai_policy_v1_projects__project_id__ai_policy_put"];
         post?: never;
@@ -1973,6 +1974,54 @@ export interface components {
             /** Verdict */
             verdict: string;
         };
+        /**
+         * AiConnection
+         * @description One AI connection the operator set up (ADR 0025).
+         */
+        AiConnection: {
+            /**
+             * Admin Hint
+             * @description What to configure; only shown to administrators
+             */
+            admin_hint: string | null;
+            /** Available */
+            available: boolean;
+            /**
+             * Data Note
+             * @description How the provider handles code it receives
+             */
+            data_note: string | null;
+            /**
+             * Default
+             * @description New project policies start with this connection
+             */
+            default: boolean;
+            /**
+             * Free
+             * @description Both prices are configured as zero
+             */
+            free: boolean;
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "primary" | "alt";
+            /**
+             * Label
+             * @description What users see, for example 'Claude (Anthropic)'
+             */
+            label: string;
+            /** Model */
+            model: string | null;
+            month: components["schemas"]["AiMonthUsage"];
+            /** Provider */
+            provider: string;
+            /**
+             * Reason
+             * @description Why it cannot be used, for every user
+             */
+            reason: string | null;
+        };
         /** AiFindingResponse */
         AiFindingResponse: {
             /** Anchors */
@@ -2223,15 +2272,27 @@ export interface components {
              * @description What to configure; only shown to administrators
              */
             admin_hint: string | null;
-            /** Available */
+            /**
+             * Available
+             * @description At least one connection can be used
+             */
             available: boolean;
+            /**
+             * Connections
+             * @description The connections set up on this server
+             */
+            connections: components["schemas"]["AiConnection"][];
             limits: components["schemas"]["AiLimits"];
             /** Model */
             model: string | null;
+            /** @description Usage of all connections this month */
             month: components["schemas"]["AiMonthUsage"];
             /** Prices Configured */
             prices_configured: boolean;
-            /** Provider */
+            /**
+             * Provider
+             * @description The default connection's provider
+             */
             provider: string;
             /**
              * Reason
@@ -4679,6 +4740,14 @@ export interface components {
              * @description Only workspace admins and owners may change the policy
              */
             can_edit: boolean;
+            /**
+             * Connection
+             * @description The AI connection that receives code
+             * @enum {string}
+             */
+            connection: "primary" | "alt";
+            /** Connection Label */
+            connection_label: string;
             /** Enabled */
             enabled: boolean;
             /** Max Excerpt Lines */
@@ -4695,6 +4764,11 @@ export interface components {
         };
         /** ProjectAiPolicyUpdate */
         ProjectAiPolicyUpdate: {
+            /**
+             * Connection
+             * @description The AI connection that receives code (unchanged when omitted)
+             */
+            connection?: ("primary" | "alt") | null;
             /** Enabled */
             enabled: boolean;
             /**

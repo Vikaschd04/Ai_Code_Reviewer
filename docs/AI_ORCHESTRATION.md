@@ -57,3 +57,16 @@ A fourth run kind, `fix`, asks for up to `CRP_AI_FIX_MAX_CANDIDATES` (default 3)
 - The same policy gate, budgets, accounting and cancellation as other runs apply. The labelled
   fake model proposes two grounded steps, one without evidence and one with an invented number;
   tests assert both are removed.
+
+## Two AI connections (ADR 0025)
+
+- `primary` (`CRP_AI_*`, for example Claude) and an optional `alt` (`CRP_AI_ALT_*`, for example a
+  free OpenAI-compatible model through UnoRouter for testing). Each project's admin chooses the
+  connection; every run kind (questions, reviews, advisor plans, fix suggestions) uses it and
+  records it.
+- Budgets, usage and costs are per connection; a free connection has prices set to zero.
+- Free tiers: requests are spaced (`CRP_AI_ALT_MIN_INTERVAL_SECONDS`) and a provider's
+  `retry-after` is honoured up to `CRP_AI_ALT_MAX_RETRY_AFTER_SECONDS`.
+- The grounding checks do not depend on the model: weaker models produce fewer kept plan steps
+  and fewer passing fix candidates, never unchecked ones.
+

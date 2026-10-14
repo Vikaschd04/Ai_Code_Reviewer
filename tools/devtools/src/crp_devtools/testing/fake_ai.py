@@ -18,6 +18,7 @@ from typing import Any
 from crp_devtools.infra import LOOPBACK
 
 MODEL = "refactorx-e2e-fake"
+FREE_MODEL = "refactorx-e2e-free"  # the second connection in browser tests (ADR 0025)
 LABEL = "[Test provider]"
 _WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]{3,}")
 _HIT = re.compile(r"^(?P<path>.+?):(?P<line>\d+)(?: \[instruction file\])?: (?P<text>.*\S.*)$")
@@ -293,7 +294,7 @@ def respond(body: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": f"chatcmpl-e2e-{len(messages)}",
         "object": "chat.completion",
-        "model": MODEL,
+        "model": str(body.get("model") or MODEL),
         "choices": [
             {
                 "index": 0,
