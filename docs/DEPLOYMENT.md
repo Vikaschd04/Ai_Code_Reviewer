@@ -94,6 +94,7 @@ No AI variables are needed for this. After a project admin switches AI review on
 - Keys are encrypted with `CRP_SECRETS_KEY`. The Blueprint (`render.yaml`) generates it. Check Render → your service → **Environment**: if `CRP_SECRETS_KEY` is missing, sync the Blueprint (Render → Blueprints → your Blueprint → sync) or add it yourself (key `CRP_SECRETS_KEY`, value: a random string of at least 32 characters, for example the output of `openssl rand -base64 32`) and **Save and deploy**. Without it, Settings says keys cannot be stored. (Before the fix of 14 October 2026 the hosted start-up did not pass this variable, or `CRP_GITHUB_*`, to the app; redeploy the latest version.)
 - Keep `CRP_SECRETS_KEY` unchanged: changing it makes saved keys unreadable and users must add them again.
 - The server connections below remain optional (for example a shared key for all projects).
+- UnoRouter's free models are for trying refactorX on sample code, not for dependable work: each allows about one request a minute per account, some have daily budgets, they are often busy at peak times, and the list changes daily (UnoRouter: "Use a paid model when you need reliability"). An AI fix on a free model takes a few minutes; if it reports that the provider is limiting requests, wait or choose another model. Use one key per person and keep it private: the free allowance is shared by everything that uses the account.
 
 ### A second, cheaper or free model (optional; ADR 0025)
 

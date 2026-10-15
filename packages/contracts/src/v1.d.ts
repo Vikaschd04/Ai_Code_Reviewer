@@ -1082,7 +1082,7 @@ export interface paths {
         };
         /**
          * Get Project Ai Model
-         * @description The project's own AI model (without the key).
+         * @description The project's own AI model (without the key), and whether the provider still offers it.
          */
         get: operations["get_project_ai_model_v1_projects__project_id__ai_model_get"];
         /**
@@ -4865,6 +4865,12 @@ export interface components {
             model: string | null;
             /** Model Label */
             model_label: string | null;
+            /**
+             * Offered
+             * @description False when the provider's live list no longer offers the model (UnoRouter's free models come and go); the project's AI is unavailable until another is chosen
+             * @default true
+             */
+            offered: boolean;
             /**
              * Project Id
              * Format: uuid

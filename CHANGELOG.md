@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — AI fixes with free models (15 October 2026)
+
+- **No more "interrupted" AI fixes with slow free models:** a run now keeps reporting that it is
+  alive while the model answers.
+- **Faster with free models:** fixes use at most four model steps, the key test no longer uses up
+  the model's one-request-a-minute allowance, and the fix screen shows how long the AI has been
+  working.
+- **Clear messages:** when a free model is busy, rate limited or no longer offered, refactorX says
+  so in plain words (and Settings asks you to choose another model) instead of failing silently.
+
 ## Unreleased — your own AI model and API key per project (14 October 2026)
 
 - **Choose the AI model in Settings:** once AI review is on, a project admin picks the provider

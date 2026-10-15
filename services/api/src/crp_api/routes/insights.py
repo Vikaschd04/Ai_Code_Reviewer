@@ -298,7 +298,7 @@ async def request_plan(
             model=setup.model or "",
             prompt_version=ADVISOR_PROMPT_VERSION,
             requested_by=principal.user_id,
-            limits=run_limits(setup, policy),
+            limits=run_limits(setup, policy, AiRunKind.ADVISOR.value),
         )
         session.add(run)
         await session.flush()

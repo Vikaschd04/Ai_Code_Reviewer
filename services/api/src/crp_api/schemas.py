@@ -828,6 +828,11 @@ class ProjectAiModelResponse(ApiModel):
     in_use: bool = Field(description="The project's AI runs use this model and key")
     can_edit: bool = Field(description="Workspace admins may change it")
     can_store_keys: bool
+    offered: bool = Field(
+        default=True,
+        description="False when the provider's live list no longer offers the model (UnoRouter's "
+        "free models come and go); the project's AI is unavailable until another is chosen",
+    )
 
 
 class ProjectAiModelUpdate(ApiModel):

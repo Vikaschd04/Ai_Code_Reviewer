@@ -27,7 +27,12 @@ from crp_api.schemas import (
     ProjectAiModelResponse,
     ProjectAiModelUpdate,
 )
-from crp_api.services.ai_models import MAX_KEY_TESTS_PER_HOUR, project_model, recent_key_tests
+from crp_api.services.ai_models import (
+    MAX_KEY_TESTS_PER_HOUR,
+    offered_now,
+    project_model,
+    recent_key_tests,
+)
 from crp_api.services.scope import get_scoped
 from crp_core.db.models import AiPolicyEvent, Project, ProjectAiModel, ProjectAiPolicy
 from crp_core.db.session import transaction
@@ -98,6 +103,8 @@ def _response(
     row: ProjectAiModel | None,
     policy: ProjectAiPolicy | None,
     principal: Principal,
+    *,
+    offered: bool = True,
 ) -> ProjectAiModelResponse:
     return ProjectAiModelResponse(
         project_id=project.id,
@@ -111,6 +118,7 @@ def _response(
         in_use=bool(row and policy and policy.connection == "project"),
         can_edit=principal.has_role(project.workspace_id, MembershipRole.ADMIN),
         can_store_keys=secret_box(container.settings) is not None,
+        offered=offered,
     )
 
 
@@ -120,14 +128,18 @@ def _response(
 async def get_project_ai_model(
     project_id: uuid.UUID, principal: CurrentPrincipal, container: Container
 ) -> ProjectAiModelResponse:
-    """The project's own AI model (without the key)."""
+    """The project's own AI model (without the key), and whether the provider still offers it."""
     async with transaction(container.session_factory) as session:
         project = await get_scoped(
             session, principal, Project, project_id, not_found="project_not_found"
         )
         row = await project_model(session, project.id)
         policy = await session.get(ProjectAiPolicy, project.id)
-        return _response(container, project, row, policy, principal)
+    offered = True
+    if row is not None and row.provider == "unorouter" and container.settings.ai_catalog_live:
+        models, live = await _models(container, row.provider)  # outside the transaction
+        offered = offered_now(container.settings, row.provider, row.model, models if live else None)
+    return _response(container, project, row, policy, principal, offered=offered)
 
 
 async def _check(container: Any, body: ProjectAiModelUpdate, key: str) -> KeyCheck:

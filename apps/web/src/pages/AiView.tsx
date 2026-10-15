@@ -535,6 +535,13 @@ function ProjectModelCard({
             </span>
             <strong className="small">{current.model_label}</strong>
           </div>
+          {!current.offered ? (
+            <Alert tone="warn">
+              {current.provider === "unorouter" ? "UnoRouter" : "The provider"} is not offering this
+              model right now (free models change often), so AI is paused for this project. Choose
+              another model with “Change model or key”.
+            </Alert>
+          ) : null}
           <p className="small secondary">
             Key ending {current.key_hint}
             {current.tested_at ? ` · tested ${formatRelative(current.tested_at)}` : ""}

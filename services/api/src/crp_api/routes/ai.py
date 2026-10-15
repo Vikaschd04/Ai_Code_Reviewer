@@ -373,13 +373,14 @@ async def ai_gate(
     return policy, setup
 
 
-def run_limits(setup: AiSetup, policy: ProjectAiPolicy) -> dict[str, object]:
+def run_limits(setup: AiSetup, policy: ProjectAiPolicy, kind: str) -> dict[str, object]:
+    limits = setup.limits_for(kind)  # the worker enforces the same limits
     return {
-        "max_model_calls": setup.limits.max_model_calls,
-        "max_tool_calls": setup.limits.max_tool_calls,
-        "max_tokens": setup.limits.max_tokens,
-        "timeout_seconds": setup.limits.timeout_seconds,
-        "max_cost_usd": setup.limits.max_cost_usd,
+        "max_model_calls": limits.max_model_calls,
+        "max_tool_calls": limits.max_tool_calls,
+        "max_tokens": limits.max_tokens,
+        "timeout_seconds": limits.timeout_seconds,
+        "max_cost_usd": limits.max_cost_usd,
         "max_excerpt_lines": policy.max_excerpt_lines,
     }
 
@@ -495,7 +496,7 @@ async def create_ai_run(
             model=setup.model,
             prompt_version=PROMPT_VERSION,
             requested_by=principal.user_id,
-            limits=run_limits(setup, policy),
+            limits=run_limits(setup, policy, body.kind),
         )
         session.add(run)
         await session.flush()

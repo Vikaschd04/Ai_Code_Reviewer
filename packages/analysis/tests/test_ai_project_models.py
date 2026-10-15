@@ -116,27 +116,32 @@ async def test_anthropic_key_check_reads_the_model_and_maps_errors() -> None:
         assert not result.ok and words in result.message and USER_KEY not in result.message
 
 
-async def test_unorouter_key_check_needs_a_tool_call() -> None:
-    bodies: list[dict[str, object]] = []
+async def test_unorouter_key_check_reads_the_model_list_without_using_the_model() -> None:
+    seen: list[httpx.Request] = []
 
-    def reply(tool_calls: list[dict[str, object]] | None) -> httpx.MockTransport:
+    def listing(status: int, models: list[str]) -> httpx.MockTransport:
         def handle(request: httpx.Request) -> httpx.Response:
-            bodies.append(json.loads(request.content))
-            message = {"role": "assistant", "content": "ok", "tool_calls": tool_calls}
-            return httpx.Response(200, json={"choices": [{"message": message}]})
+            seen.append(request)
+            return httpx.Response(status, json={"data": [{"id": m} for m in models]})
 
         return httpx.MockTransport(handle)
 
-    call = [{"id": "c1", "type": "function", "function": {"name": "report_connection"}}]
+    base = "https://api.unorouter.com/v1"
     good = await check_openai_compatible(
-        USER_KEY, "glm-5.3:free", "https://api.unorouter.com/v1", "UnoRouter", reply(call)
+        USER_KEY, "glm-5.3:free", base, "UnoRouter", listing(200, ["glm-5.3:free", "x:free"])
     )
-    assert good.ok and bodies[-1]["model"] == "glm-5.3:free"
-    assert "report_connection" in json.dumps(bodies[-1]["tools"])
-    lazy = await check_openai_compatible(
-        USER_KEY, "glm-5.3:free", "https://api.unorouter.com/v1", "UnoRouter", reply(None)
+    assert good.ok
+    request = seen[-1]
+    assert request.method == "GET" and request.url.path == "/v1/models" and not request.content
+    assert request.headers["authorization"] == f"Bearer {USER_KEY}"  # no chat request: no quota
+    other = await check_openai_compatible(
+        USER_KEY, "glm-5.3:free", base, "UnoRouter", listing(200, ["x:free"])
     )
-    assert not lazy.ok and "tool calls" in lazy.message
+    assert not other.ok and "does not offer" in other.message
+    refused = await check_openai_compatible(
+        USER_KEY, "glm-5.3:free", base, "UnoRouter", listing(401, [])
+    )
+    assert not refused.ok and "did not accept" in refused.message
 
 
 def test_project_setup_uses_the_catalog_and_no_server_budget(
@@ -153,6 +158,10 @@ def test_project_setup_uses_the_catalog_and_no_server_budget(
     assert free.provider is AiProvider.OPENAI_COMPATIBLE and free.free
     assert free.base_url == "https://api.unorouter.com/v1"
     assert free.limits.timeout_seconds == 1800 and free.limits.max_output_tokens == 8192
+    assert free.paced and not claude.paced
+    assert free.limits_for("fix").max_model_calls == 4  # about one call a minute: short runs
+    assert free.limits_for("question").max_model_calls == 6
+    assert claude.limits_for("fix") == claude.limits  # paid models keep the configured limits
     plain = make_settings(ai_unorouter_base_url="http://models.example.com/v1")
     assert not project_setup(plain, "unorouter", "glm-5.3:free", USER_KEY).available
 

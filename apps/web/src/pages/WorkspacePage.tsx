@@ -1363,6 +1363,11 @@ function AiSuggestions({
               </button>
             ) : null}
           </div>
+          {AI_ACTIVE.has(run.state) ? (
+            <p className="small muted" data-testid="ai-fix-progress">
+              {aiProgress(run)}
+            </p>
+          ) : null}
           {run.error_message && !AI_ACTIVE.has(run.state) ? (
             <Alert tone={run.state === "CANCELED" ? "info" : "warn"}>{run.error_message}</Alert>
           ) : null}
@@ -1391,6 +1396,19 @@ function AiSuggestions({
       ))}
     </section>
   );
+}
+
+/** What an unfinished AI run is doing, so a slow (free) model does not look stuck. */
+function aiProgress(run: AiRun): string {
+  if (run.state === "QUEUED" || !run.started_at) {
+    return "Waiting to start; it begins when the AI request before it finishes.";
+  }
+  const minutes = Math.floor((Date.now() - new Date(run.started_at).getTime()) / 60_000);
+  const elapsed = minutes < 1 ? "less than a minute" : `${String(minutes)} min`;
+  const free = run.model.endsWith(":free")
+    ? " Free models answer about once a minute, so this can take up to 5 minutes."
+    : "";
+  return `Working for ${elapsed}.${free}`;
 }
 
 function conflictMessage(caught: unknown): string {

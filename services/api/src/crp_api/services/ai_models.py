@@ -11,6 +11,8 @@ from typing import Any, cast
 
 from sqlalchemy import select
 
+from crp_analysis.ai import catalog
+from crp_analysis.ai.catalog import CatalogModel
 from crp_analysis.ai.config import AiSetup, Connection, project_setup, resolve
 from crp_core.config import Settings
 from crp_core.db.models import AiPolicyEvent, ProjectAiModel, ProjectAiPolicy
@@ -31,13 +33,34 @@ async def connection_setup(
     if policy is not None and policy.connection == "project":
         row = await project_model(session, policy.project_id)
         if row is not None:
-            return project_setup(settings, row.provider, row.model, None)
+            setup = project_setup(settings, row.provider, row.model, None)
+            if not offered_now(settings, row.provider, row.model):
+                return dataclasses.replace(setup, available=False, reason=not_offered(row.model))
+            return setup
         placeholder = project_setup(settings, "anthropic", "claude-opus-5-5", None)
         return dataclasses.replace(
             placeholder, label="Your own AI model", available=False, reason=NO_MODEL
         )
     connection = cast(Connection, policy.connection) if policy else "primary"
     return resolve(settings, connection)
+
+
+def not_offered(model: str) -> str:
+    return (
+        f"UnoRouter is not offering {model} right now (its free models change often). "
+        "Choose another model in Settings (AI)."
+    )
+
+
+def offered_now(
+    settings: Settings, provider_id: str, model: str, live: list[CatalogModel] | None = None
+) -> bool:
+    """False only when UnoRouter's live list is known (given, or read within the hour) and lacks
+    the model; free models disappear while their upstream providers are busy or withdrawn."""
+    if provider_id != "unorouter" or not settings.ai_catalog_live:
+        return True
+    known = live if live is not None else catalog.cached_unorouter()
+    return known is None or any(m.id == model for m in known)
 
 
 async def recent_key_tests(session: Any, project_id: uuid.UUID) -> int:

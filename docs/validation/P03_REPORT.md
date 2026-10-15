@@ -143,3 +143,30 @@ Gates (14 October 2026, macOS arm64): `make check` exit 0; `make test` 616 pytes
 Not measured: live calls with a real user key (the tests use labelled fakes for Anthropic and
 UnoRouter). The owner can check by adding their key in Settings; the test call uses no tokens on
 Anthropic and one small request on UnoRouter.
+
+## Live test of AI fixes with UnoRouter free models (14–15 October 2026)
+
+Owner request: "test the current application with AI feature … with the sample code base … on the
+portal I'm not able to fix issues using AI, no response; suggest the best free model". Procedure:
+local stack (`make dev`, Temporal), the built-in sample project ("online store"), AI switched on,
+the owner's UnoRouter key saved through Settings' endpoint (`PUT /ai-model`; the key was kept in
+an owner-only temporary file outside the repository and deleted afterwards; the test projects and
+their stored keys were deleted), then AI fix requests in a fix workspace (`POST /ai-fixes`).
+
+| Observation | Evidence | Cause | Change |
+|---|---|---|---|
+| A fix on `glm-5.3:free` ran 7 minutes and ended "The run was interrupted" | 4 calls recorded about a minute apart; the 5th answer was still being read when Temporal cancelled `ai.execute` | Heartbeats only between model calls; one paced call plus a slow answer exceeded the 3-minute heartbeat timeout | A keep-alive heartbeat every 30 s during the run (`KEEP_ALIVE_SECONDS`); test with a slow provider |
+| The first call after "Test and save" got 429 and waited 85 s | The key test's chat request used the model's one-a-minute allowance | Key test used a chat completion | UnoRouter key test is now `GET /models` (0.5–1.3 s, no allowance used; checks the model is offered to the key) |
+| Free models answer about once a minute, so a fix with many tool calls takes many minutes | 4+ calls with tiny outputs (tool lookups) before an answer | Up to 12 calls per run | Paced models get at most 4 calls for a fix and 6 for other runs (last call is the final answer); the fix prompt says the file shown is complete |
+| The next day `glm-5.3:free`, `deepseek-v4.1-flash:free` and 19 other free models were gone from UnoRouter | Model list of the key: 263 → 250 models; free tool-capable list changed (38 → 31) | UnoRouter's free list follows upstream capacity | A saved model missing from the live list pauses the project's AI with a plain reason (`offered`, `ai_unavailable`) and Settings says to choose another |
+| Parallel comparison of 7 current free models: 12 of 14 fix runs failed with 429 or 503 | "The free tier allows 1 request(s) every 1 min per account on …"; "All providers for model … are busy" | Per-user limits on every free model, upstream busy, daily budgets (UnoRouter docs, Rate Limits & Errors) | Run errors now read plainly ("The AI provider is limiting requests right now … Nothing was changed …") with the provider's reason as details; pacing counts from the end of the previous answer |
+| After 26 minutes without any request from this machine, the account still had 0 requests left on a model used once | `x-ratelimit-remaining: 0`, `retry-after: 60` on repeated single requests across models | Something else is using the account's free quota, or UnoRouter's free pool is saturated | None possible in refactorX; the owner should check UnoRouter's request log and rotate the key |
+| `minimax-m2.7:free` answered a fix in 35 s, but its candidate did not match the file | "The suggested lines do not match the file; nothing was checked." | Weaker models copy lines inexactly; candidates must match exactly to be checked | None (safety); see the next steps |
+
+Gates after the changes (15 October 2026, macOS arm64): `make check` exit 0; `make test` 621 pytest + 30 vitest passed; `make test-e2e` 22/22 passed.
+
+Result: the AI fix pipeline works end to end (key test, run, model calls, candidate checks); it
+failed on the owner's portal for the reasons above (and, before 14 October's fix, because keys
+could not be saved on Render). No free UnoRouter model could be ranked for fix quality: on
+15 October every free model of the account was rate limited. UnoRouter's own guidance is "Use a
+paid model when you need reliability" and "Expect 429 at peak times".

@@ -32,6 +32,7 @@ with workflow.unsafe.imports_passed_through():
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from crp_analysis.ai.config import AiSetup, project_key_context, project_setup, resolve
+    from crp_analysis.ai.models import ProviderError, ProviderErrorCode
     from crp_analysis.ai.orchestrator import CallRecord, InvestigationResult, investigate
     from crp_analysis.ai.prompts import (
         Task,
@@ -92,6 +93,36 @@ logger = logging.getLogger(__name__)
 _SEARCH_BYTE_BUDGET = 24 * 1024 * 1024
 _LINE_CACHE = 64
 MIN_MONTHLY_TOKENS = 2000
+KEEP_ALIVE_SECONDS = 30.0  # well inside the 3-minute heartbeat timeout of ai.execute
+_PROVIDER_PLAIN = {
+    ProviderErrorCode.RATE_LIMITED: (
+        "The AI provider is limiting requests right now: free models allow about one request a "
+        "minute and have daily limits. Nothing was changed. Try again later, or choose another "
+        "model in Settings."
+    ),
+    ProviderErrorCode.SERVER_ERROR: (
+        "The AI provider could not answer right now (free models are often busy). Nothing was "
+        "changed. Try again in a few minutes, or choose another model in Settings."
+    ),
+    ProviderErrorCode.OVERLOADED: (
+        "The AI provider is overloaded right now. Nothing was changed. Try again in a few minutes."
+    ),
+    ProviderErrorCode.AUTHENTICATION: (
+        "The AI provider did not accept the API key. Add the key again in Settings."
+    ),
+    ProviderErrorCode.PERMISSION: (
+        "The API key may not use this model. Choose another model or key in Settings."
+    ),
+    ProviderErrorCode.TIMEOUT: "The AI provider did not answer in time. Try again.",
+    ProviderErrorCode.NETWORK: "The AI provider could not be reached. Try again in a moment.",
+}
+
+
+def provider_message(error: ProviderError) -> str:
+    """What a reviewer reads when the provider failed, with the provider's reason as details
+    (never the key or the request)."""
+    plain = _PROVIDER_PLAIN.get(error.code, "The AI provider refused the request.")
+    return f"{plain} Details: {error}"[:500]
 
 
 class DbSnapshotReader:
@@ -694,17 +725,28 @@ class AiRunActivities:
                 )
             heartbeat(f"model call {call.sequence} recorded")
 
-        result = await investigate(
-            client,
-            task,
-            tools,
-            setup.limits,
-            setup.prices,
-            token_allowance=allowance,
-            cancelled=cancelled,
-            on_call=record,
-            keep_transcript=setup.keep_transcripts,
-        )
+        async def keep_alive() -> None:
+            # Temporal cancels an activity that is silent for 3 minutes; one slow call (a paced
+            # free model waits about a minute, then may answer slowly) must not count as silence.
+            while True:
+                heartbeat("waiting for the AI model")
+                await asyncio.sleep(KEEP_ALIVE_SECONDS)
+
+        alive = asyncio.create_task(keep_alive())
+        try:
+            result = await investigate(
+                client,
+                task,
+                tools,
+                setup.limits_for(run.kind),
+                setup.prices,
+                token_allowance=allowance,
+                cancelled=cancelled,
+                on_call=record,
+                keep_transcript=setup.keep_transcripts,
+            )
+        finally:
+            alive.cancel()
         candidates: list[CheckedCandidate] = []
         if fix is not None and result.fixes is not None and result.fixes.candidates:
             candidates = await self._check_candidates(payload.run_id, fix, result.fixes)
@@ -874,7 +916,7 @@ class AiRunActivities:
             stored.usage = summary
             if result.error is not None:
                 stored.error_code = f"provider_{result.error.code.value}"
-                stored.error_message = str(result.error)[:500]
+                stored.error_message = provider_message(result.error)
             elif result.stop == "no_result":
                 stored.error_code = "no_result"
                 stored.error_message = result.limitation

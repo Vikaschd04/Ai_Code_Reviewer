@@ -142,6 +142,8 @@ def _service_specs(
 
 
 def run_dev(paths: DevPaths, ports: DevPorts, *, keep_infra: bool) -> int:
+    for name in ensure_secrets(paths):  # secrets added after bootstrap (e.g. the secrets key)
+        print(f"crp-dev: created {name}")
     started_pg, started_temporal = infra_up(paths, ports)
     env = dev_service_env(paths, ports)
     revision, _ = migrate_and_provision(settings_from_env(env))

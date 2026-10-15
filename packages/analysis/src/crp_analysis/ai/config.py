@@ -11,6 +11,7 @@ keep working without AI.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -38,6 +39,11 @@ DEFAULT_BASE_URLS = {
     AiProvider.ANTHROPIC: "https://api.anthropic.com",
     AiProvider.OPENAI_COMPATIBLE: "https://api.openai.com/v1",
 }
+
+
+# Paced (free) models answer about once a minute: keep their runs to a few calls.
+PACED_MODEL_CALLS = {"fix": 4}
+PACED_DEFAULT_MODEL_CALLS = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +122,21 @@ class AiSetup:
     def free(self) -> bool:
         """Both prices are configured as zero (a free tier)."""
         return self.prices.input_per_mtok_usd == 0 and self.prices.output_per_mtok_usd == 0
+
+    @property
+    def paced(self) -> bool:
+        """Requests are spaced (free tiers allow about one a minute), so every call is slow."""
+        return self._min_interval > 0
+
+    def limits_for(self, kind: str) -> Limits:
+        """The run limits for a run kind: paced models get a few calls (the last call is always
+        the final answer); a fix prompt already holds the file, so a fix needs fewest."""
+        if not self.paced:
+            return self.limits
+        cap = PACED_MODEL_CALLS.get(kind, PACED_DEFAULT_MODEL_CALLS)
+        return dataclasses.replace(
+            self.limits, max_model_calls=min(self.limits.max_model_calls, cap)
+        )
 
     _timeout: float = 120.0
     _retries: int = 2

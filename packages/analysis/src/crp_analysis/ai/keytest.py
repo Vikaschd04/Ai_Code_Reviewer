@@ -2,9 +2,10 @@
 
 - Anthropic: ``GET /v1/models/{model}`` answers for a valid key that may use the model (no
   tokens are used).
-- UnoRouter (OpenAI-compatible): one chat completion with a toy tool proves the key, the model
-  and tool calling, which refactorX's agents need. Free models allow about one request per
-  minute, so a quick second test may be rate limited.
+- UnoRouter (OpenAI-compatible): ``GET /models`` with the key answers only for a valid key and
+  lists the models it may use. It does not use the model's rate limit (free models allow about
+  one request a minute), so the first AI run right after saving is not held back. Tool support
+  comes from the catalog, which offers only models that call tools.
 
 Messages are plain and never contain the key or the provider's response text.
 """
@@ -19,18 +20,6 @@ import httpx
 from crp_analysis.ai.providers import ANTHROPIC_VERSION
 
 TIMEOUT_SECONDS = 30.0
-_CHECK_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "report_connection",
-        "description": "Report that the connection works.",
-        "parameters": {
-            "type": "object",
-            "properties": {"ok": {"type": "boolean"}},
-            "required": ["ok"],
-        },
-    },
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,16 +59,13 @@ async def check_anthropic(
     return KeyCheck(False, _status_message(response.status_code, "Anthropic"))
 
 
-def _called_tool(body: Any) -> bool:
-    choices = body.get("choices") if isinstance(body, dict) else None
-    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-        return False
-    message = choices[0].get("message")
-    calls = message.get("tool_calls") if isinstance(message, dict) else None
-    return isinstance(calls, list) and any(
-        isinstance(c, dict) and (c.get("function") or {}).get("name") == "report_connection"
-        for c in calls
-    )
+def _model_ids(body: Any) -> set[str]:
+    items = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        return set()
+    return {
+        item["id"] for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
 
 
 async def check_openai_compatible(
@@ -89,34 +75,19 @@ async def check_openai_compatible(
     label: str,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> KeyCheck:
-    payload = {
-        "model": model,
-        "max_completion_tokens": 256,
-        "messages": [
-            {"role": "user", "content": "Call the report_connection tool with ok set to true."}
-        ],
-        "tools": [_CHECK_TOOL],
-        "tool_choice": "auto",
-    }
     try:
         async with httpx.AsyncClient(transport=transport, timeout=TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {key}"},
+            response = await client.get(
+                f"{base_url.rstrip('/')}/models", headers={"Authorization": f"Bearer {key}"}
             )
     except httpx.HTTPError:
         return KeyCheck(False, f"{label} could not be reached. Try again in a moment.")
     if response.status_code != 200:
         return KeyCheck(False, _status_message(response.status_code, label))
     try:
-        body = response.json()
+        offered = _model_ids(response.json())
     except ValueError:
         return KeyCheck(False, f"{label} sent an answer that could not be read.")
-    if not _called_tool(body):
-        return KeyCheck(
-            False,
-            "The key works, but this model did not call the test tool. refactorX's AI features "
-            "need tool calls; choose another model.",
-        )
-    return KeyCheck(True, "The key works and the model can call tools.")
+    if model not in offered:
+        return KeyCheck(False, f"{label} does not offer this model to this API key.")
+    return KeyCheck(True, "The key works and may use this model.")

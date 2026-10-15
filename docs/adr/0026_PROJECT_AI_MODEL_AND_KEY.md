@@ -133,3 +133,17 @@ Affected contracts:
 - project AI policy: `connection` may be `project`, and a new `ready` field;
 - settings `CRP_SECRETS_KEY`, `CRP_SECRETS_KEY_FILE`, `CRP_AI_ANTHROPIC_BASE_URL`,
   `CRP_AI_UNOROUTER_BASE_URL` and `CRP_AI_CATALOG_LIVE`.
+
+Amendment (15 October 2026, after a live test with the owner's key; docs/validation/P03_REPORT.md):
+
+- UnoRouter keys are tested with `GET /models` instead of a chat request: a chat request used the
+  model's one-request-a-minute allowance, so the first run after saving waited for a 429. The
+  test now proves the key and that the model is offered to it; tool support comes from the
+  catalog.
+- UnoRouter's free list changes daily (21 free models disappeared overnight). A saved model that
+  the live list no longer offers pauses the project's AI with a plain reason, and Settings asks
+  for another model (`offered`).
+- Paced (free) models: at most 4 model calls for a fix and 6 for other runs; requests are spaced
+  from the end of the previous answer; long runs send a heartbeat every 30 s (a paced call plus a
+  slow answer exceeded the 3-minute heartbeat timeout and the run was "interrupted").
+- Provider failures are shown in plain words with the provider's reason as details.

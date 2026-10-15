@@ -16,9 +16,11 @@ import pytest
 from pydantic import SecretStr
 from sqlalchemy import select
 
+from crp_analysis.ai.models import ProviderError, ProviderErrorCode
 from crp_core.config import Settings
 from crp_core.db.models import ProjectAiModel
 from crp_core.db.session import create_engine_from_settings, create_session_factory, transaction
+from crp_worker import ai_run
 
 from .conftest import Stack, lite_stack
 
@@ -45,6 +47,7 @@ class Anthropic:
             assert request.url.path == "/v1/models/claude-opus-5-5"
             return httpx.Response(200, json={"id": "claude-opus-5-5", "type": "model"})
         self.messages.append(json.loads(request.content))
+        await asyncio.sleep(0.6)  # a slow answer: the run must keep reporting that it is alive
         answer = {
             "answer": "Not enough evidence to say who calls order_total.",
             "abstained": True,
@@ -81,8 +84,13 @@ async def _wait(stack: Stack, run_id: str) -> dict[str, Any]:
     raise AssertionError("AI run did not finish")
 
 
-async def test_a_project_uses_its_own_tested_and_encrypted_key(settings: Settings) -> None:
+async def test_a_project_uses_its_own_tested_and_encrypted_key(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
     fake = Anthropic()
+    beats: list[str] = []
+    monkeypatch.setattr(ai_run, "KEEP_ALIVE_SECONDS", 0.05)
+    monkeypatch.setattr(ai_run, "heartbeat", beats.append)
     own = settings.model_copy(  # no server AI; the fixed UnoRouter list
         update={"secrets_key": SecretStr("k" * 48), "ai_catalog_live": False}
     )
@@ -138,6 +146,7 @@ async def test_a_project_uses_its_own_tested_and_encrypted_key(settings: Setting
         assert done["answer"]["abstained"] is True
         assert fake.messages and fake.messages[0]["model"] == "claude-opus-5-5"
         assert set(fake.keys[-len(fake.messages) :]) == {GOOD}  # the project's own key
+        assert beats.count("waiting for the AI model") >= 5  # heartbeats during the slow call
 
         removed = await stack.ok("DELETE", url)
         assert removed["configured"] is False
@@ -153,3 +162,14 @@ async def test_a_project_uses_its_own_tested_and_encrypted_key(settings: Setting
             await stack.client.put(url, json={**body, "api_key": BAD})
         limited = await stack.client.put(url, json={**body, "api_key": BAD})
         assert limited.status_code == 429 and limited.json()["code"] == "key_test_limit"
+
+
+def test_provider_failures_read_plainly() -> None:
+    limited = ProviderError(
+        ProviderErrorCode.RATE_LIMITED, "provider answered HTTP 429 (free tier: retry in 60s)"
+    )
+    message = ai_run.provider_message(limited)
+    assert message.startswith("The AI provider is limiting requests right now")
+    assert "Nothing was changed" in message and "retry in 60s" in message  # details kept
+    busy = ai_run.provider_message(ProviderError(ProviderErrorCode.SERVER_ERROR, "HTTP 503"))
+    assert "often busy" in busy and len(busy) <= 500

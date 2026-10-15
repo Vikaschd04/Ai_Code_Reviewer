@@ -84,3 +84,8 @@ A fourth run kind, `fix`, asks for up to `CRP_AI_FIX_MAX_CANDIDATES` (default 3)
   Sonnet 5.5) get `tool_choice: auto` plus an instruction to call the required tool; the run fails
   if the final tool is not called. Thinking blocks are kept as provider blocks and sent back
   unchanged in later turns, never to other providers, and not stored with their signature.
+- Free (paced) models: at most 4 model calls for a fix and 6 for other runs (`AiSetup.limits_for`,
+  recorded on the run and enforced by the worker); requests are spaced from the end of the
+  previous answer; `ai.execute` sends a heartbeat every 30 s so a slow call is not taken for a
+  stuck worker. A saved UnoRouter model missing from the live list pauses the project's AI.
+- Provider failures reach the reviewer as a plain sentence plus the provider's reason.

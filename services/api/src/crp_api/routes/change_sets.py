@@ -952,7 +952,7 @@ async def request_ai_fix(
             model=setup.model or "",
             prompt_version=FIX_PROMPT_VERSION,
             requested_by=principal.user_id,
-            limits=run_limits(setup, policy),
+            limits=run_limits(setup, policy, AiRunKind.FIX.value),
         )
         session.add(run)
         await session.flush()

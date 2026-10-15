@@ -127,9 +127,15 @@ class _HttpDriver:
         self._transport = transport
         self._sleep = sleep
 
+    def _done(self, model: str) -> None:
+        """Count the interval from the end of a request: a free tier's window can start when
+        its slow answer finished, so spacing from the start alone gets 429s."""
+        if self._options.min_interval_seconds > 0:
+            _LAST_REQUEST[f"{self._base_url}|{model}"] = time.monotonic()
+
     async def _pace(self, model: str) -> None:
         """Wait until ``min_interval_seconds`` passed since this process's last request to the
-        same endpoint and model."""
+        same endpoint and model (since its end, once it ended)."""
         interval = self._options.min_interval_seconds
         if interval <= 0:
             return
@@ -160,6 +166,7 @@ class _HttpDriver:
                 started = time.monotonic()
                 try:
                     response = await client.post(f"{self._base_url}{path}", json=payload)
+                    self._done(str(payload.get("model", "")))
                 except httpx.TimeoutException:
                     last = ProviderError(
                         ProviderErrorCode.TIMEOUT,

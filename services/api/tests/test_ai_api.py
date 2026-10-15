@@ -9,11 +9,15 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
 
+from crp_analysis.ai.catalog import CatalogModel
+from crp_api.services.ai_models import not_offered, offered_now
+from crp_core.config import Settings
 from crp_core.db.models import AiCall, AiPolicyEvent, AiRun, FileEntry, Project, Snapshot, Source
 from crp_core.db.session import create_engine_from_settings, create_session_factory, transaction
 from crp_core.domain.states import CaptureStatus, FileDisposition, SourceMode
@@ -464,3 +468,17 @@ async def test_own_keys_cannot_be_saved_without_a_server_secret(api: ApiHarness)
         headers=api.auth,
     )
     assert saved.status_code == 409 and saved.json()["code"] == "keys_unavailable"
+
+
+def test_unorouter_models_that_disappear_pause_the_project(
+    make_settings: Callable[..., Settings],
+) -> None:
+    """UnoRouter's free list changes daily; a saved model missing from the live list pauses AI
+    with a plain reason instead of failing runs (ADR 0026)."""
+    live = make_settings(ai_catalog_live=True)
+    listed = [CatalogModel("gemini-3.6-flash:free", "gemini-3.6-flash:free", True)]
+    assert offered_now(live, "unorouter", "gemini-3.6-flash:free", listed)
+    assert not offered_now(live, "unorouter", "glm-5.3:free", listed)
+    assert offered_now(live, "anthropic", "claude-opus-5-5", listed)  # Claude: fixed list
+    assert offered_now(make_settings(ai_catalog_live=False), "unorouter", "glm-5.3:free", listed)
+    assert "not offering glm-5.3:free" in not_offered("glm-5.3:free")

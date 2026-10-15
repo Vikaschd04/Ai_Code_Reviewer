@@ -9,7 +9,7 @@ from crp_analysis.ai.tools import fence, neutralize
 from crp_analysis.redaction import redact_line
 
 PROMPT_VERSION = "rx-ai-v1"
-FIX_PROMPT_VERSION = "rx-ai-fix-v1"
+FIX_PROMPT_VERSION = "rx-ai-fix-v2"
 _WORD = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 
 SYSTEM = """You are the code review assistant of refactorX. You investigate one frozen \
@@ -206,17 +206,20 @@ async def fix_task(
         f"{n:>5} | {neutralize(redact_line(lines[n - 1][:500])[0])}" for n in range(start, end + 1)
     )
     excerpt = fence(finding.path, start, end, sha256, body) if lines else "(the file is empty)"
+    whole = start == 1 and end == len(lines)
+    shown = "the whole file" if whole else f"lines {start}-{end} of the file"
     message = (
-        "Propose fixes for this finding reported by a deterministic check. The file below is "
-        "the reviewer's current version in their fix workspace; line numbers refer to it. Read "
-        "more of it or of other files with the tools only if you need to.\n\n"
+        "Propose fixes for this finding reported by a deterministic check. Below is "
+        f"{shown} as it is now in the reviewer's fix workspace; line numbers refer to it. Every "
+        "tool call costs time, so read more of it or of other files only if the fix needs code "
+        "that is not shown.\n\n"
         f"Finding id: {finding.id}\nTitle: {neutralize(finding.title)}\n"
         f"Check: {finding.engine} rule {finding.rule_id}\nSeverity: {finding.severity}\n"
         f"Location: {neutralize(finding.path)}"
         + (f":{finding.start_line}" if finding.start_line else "")
         + f"\nMessage: {neutralize(finding.message)}\n\nRule guidance:\n{neutralize(guidance)}"
         f"\n\nFile ({len(lines)} lines):\n{excerpt}\n\n"
-        "Call submit_fixes with your candidates."
+        "Call submit_fixes with your candidates now unless you need code that is not shown."
     )
     system = SYSTEM.format(final_tool="submit_fixes") + FIX_RULES.format(
         max_candidates=max_candidates

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -373,3 +374,24 @@ async def test_free_tier_pacing_spaces_requests_and_waits_out_rate_limits() -> N
     # because it is under this connection's cap, and the retry is paced as well.
     assert len(sleeps.delays) == 3
     assert 59 < sleeps.delays[0] <= 60 and sleeps.delays[1] == 70.0 and sleeps.delays[2] <= 60
+
+
+async def test_free_tier_pacing_counts_from_the_end_of_a_slow_answer() -> None:
+    """A free tier's window can start when the previous (slow) answer finished."""
+    sleeps = _Sleeps()
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.3)
+        return httpx.Response(200, json=OPENAI_OK)
+
+    client = OpenAICompatibleClient(
+        api_key=KEY,
+        model="slow-test:free",
+        base_url="https://slow.example.test/v1",
+        options=ClientOptions(timeout_seconds=5, max_retries=0, min_interval_seconds=0.5),
+        transport=httpx.MockTransport(slow),
+        sleep=sleeps,
+    )
+    await client.complete(REQUEST)
+    await client.complete(REQUEST)
+    assert len(sleeps.delays) == 1 and sleeps.delays[0] > 0.45  # not 0.2 (from the start)

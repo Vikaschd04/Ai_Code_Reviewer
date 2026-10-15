@@ -156,6 +156,14 @@ async def live_unorouter(
     return list(models), True
 
 
+def cached_unorouter(*, now: float | None = None) -> list[CatalogModel] | None:
+    """UnoRouter's live list if it was read within the hour (no network); None when unknown."""
+    clock = time.monotonic() if now is None else now
+    if _UNOROUTER_CACHE.models and clock - _UNOROUTER_CACHE.fetched_at < CACHE_SECONDS:
+        return list(_UNOROUTER_CACHE.models)
+    return None
+
+
 def provider(provider_id: str) -> Provider | None:
     return {"anthropic": ANTHROPIC, "unorouter": UNOROUTER}.get(provider_id)
 
