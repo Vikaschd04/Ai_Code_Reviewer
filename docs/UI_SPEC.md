@@ -180,6 +180,14 @@ This section supersedes the per-phase tab lists above where they differ.
   vulnerabilities of the library as "Fixed by the same change"; the check confirms each one.
 - Checked by `e2e/fix-checkpoint.spec.ts` (`fix-dependencies.png`).
 
+## Duplicate code (28 October 2026; ADD-A3)
+
+- Reviews list the check "Duplicate code" (tool PMD CPD). A finding reads "Duplicated code (24
+  lines, 2 copies)" with "These 24 lines are also in …" naming the other copies.
+- Insights: the checkpoint "Logic is not copy-pasted" (Architecture and maintainability) with steps
+  to move the shared logic into one place; no automatic fix is offered.
+- Checked by `e2e/duplicates.spec.ts` in light, dark and 390 px (`duplicates*.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

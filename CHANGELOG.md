@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — find copy-pasted code (28 October 2026)
+
+- **Duplicate code:** every review now finds blocks of code copied between files (Java,
+  JavaScript, TypeScript, Apex, Kotlin, Python) and shows where the other copies are.
+- **New NFR checkpoint "Logic is not copy-pasted"** with steps to move the shared logic into one
+  place; the fix workspace's check confirms when a copy is gone.
+
 ## Unreleased — upgrade vulnerable libraries automatically (28 October 2026)
 
 - **Dependency upgrades as fixes:** a vulnerable Maven library is upgraded in `pom.xml` to the

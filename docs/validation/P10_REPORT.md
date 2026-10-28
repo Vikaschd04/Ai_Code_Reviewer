@@ -170,3 +170,26 @@ catalog (slice 3, [ADR 0020](../adr/0020_ARCHITECTURE_SMELLS.md)). Still planned
   interfaces, framework-specific smells beyond SAP extension cycles.
 - Apex classes are not in the dependency map, so Salesforce smells cover LWC only.
 - Accuracy on real projects is not measured (no expert-labelled real projects yet).
+
+## Duplicate code (28 October 2026; ADD-A3)
+
+Owner request: "work on the next in the queue". Implemented: engine `cpd` (PMD's copy/paste
+detector in the pinned PMD 7.27.0; one run per language; at least 100 tokens), rule
+`crp.duplication.block` (catalog `crp-rules-v7`, family `maintainability.duplication`; low, medium
+from 40 lines), one finding per copy naming the other copies, identity from the duplicated text
+(whitespace-insensitive), the NFR checkpoint "Logic is not copy-pasted"
+(`architecture.duplication`, 29 checkpoints), the check "Duplicate code" in reviews.
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Engine | Real PMD CPD: copies across Java files (one tab-indented) and across TypeScript files found per copy with the same identity; a unique file is not reported; no code in the stored report; unavailable PMD → UNAVAILABLE; report parsing keeps locations, ignores paths outside the upload, lists unreadable files and refuses DTDs | PASS | `test_cpd.py` |
+| Real stack | Fixture `duplicates-mixed`: `cpd` SUCCEEDED with 2 duplications in Java and TypeScript; 4 issues on the new checkpoint (attention, no automatic fix); replacing one Java copy with a call to the other makes the workspace re-check report both Java copies `fixed`, the TypeScript copies `still_present` and no new duplicates | PASS | `test_copied_code_is_found_tracked_and_confirmed_removed` |
+| Browser | The review lists "Duplicate code"; Insights shows the checkpoint with its steps and no automatic fix; light, dark, 390 px | PASS | `e2e/duplicates.spec.ts` (`duplicates*.png`) |
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 643 pytest + 30 vitest passed; `make test-e2e` 25/25 passed.
+
+Not done: an AI "extract shared function" across files. AI fixes change one file and are
+confirmed by re-running the check on that file alone, which cannot reproduce a cross-file
+duplicate, so such candidates are never shown as confirmed; copies inside one file can be fixed
+with "Ask AI". Multi-file refactoring belongs to P11, after build and test verification (P09
+Tiers 1–2).

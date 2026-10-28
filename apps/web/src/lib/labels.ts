@@ -43,6 +43,12 @@ export const CHECKS: Record<string, CheckInfo> = {
       "Known vulnerabilities in dependencies, leaked credentials, and insecure Dockerfile and Kubernetes settings.",
     tool: "Trivy",
   },
+  cpd: {
+    name: "Duplicate code",
+    description:
+      "Blocks of code copied between files (Java, JavaScript, TypeScript, Apex, Kotlin, Python).",
+    tool: "PMD CPD",
+  },
   "pmd-apex": {
     name: "Salesforce Apex",
     description:
@@ -80,6 +86,7 @@ export const CHECK_ORDER = [
   "eslint",
   "opengrep",
   "trivy",
+  "cpd",
   "pmd-apex",
   "frameworks",
   "nfr",
@@ -91,6 +98,7 @@ export const FINDING_CHECKS = [
   "eslint",
   "opengrep",
   "trivy",
+  "cpd",
   "pmd-apex",
   "frameworks",
   "nfr",

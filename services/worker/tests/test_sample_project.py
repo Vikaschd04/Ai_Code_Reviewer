@@ -21,7 +21,7 @@ TERMINAL = {"SUCCEEDED", "PARTIAL", "FAILED", "CANCELED"}
 # deployment configuration, and the project has no architecture rules, and all say so.
 EXPECTED_ENGINES = {
     **dict.fromkeys(
-        ("structure", "graph", "pmd", "eslint", "opengrep", "trivy", "smells"), "SUCCEEDED"
+        ("structure", "graph", "pmd", "eslint", "opengrep", "trivy", "cpd", "smells"), "SUCCEEDED"
     ),
     "pmd-apex": "NOT_APPLICABLE",
     "frameworks": "NOT_APPLICABLE",

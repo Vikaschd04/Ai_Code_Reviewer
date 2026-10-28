@@ -252,6 +252,10 @@ No new endpoints. Every review plans the engine `nfr` (NOT_APPLICABLE without YA
 
 No new endpoints. Trivy vulnerabilities of Maven libraries in a `pom.xml` with a published fix offer recipe `deps:maven-upgrade` through the existing fix endpoints (`GET /findings/{id}/fix-options`, fix proposals, workspace bulk fixes, and checkpoints' `fixable_issue_ids`). The fix sets the version to the lowest one that fixes every reported vulnerability of that library and version in the review (titles "Upgrade log4j-core 2.14.1 to 2.25.4", "(new major version)" when the major changes). In bulk, the library's other vulnerabilities are listed as applied with "Fixed by the same change: …" and recorded for the issue (no second edit). Versions set by a parent POM or BOM, undeclared libraries, plugin dependencies and npm lockfiles are skipped with the reason. A `pom.xml` change that only changes version values carries no `config_change` flag.
 
+## Implemented with duplicate code (ADD-A3)
+
+No new endpoints. Reviews run the engine `cpd` (PMD's copy/paste detector) on Java, JavaScript, TypeScript, Apex, Kotlin and Python files; findings use rule `crp.duplication.block` (catalog `crp-rules-v7`), `title` "Duplicated code (N lines, M copies)", `details` (`lines`, `tokens`, `copies`, `others`: up to 20 `[path, line, end_line]`), and the run's `diagnostics` (`minimum_tokens`, `duplications`, `duplicated_lines`, `languages`). Insights adds the checkpoint `architecture.duplication` ("Logic is not copy-pasted").
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

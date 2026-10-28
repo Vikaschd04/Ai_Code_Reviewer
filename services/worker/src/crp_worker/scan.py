@@ -42,6 +42,7 @@ with workflow.unsafe.imports_passed_through():
         FileProblem,
         completed_state,
     )
+    from crp_analysis.engines.cpd import CpdAdapter
     from crp_analysis.engines.eslint import EslintAdapter
     from crp_analysis.engines.frameworks import FrameworkRulesAdapter
     from crp_analysis.engines.nfr import ConfigChecksAdapter
@@ -185,6 +186,13 @@ def default_adapters(settings: Settings) -> dict[str, EngineAdapter]:
         "trivy": TrivyAdapter(
             settings.trivy_home,
             settings.trivy_cache_dir,
+            timeout_seconds=settings.engine_timeout_seconds,
+            max_output_bytes=settings.engine_max_output_bytes,
+        ),
+        # Duplicate code (ADD-A3): PMD's copy/paste detector on the same pinned PMD.
+        "cpd": CpdAdapter(
+            settings.pmd_home,
+            java_heap=settings.pmd_java_heap,
             timeout_seconds=settings.engine_timeout_seconds,
             max_output_bytes=settings.engine_max_output_bytes,
         ),

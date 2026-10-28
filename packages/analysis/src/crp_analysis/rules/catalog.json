@@ -1,6 +1,18 @@
 {
- "catalog_version": "crp-rules-v6",
+ "catalog_version": "crp-rules-v7",
  "rules": {
+  "cpd:crp.duplication.block": {
+   "category": "maintainability",
+   "engine": "cpd",
+   "explanation": "The same block of code exists in more than one place. A bug fix or change made in one copy has to be repeated in every other copy, and copies drift apart over time.",
+   "family": "maintainability.duplication",
+   "recommendation": "Move the shared logic into one function, class or module that every copy calls; keep differences as parameters. Change one copy at a time and re-check.",
+   "rule_id": "crp.duplication.block",
+   "severity": "low",
+   "severity_rationale": "Maintenance cost, not a defect; long copies (40 lines or more) are medium because they are costly to keep in step.",
+   "title": "Duplicated code",
+   "url": "https://pmd.github.io/pmd/pmd_userdocs_cpd.html"
+  },
   "eslint:@typescript-eslint/no-unused-vars": {
    "category": "maintainability",
    "engine": "eslint",

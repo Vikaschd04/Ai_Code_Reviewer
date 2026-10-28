@@ -86,6 +86,7 @@ ENGINE_NAMES = (
     "eslint",
     "opengrep",
     "trivy",
+    "cpd",
     "pmd-apex",
     "frameworks",
     "nfr",

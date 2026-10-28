@@ -490,6 +490,19 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
         requires="rules",
     ),
     Checkpoint(
+        "architecture.duplication",
+        "architecture",
+        "Logic is not copy-pasted",
+        "Every copy of a block must be changed and fixed separately, and copies drift apart.",
+        (
+            "Move the shared logic into one function or class that every copy calls; keep the "
+            "differences as parameters.",
+            "Start with the longest copies and those in files you change often.",
+        ),
+        families=("maintainability.duplication",),
+        checked_by=("cpd",),
+    ),
+    Checkpoint(
         "architecture.code",
         "architecture",
         "Code is easy to read and change",

@@ -256,7 +256,7 @@ def main() -> int:
             }
         )
     )
-    for engine in ("structure", "graph", "pmd", "eslint", "opengrep", "smells"):
+    for engine in ("structure", "graph", "pmd", "eslint", "opengrep", "cpd", "smells"):
         check(engines[engine] == "SUCCEEDED", engines)
     check(
         engines["trivy"] in ({"SUCCEEDED"} if REQUIRE_TRIVY else {"SUCCEEDED", "UNAVAILABLE"}),
