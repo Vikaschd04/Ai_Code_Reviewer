@@ -240,6 +240,14 @@ No new endpoints. Every review plans the engine `nfr` (NOT_APPLICABLE without YA
 | DELETE /v1/projects/{id}/ai-model | admin | Removes the model and key; a project using it returns to the server's default connection |
 | GET/PUT /v1/projects/{id}/ai-policy | viewer/admin | `connection` may be `project`; response adds `ready` (the project's connection can run now); 422 `no_project_model` when choosing `project` without a saved model |
 
+## Implemented with "Fix automatically" (ADD-A1, 28 October 2026)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/projects/{id}/insights | viewer | Each checkpoint adds `fixable_issue_ids`: its open issues whose rule has an automatic (recipe) fix, up to 50 |
+| POST /v1/change-sets/{id}/fixes | member | Also accepts `issue_ids` (tracked issues, up to 50: their findings in the upload's review) and `check` (start a workspace check when any fix was applied). The result adds `check` (the started check) or `check_note` (why none was started: nothing applied, a check already running, or the check service unavailable; the fixes stay saved). Findings already changed for their issue in the workspace (since the file was last at the upload's content) are skipped with "Already changed for this issue in this workspace" |
+| AI fix candidates | — | `notes`: how the suggestion was placed on the file (corrected line numbers or indentation) |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

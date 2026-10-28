@@ -78,16 +78,51 @@ async def test_configuration_evidence_from_a_real_review(
         assert security["issues"][0]["severity"] == "high"  # the five most severe are shown
         assert [e["signal"] for e in data["not_checked"]] == ["helm-charts", "terraform"]
 
-        # Resolving: the recipes fix every configuration issue in a workspace, and the
-        # workspace check confirms each one is gone (the upload itself is untouched).
-        targets = [f for f in findings if f["engine"] == "nfr"]
+        # "Fix automatically" on a checkpoint (ADD-A1): every automatic fix of its issues in a
+        # workspace, with the check started; the check confirms them fixed.
+        assert sorted(instances["fixable_issue_ids"]) == sorted(instances["issue_ids"])
+        assert 0 < len(security["fixable_issue_ids"]) < security["issue_count"]  # Trivy: by hand
         ws = await stack.ok("POST", f"/v1/projects/{project}/change-sets", json={})
+        auto = await stack.ok(
+            "POST",
+            f"/v1/change-sets/{ws['id']}/fixes",
+            json={
+                "version": ws["version"],
+                "issue_ids": instances["fixable_issue_ids"],
+                "check": True,
+            },
+        )
+        replicas = {f["id"] for f in findings if f["rule_id"] == "crp.nfr.k8s.single-replica"}
+        assert {a["finding_id"] for a in auto["applied"]} == replicas, auto
+        assert auto["skipped"] == [] and auto["check"]["state"] in {"QUEUED", "RUNNING"}
+        first = await _wait_check(stack, auto["check"]["id"])
+        assert {first["result"]["outcomes"][f] for f in replicas} == {"fixed"}, first
+        again = await stack.ok(
+            "POST",
+            f"/v1/change-sets/{ws['id']}/fixes",
+            json={
+                "version": auto["change_set"]["version"],
+                "issue_ids": instances["fixable_issue_ids"],
+                "check": True,
+            },
+        )
+        assert again["applied"] == [] and len(again["skipped"]) == 3  # idempotent
+        assert {x["reason"][:15] for x in again["skipped"]} == {"Already changed"}
+        assert again["check"] is None and "nothing new to check" in again["check_note"]
+
+        # Resolving the rest: the recipes fix every configuration issue in the workspace, and
+        # the workspace check confirms each one is gone (the upload itself is untouched).
+        targets = [f for f in findings if f["engine"] == "nfr"]
+        rest = [f for f in targets if f["id"] not in replicas]
         fixed = await stack.ok(
             "POST",
             f"/v1/change-sets/{ws['id']}/fixes",
-            json={"version": ws["version"], "finding_ids": [f["id"] for f in targets]},
+            json={
+                "version": again["change_set"]["version"],
+                "finding_ids": [f["id"] for f in rest],
+            },
         )
-        assert {a["finding_id"] for a in fixed["applied"]} == {f["id"] for f in targets}, fixed
+        assert {a["finding_id"] for a in fixed["applied"]} == {f["id"] for f in rest}, fixed
         started = await stack.ok("POST", f"/v1/change-sets/{ws['id']}/checks")
         check = await _wait_check(stack, started["id"])
         assert check["state"] in {"SUCCEEDED", "PARTIAL"}, check

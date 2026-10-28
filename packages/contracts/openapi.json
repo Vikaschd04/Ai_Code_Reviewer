@@ -755,6 +755,14 @@
             "title": "Label",
             "type": "string"
           },
+          "notes": {
+            "description": "How the suggestion was placed on the file (e.g. corrected line numbers)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
           "passed": {
             "title": "Passed",
             "type": "boolean"
@@ -3329,6 +3337,15 @@
             "title": "Evidence",
             "type": "array"
           },
+          "fixable_issue_ids": {
+            "description": "Its open issues that have an automatic (recipe) fix, up to 50",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Fixable Issue Ids",
+            "type": "array"
+          },
           "handled_reason": {
             "anyOf": [
               {
@@ -3430,6 +3447,7 @@
           "issue_count",
           "issues",
           "issue_ids",
+          "fixable_issue_ids",
           "evidence",
           "handled_reason",
           "can_mark_handled"
@@ -9848,6 +9866,12 @@
       "WorkspaceFixRequest": {
         "additionalProperties": false,
         "properties": {
+          "check": {
+            "default": false,
+            "description": "Start a check of the workspace when any fix was applied",
+            "title": "Check",
+            "type": "boolean"
+          },
           "engine": {
             "anyOf": [
               {
@@ -9867,6 +9891,16 @@
             },
             "maxItems": 500,
             "title": "Finding Ids",
+            "type": "array"
+          },
+          "issue_ids": {
+            "description": "Tracked issues (for example an NFR checkpoint's): their findings in the upload's review",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Issue Ids",
             "type": "array"
           },
           "rule_id": {
@@ -9906,6 +9940,29 @@
           },
           "change_set": {
             "$ref": "#/components/schemas/ChangeSetResponse"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeSetCheckResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The check started after the fixes (when requested)"
+          },
+          "check_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no check was started although one was requested",
+            "title": "Check Note"
           },
           "skipped": {
             "items": {
@@ -12068,7 +12125,7 @@
     },
     "/v1/change-sets/{change_set_id}/fixes": {
       "post": {
-        "description": "Apply the deterministic fix of each selected finding (or every finding of one rule).\n\nEach fix is computed against the upload and applied to the workspace's current text: at its\nexact place, or where the same lines now are; otherwise it is skipped with the reason.",
+        "description": "Apply the deterministic fix of each selected finding (findings, the findings of tracked\nissues such as an NFR checkpoint's, or every finding of one rule), then optionally start a\ncheck of the workspace.\n\nEach fix is computed against the upload and applied to the workspace's current text: at its\nexact place, or where the same lines now are; otherwise it is skipped with the reason.",
         "operationId": "apply_fixes_v1_change_sets__change_set_id__fixes_post",
         "parameters": [
           {

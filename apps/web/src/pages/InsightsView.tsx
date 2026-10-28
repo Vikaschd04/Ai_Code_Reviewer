@@ -12,10 +12,12 @@ import {
   type Insights,
 } from "../api/client";
 import {
+  applyWorkspaceFixes,
   clearHandled,
   createWorkspace,
   fetchAiRun,
   fetchInsights,
+  fetchWorkspace,
   listWorkspaces,
   markHandled,
   requestPlan,
@@ -25,6 +27,7 @@ import { ArchitectureRules } from "../components/ArchitectureRules";
 import { Alert, Disclosure, Empty, Loading } from "../components/Common";
 import { Icon, type IconName } from "../components/Icon";
 import { SeverityChip } from "../components/Severity";
+import { saveFixNote } from "../lib/fixNote";
 import { formatRelative } from "../lib/format";
 import { plural } from "../lib/labels";
 import { navigate, workspaceHref } from "../lib/router";
@@ -183,7 +186,11 @@ function StartFixing({
     <>
       <button
         type="button"
-        className={insight.priority === "high" ? "btn btn-primary" : "btn btn-ghost"}
+        className={
+          insight.priority === "high" && insight.fixable_issue_ids.length === 0
+            ? "btn btn-primary"
+            : "btn btn-ghost"
+        }
         disabled={busy}
         data-testid="checkpoint-start-fixing"
         onClick={() => {
@@ -207,6 +214,68 @@ function StartFixing({
         }}
       >
         <Icon name="wrench" size={15} /> {busy ? "Opening…" : "Start fixing"}
+      </button>
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </>
+  );
+}
+
+/** ADD-A1: apply every automatic fix of the checkpoint in a workspace and start the check. */
+function FixAutomatically({
+  projectId,
+  data,
+  insight,
+}: {
+  projectId: string;
+  data: Insights;
+  insight: Checkpoint;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const snapshotId = data.basis?.snapshot_id;
+  const count = insight.fixable_issue_ids.length;
+  if (!snapshotId || count === 0) return null;
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={busy}
+        data-testid="checkpoint-fix-automatically"
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          listWorkspaces(projectId)
+            .then(async (items) => {
+              const existing = items.find((item) => item.base_snapshot_id === snapshotId);
+              const ws = existing
+                ? await fetchWorkspace(existing.id)
+                : await createWorkspace(projectId, { snapshot_id: snapshotId });
+              const result = await applyWorkspaceFixes(
+                ws,
+                { issue_ids: insight.fixable_issue_ids },
+                true,
+              );
+              saveFixNote(ws.id, result);
+              return ws.id;
+            })
+            .then(
+              (id) => {
+                navigate(workspaceHref(id, "issues", null, null, insight.issue_ids));
+              },
+              (caught: unknown) => {
+                setError(describeError(caught));
+                setBusy(false);
+              },
+            );
+        }}
+      >
+        <Icon name="wrench" size={15} />{" "}
+        {busy
+          ? "Fixing…"
+          : count === insight.issue_count
+            ? `Fix ${plural(count, "issue")} automatically`
+            : `Fix ${String(count)} of ${String(insight.issue_count)} automatically`}
       </button>
       {error ? <Alert tone="bad">{error}</Alert> : null}
     </>
@@ -533,7 +602,10 @@ function CheckpointCard({
       {checkpoint.issues.length > 0 ? <IssueList checkpoint={checkpoint} /> : null}
       <div className="row">
         {checkpoint.status === "attention" ? (
-          <StartFixing projectId={projectId} data={data} insight={checkpoint} />
+          <>
+            <FixAutomatically projectId={projectId} data={data} insight={checkpoint} />
+            <StartFixing projectId={projectId} data={data} insight={checkpoint} />
+          </>
         ) : null}
         {checkpoint.can_mark_handled && data.can_edit ? (
           <HandledEditor projectId={projectId} checkpoint={checkpoint} onSaved={onChanged} />

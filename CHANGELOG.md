@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — fix a checkpoint in one click (28 October 2026)
+
+- **Fix automatically:** each NFR checkpoint that needs attention says how many of its issues
+  refactorX can fix safely ("Fix 3 issues automatically", "Fix 2 of 86 automatically"). One click
+  opens a fix workspace with those fixes applied and the check already running.
+- **No double fixes:** fixing the same issues again in a workspace skips them as already changed
+  (a missing replica count was added twice before).
+- **More AI suggestions get checked:** suggestions whose line numbers or indentation were slightly
+  off are placed on the right lines and say so; they are still checked like every fix.
+
 ## Unreleased — AI fixes with free models (15 October 2026)
 
 - **No more "interrupted" AI fixes with slow free models:** a run now keeps reporting that it is

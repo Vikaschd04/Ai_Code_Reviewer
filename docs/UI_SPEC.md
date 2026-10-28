@@ -157,6 +157,20 @@ This section supersedes the per-phase tab lists above where they differ.
 - When the server cannot store keys, a warning names `CRP_SECRETS_KEY` for the administrator.
 - Checked in light, dark and 390 px by `e2e/ai-model.spec.ts` (screenshots `ai-model-*.png`).
 
+## Fix a checkpoint automatically (28 October 2026; ADD-A1)
+
+- Insights, on a checkpoint that needs attention: "Fix N issues automatically" (all of its issues
+  have a safe fix) or "Fix N of M automatically" (primary button); "Start fixing" becomes the
+  secondary action when an automatic fix exists. One click opens the fix workspace on the newest
+  reviewed upload, applies the fixes, starts the check and shows the checkpoint's issues.
+- The workspace shows once: "Fixed N issues automatically. M issues skipped." with the reasons
+  collapsed, and "A check of the changes was started; see “Check my changes”" (or why no check
+  started). Selecting the same issues again skips them as already changed.
+- AI suggestions placed on the file's real lines show a muted note ("The suggestion named line 3;
+  the lines are at 2.").
+- Checked in light, dark and 390 px by `e2e/fix-checkpoint.spec.ts` (screenshots
+  `fix-checkpoint-*.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

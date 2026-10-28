@@ -2,7 +2,11 @@
 
 Model output is untrusted (the code it read may contain instructions). Every candidate passes the
 same gates as a recipe fix before anyone can apply it:
-- its edits must match the current file exactly (never a fuzzy merge);
+- its edits must match the current file: exactly at the stated lines, or (models often miscount
+  lines or re-indent what they copy) the same lines found once nearby, or lines that differ only
+  in indentation or trailing spaces, found once nearby. Spacing inside a line must match (it can
+  be part of a string). The patch is then rebuilt from the file's real lines and indentation, so
+  every later check sees exact text, and the candidate says what was adjusted;
 - the strict change policy (one file, no suppressions, no weakened, skipped or focused tests, no
   analyzer or build configuration, size limit);
 - the P05 validation ladder on copies: the file still parses, the check that reported the finding
@@ -54,6 +58,7 @@ class CheckedCandidate:
     patch_sha256: str | None = None
     changed_lines: int = 0
     problems: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     steps: list[dict[str, str]] = field(default_factory=list)
     passed: bool = False
     summary: str = ""
@@ -73,6 +78,7 @@ class CheckedCandidate:
             "patch_sha256": self.patch_sha256,
             "changed_lines": self.changed_lines,
             "problems": self.problems,
+            "notes": self.notes,
             "steps": self.steps,
             "passed": self.passed,
             "summary": self.summary,
@@ -122,6 +128,63 @@ def _edit(path: str, submitted: SubmittedEdit) -> Edit:
     )
 
 
+MATCH_WINDOW = 40  # lines around the stated position searched for the model's lines
+
+
+def _indent(line: str) -> str:
+    return line[: len(line) - len(line.lstrip())]
+
+
+def _reindent(lines: tuple[str, ...], model: str, actual: str) -> tuple[str, ...]:
+    """Replace the model's base indentation with the file's in replacement lines."""
+    if model == actual:
+        return lines
+    return tuple(
+        actual + line[len(model) :] if line.startswith(model) and line.strip() else line
+        for line in lines
+    )
+
+
+def resolve_edit(text: str, edit: Edit, window: int = MATCH_WINDOW) -> tuple[Edit, str | None]:
+    """The edit placed on the file's real lines, and a note when it had to be adjusted.
+
+    Raises PatchError when the lines are not found, or found more than once, nearby."""
+    lines = text.splitlines()
+    size = len(edit.original)
+    stated = tuple(lines[edit.start_line - 1 : edit.start_line - 1 + size])
+    if size == 0 or stated == edit.original:
+        return edit, None  # exact (an insertion's range is checked by apply_edits)
+    try:
+        moved: Edit | None = relocate(text, edit, window=window)
+    except PatchError:
+        moved = None
+    if moved is not None:
+        note = f"The suggestion named line {edit.start_line}; the lines are at {moved.start_line}."
+        return moved, note
+    wanted = tuple(line.strip() for line in edit.original)
+    low = max(0, edit.start_line - 1 - window)
+    high = min(len(lines) - size, edit.start_line - 1 + window)
+    starts = [
+        i
+        for i in range(low, high + 1)
+        if tuple(line.strip() for line in lines[i : i + size]) == wanted
+    ]
+    if len(starts) != 1:
+        raise PatchError(
+            "conflict", "the lines to replace are not in the file (or appear more than once)"
+        )
+    start = starts[0]
+    actual = tuple(lines[start : start + size])
+    first = next((n for n, line in enumerate(edit.original) if line.strip()), 0)
+    replacement = _reindent(edit.replacement, _indent(edit.original[first]), _indent(actual[first]))
+    adjusted = Edit(edit.path, start + 1, start + size, actual, replacement)
+    return (
+        adjusted,
+        "The suggestion's indentation or trailing spaces differed from the file; it was "
+        "matched to the file's lines.",
+    )
+
+
 def check_candidates(
     *,
     path: str,
@@ -150,8 +213,11 @@ def check_candidates(
             confidence=proposal.confidence.value,
         )
         edits = tuple(_edit(path, e) for e in proposal.edits)
-        candidate.edits = [e.to_json() for e in edits]
         try:
+            resolved = [resolve_edit(current, e) for e in edits]
+            edits = tuple(edit for edit, _ in resolved)
+            candidate.notes = [note for _, note in resolved if note]
+            candidate.edits = [e.to_json() for e in edits]
             after = apply_edits(current, list(edits))
         except PatchError as exc:
             candidate.problems.append(f"The edits do not match the file: {exc}")

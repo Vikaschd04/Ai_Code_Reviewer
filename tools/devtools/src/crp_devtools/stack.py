@@ -200,6 +200,7 @@ def _e2e_fixtures(directory: Path) -> dict[str, Path]:
         ("sap", "sap-commerce-mixed"),
         ("salesforce", "salesforce-mixed"),
         ("nfr", "nfr-mixed"),
+        ("nfr_config", "nfr-config"),
     ):
         archives[key] = directory / f"{name}.zip"
         archives[key].write_bytes(zip_directory(prepare_fixture(name, directory / name)))
@@ -355,6 +356,7 @@ def run_e2e(paths: DevPaths, playwright_args: list[str]) -> int:
                 "CRP_E2E_SAP_ZIP": str(fixtures["sap"]),
                 "CRP_E2E_SALESFORCE_ZIP": str(fixtures["salesforce"]),
                 "CRP_E2E_NFR_ZIP": str(fixtures["nfr"]),
+                "CRP_E2E_NFR_CONFIG_ZIP": str(fixtures["nfr_config"]),
                 "CRP_E2E_AI_USER_KEY": user_ai_key,
                 "CRP_E2E_MALICIOUS_ZIP": str(fixtures["malicious"]),
                 "CRP_E2E_GITHUB_URL": fake_github.base_url,

@@ -16,6 +16,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from crp_analysis.fixes import recipes
 from crp_analysis.insights import decisions
 from crp_analysis.insights.advisor import ADVISOR_PROMPT_VERSION
 from crp_analysis.insights.engine import (
@@ -70,6 +71,12 @@ def _evidence(item: Evidence) -> EvidenceItem:
     )
 
 
+def _has_recipe(engine: str, rule_id: str, path: str) -> bool:
+    """An automatic (recipe) fix exists for the rule; it may still skip a finding whose lines
+    do not allow it (the fix result says why)."""
+    return bool(recipes.options(recipes.FindingInfo(engine, rule_id, path, None, None, None)))
+
+
 def _checkpoint(result: CheckpointResult) -> CheckpointResponse:
     checkpoint = result.checkpoint
     return CheckpointResponse(
@@ -87,6 +94,9 @@ def _checkpoint(result: CheckpointResult) -> CheckpointResponse:
             for i in result.issues[:5]
         ],
         issue_ids=[uuid.UUID(i.id) for i in result.issues[:MAX_FIX_ISSUES]],
+        fixable_issue_ids=[
+            uuid.UUID(i.id) for i in result.issues if _has_recipe(i.engine, i.rule_id, i.path)
+        ][:MAX_FIX_ISSUES],
         evidence=[_evidence(e) for e in result.evidence],
         handled_reason=result.handled_reason,
         can_mark_handled=result.status in {"missing", "handled"},

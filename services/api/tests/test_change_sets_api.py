@@ -501,7 +501,7 @@ async def test_bulk_recipe_fixes_issue_queue_and_conflicts(api: ApiHarness) -> N
     ).json()
     assert [a["finding_id"] for a in result["applied"]] == [opened]
     reasons = {s["finding_id"]: s["reason"] for s in result["skipped"]}
-    assert "changed in this workspace" in reasons[paid]
+    assert "Already changed for this issue in this workspace" in reasons[paid]  # the hand edit
     assert "No automatic fix" in reasons[eval_id]
     assert "Not a finding" in reasons[stranger]
     ws = result["change_set"]

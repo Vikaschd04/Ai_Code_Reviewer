@@ -293,6 +293,26 @@ async def delete_path(
     )
 
 
+async def changed_findings(session: AsyncSession, change_set_id: uuid.UUID) -> dict[str, set[str]]:
+    """Per path, the findings a change (recipe, AI or manual) was recorded for since the file
+    was last back at the uploaded content. Fixing them again would repeat the change (an
+    inserted line would be inserted twice), so bulk fixes skip them."""
+    rows = await session.execute(
+        select(ChangeSetEvent.path, ChangeSetEvent.source, ChangeSetEvent.finding_ids)
+        .where(ChangeSetEvent.change_set_id == change_set_id, ChangeSetEvent.path.is_not(None))
+        .order_by(ChangeSetEvent.created_at, ChangeSetEvent.id)
+    )
+    changed: dict[str, set[str]] = {}
+    for path, source, finding_ids in rows.all():
+        if path is None:
+            continue
+        if source == ChangeSource.REVERT.value:
+            changed.pop(path, None)
+        elif source != ChangeSource.EXPORT.value and finding_ids:
+            changed.setdefault(path, set()).update(str(f) for f in finding_ids)
+    return changed
+
+
 async def revert_path(
     session: AsyncSession, change_set: ChangeSet, path: str, actor: uuid.UUID | None
 ) -> None:

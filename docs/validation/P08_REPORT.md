@@ -87,6 +87,18 @@ The P08 browser journey passed alone twice with the slice 4 code, and its slice 
 request card) is covered by the P06 browser journey, which passed. Rerun on 9 October 2026 at 11:38 with the Mac kept awake
 (`caffeinate -i make test-e2e`): **19/19 passed in 7.4 minutes** on commit `0330f3d`.
 
+## Fix a checkpoint automatically, idempotent bulk fixes, tolerant AI placement (28 October 2026)
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Checkpoint fixable count | Configuration fixture: "More than one instance runs" lists its 3 issues as fixable; "Containers and settings are configured securely" lists fewer fixable than open issues (Trivy findings are fixed by hand) | PASS | `test_configuration_evidence_from_a_real_review` |
+| Fix automatically | `POST /fixes` with the checkpoint's issue ids and `check: true` applies the 3 recipe fixes, starts the check; the check reports all 3 `fixed` | PASS | same test; `e2e/fix-checkpoint.spec.ts` |
+| Idempotent | The same request again applies nothing, skips 3 as "Already changed for this issue in this workspace" and starts no check ("nothing new to check"); before the change the insertion recipe was applied twice | PASS | same test; `test_change_sets_api.py` (a hand edit naming the issue) |
+| AI placement | Miscounted line placed with a note; indentation and trailing-space differences matched and re-indented to the file; spacing inside a line and ambiguous matches still refused | PASS | `test_miscounted_lines_and_indentation_are_matched_once_and_noted`, `test_spacing_inside_lines_and_ambiguous_matches_are_still_refused` |
+| UI | One click from Insights to a workspace with the result note and the check's outcome (3 fixed); light, dark, 390 px without overflow | PASS | `e2e/fix-checkpoint.spec.ts` (`fix-checkpoint-*.png`) |
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 623 pytest + 30 vitest passed; `make test-e2e` 23/23 passed.
+
 ## Limitations
 
 - AI candidate quality with a real provider is unmeasured (K-P08-01). The change-set pull request (slice 5) is not built yet (K-P08-02).

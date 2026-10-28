@@ -944,6 +944,10 @@ class AiFixCandidateResponse(ApiModel):
     patch: str | None = Field(description="Unified diff against the file as it was requested")
     changed_lines: int
     problems: list[str]
+    notes: list[str] = Field(
+        default_factory=list,
+        description="How the suggestion was placed on the file (e.g. corrected line numbers)",
+    )
     steps: list[AiFixStepResponse] = Field(description="The P05 checks run on a copy")
     passed: bool
     summary: str
@@ -1448,9 +1452,18 @@ class WorkspaceSaveResult(ApiModel):
 class WorkspaceFixRequest(ApiModel):
     version: int = Field(ge=1)
     finding_ids: list[UUID] = Field(default_factory=list, max_length=500)
+    issue_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Tracked issues (for example an NFR checkpoint's): their findings in the "
+        "upload's review",
+    )
     engine: Annotated[str, StringConstraints(max_length=32)] | None = None
     rule_id: Annotated[str, StringConstraints(max_length=128)] | None = Field(
         default=None, description="With engine: every occurrence of this rule in the upload"
+    )
+    check: bool = Field(
+        default=False, description="Start a check of the workspace when any fix was applied"
     )
 
 
@@ -1471,6 +1484,12 @@ class WorkspaceFixResult(ApiModel):
     applied: list[WorkspaceFixApplied]
     skipped: list[WorkspaceFixSkipped]
     change_set: ChangeSetResponse
+    check: ChangeSetCheckResponse | None = Field(
+        default=None, description="The check started after the fixes (when requested)"
+    )
+    check_note: str | None = Field(
+        default=None, description="Why no check was started although one was requested"
+    )
 
 
 class WorkspaceIssue(ApiModel):
@@ -1775,6 +1794,9 @@ class CheckpointResponse(ApiModel):
     issue_count: int
     issues: list[InsightIssueRef] = Field(description="Most severe open issues, up to 5")
     issue_ids: list[UUID] = Field(description="Open issues it covers, up to 50 (for fixing)")
+    fixable_issue_ids: list[UUID] = Field(
+        description="Its open issues that have an automatic (recipe) fix, up to 50"
+    )
     evidence: list[EvidenceItem] = Field(description="What the upload shows for it")
     handled_reason: str | None = Field(description="The team's statement, when handled elsewhere")
     can_mark_handled: bool = Field(description="A missing mechanism the team may mark as handled")

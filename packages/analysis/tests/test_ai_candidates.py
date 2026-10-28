@@ -1,5 +1,6 @@
 """AI fix candidates (P08 slice 4): model output is untrusted. Candidates must match the file
-exactly, pass the strict change policy and the P05 ladder before they can be applied. These
+(exactly, or once nearby up to indentation), pass the strict change policy and the P05 ladder
+before they can be applied. These
 tests use a deterministic pattern engine; the real engines run in the worker tests."""
 
 from __future__ import annotations
@@ -232,6 +233,58 @@ def test_line_numbers_copied_from_the_prompt_and_crlf_are_tolerated(tmp_path: Pa
     )
     (refused,) = _check(_submitted(wrong_numbers), tmp_path / "w", text=crlf)
     assert not refused.applicable
+
+
+def test_miscounted_lines_and_indentation_are_matched_once_and_noted(tmp_path: Path) -> None:
+    """Weaker models miscount lines and re-indent what they copy: such edits are placed on the
+    file's real lines (found once nearby) and say so; the checks then run on exact text."""
+    moved = _candidate(
+        "Remove debugger",
+        [{"start_line": 3, "end_line": 3, "original": ["  debugger;"], "replacement": []}],
+    )
+    (placed,) = _check(_submitted(moved), tmp_path / "moved")
+    assert placed.applicable, placed.reason
+    assert placed.notes == ["The suggestion named line 3; the lines are at 2."]
+    reindented = _candidate(
+        "Remove debugger",
+        [
+            {
+                "start_line": 2,
+                "end_line": 3,
+                "original": ["    debugger;", "    return input.a == 1;  "],
+                "replacement": ["    return input.a == 1;"],
+            }
+        ],
+    )
+    (fixed,) = _check(_submitted(reindented), tmp_path / "indent")
+    assert fixed.applicable, fixed.reason
+    assert fixed.patch is not None and "-  debugger;" in fixed.patch
+    assert "+    return" not in fixed.patch  # re-indented to the file's 2 spaces: unchanged line
+    assert fixed.changed_lines == 1
+    assert "indentation" in fixed.notes[0]
+
+
+def test_spacing_inside_lines_and_ambiguous_matches_are_still_refused(tmp_path: Path) -> None:
+    inner = _candidate(
+        "Strict compare",
+        [
+            {
+                "start_line": 3,
+                "end_line": 3,
+                "original": ["  return input.a  ==  1;"],  # spacing inside a line may be a string
+                "replacement": ["  return input.a === 1;"],
+            }
+        ],
+    )
+    (refused,) = _check(_submitted(inner), tmp_path / "inner")
+    assert not refused.applicable and refused.patch is None
+    twice = "function f() {\n  debugger;\n  g();\n  debugger;\n}\n"
+    unclear = _candidate(
+        "Remove debugger",
+        [{"start_line": 3, "end_line": 3, "original": ["debugger;"], "replacement": []}],
+    )
+    (ambiguous,) = _check(_submitted(unclear), tmp_path / "twice", text=twice)
+    assert not ambiguous.applicable and "do not match" in (ambiguous.reason or "")
 
 
 def test_locate_line_follows_the_workspace_text() -> None:

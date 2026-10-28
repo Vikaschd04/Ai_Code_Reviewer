@@ -645,13 +645,17 @@ async def apply_fixes(
     principal: CurrentPrincipal,
     container: Container,
 ) -> WorkspaceFixResult:
-    """Apply the deterministic fix of each selected finding (or every finding of one rule).
+    """Apply the deterministic fix of each selected finding (findings, the findings of tracked
+    issues such as an NFR checkpoint's, or every finding of one rule), then optionally start a
+    check of the workspace.
 
     Each fix is computed against the upload and applied to the workspace's current text: at its
     exact place, or where the same lines now are; otherwise it is skipped with the reason.
     """
-    if not body.finding_ids and not (body.engine and body.rule_id):
-        raise ApiError(422, "nothing_selected", "Select findings or a rule")
+    if not body.finding_ids and not body.issue_ids and not (body.engine and body.rule_id):
+        raise ApiError(422, "nothing_selected", "Select findings, issues or a rule")
+    check: ChangeSetCheck | None = None
+    check_note: str | None = None
     applied: list[WorkspaceFixApplied] = []
     skipped: list[WorkspaceFixSkipped] = []
     async with transaction(container.session_factory) as session:
@@ -664,8 +668,10 @@ async def apply_fixes(
             .join(FileEntry, FileEntry.id == Finding.file_entry_id)
             .where(Finding.scan_id == base_scan)
         )
-        if body.finding_ids:
-            query = query.where(Finding.id.in_(body.finding_ids))
+        if body.finding_ids or body.issue_ids:
+            query = query.where(
+                or_(Finding.id.in_(body.finding_ids), Finding.issue_id.in_(body.issue_ids))
+            )
         else:
             query = query.where(Finding.engine == body.engine, Finding.rule_id == body.rule_id)
         rows = list(
@@ -684,7 +690,18 @@ async def apply_fixes(
             if f not in found
         ]
         readers: dict[str, recipes.ReadFile] = {}
+        done = await workspace.changed_findings(session, change_set.id)
         for finding, entry in rows:
+            if str(finding.id) in done.get(entry.path, set()):
+                skipped.append(
+                    WorkspaceFixSkipped(
+                        finding_id=finding.id,
+                        path=entry.path,
+                        reason="Already changed for this issue in this workspace (undo the "
+                        "file's changes to fix it again)",
+                    )
+                )
+                continue
             info = recipes.FindingInfo(
                 finding.engine,
                 finding.rule_id,
@@ -785,11 +802,27 @@ async def apply_fixes(
             )
         await session.flush()
         await session.refresh(change_set)
-        return WorkspaceFixResult(
+        if body.check and applied:
+            try:
+                check = await _queue_check(session, principal, change_set)
+            except ApiError as exc:
+                check_note = exc.message  # e.g. a check is already running
+        elif body.check:
+            check_note = "No fix was applied, so there is nothing new to check."
+        result = WorkspaceFixResult(
             applied=applied,
             skipped=skipped,
             change_set=await _response(session, container, change_set, True),
+            check=_check(check, change_set) if check is not None else None,
+            check_note=check_note,
         )
+    if check is not None:
+        try:
+            await _dispatch_check(container, check.id)
+        except ApiError as exc:  # the fixes are saved; say why the check did not start
+            result.check = None
+            result.check_note = exc.message
+    return result
 
 
 @router.get(
@@ -1257,53 +1290,65 @@ async def start_check(
     """Re-check the workspace: its edits on a copy of the upload, scanned and compared."""
     async with transaction(container.session_factory) as session:
         change_set = await _editable(session, principal, change_set_id, None)
-        files = await workspace.files_of(session, change_set.id)
-        if not files:
-            raise ApiError(422, "nothing_to_check", "The workspace has no changes yet")
-        running = await session.scalar(
-            select(ChangeSetCheck.id).where(
-                ChangeSetCheck.change_set_id == change_set.id,
-                ChangeSetCheck.state.in_(_ACTIVE_CHECK),
-            )
-        )
-        if running is not None:
-            raise ApiError(409, "check_running", "A check of this workspace is running")
-        check = ChangeSetCheck(
-            change_set_id=change_set.id,
-            workspace_id=change_set.workspace_id,
-            state=ChangeSetCheckState.QUEUED.value,
-            content_sha256=change_set.content_sha256,
-            files=[
-                {
-                    "path": f.path,
-                    "action": f.action,
-                    "base_sha256": f.base_sha256,
-                    "sha256": f.sha256,
-                    "size_bytes": f.size_bytes,
-                    "line_count": f.line_count,
-                    "flags": list(f.flags),
-                }
-                for f in files
-            ],
-            requested_by=principal.user_id,
-        )
-        session.add(check)
-        await session.flush()
-        check.workflow_id = change_set_check_workflow_id(check.id)
-        await session.refresh(check)
+        check = await _queue_check(session, principal, change_set)
         response = _check(check, change_set)
+    await _dispatch_check(container, check.id)
+    return response
+
+
+async def _queue_check(
+    session: AsyncSession, principal: Principal, change_set: ChangeSet
+) -> ChangeSetCheck:
+    """A QUEUED check of the workspace's current content (dispatch it after the commit)."""
+    files = await workspace.files_of(session, change_set.id)
+    if not files:
+        raise ApiError(422, "nothing_to_check", "The workspace has no changes yet")
+    running = await session.scalar(
+        select(ChangeSetCheck.id).where(
+            ChangeSetCheck.change_set_id == change_set.id,
+            ChangeSetCheck.state.in_(_ACTIVE_CHECK),
+        )
+    )
+    if running is not None:
+        raise ApiError(409, "check_running", "A check of this workspace is running")
+    check = ChangeSetCheck(
+        change_set_id=change_set.id,
+        workspace_id=change_set.workspace_id,
+        state=ChangeSetCheckState.QUEUED.value,
+        content_sha256=change_set.content_sha256,
+        files=[
+            {
+                "path": f.path,
+                "action": f.action,
+                "base_sha256": f.base_sha256,
+                "sha256": f.sha256,
+                "size_bytes": f.size_bytes,
+                "line_count": f.line_count,
+                "flags": list(f.flags),
+            }
+            for f in files
+        ],
+        requested_by=principal.user_id,
+    )
+    session.add(check)
+    await session.flush()
+    check.workflow_id = change_set_check_workflow_id(check.id)
+    await session.refresh(check)
+    return check
+
+
+async def _dispatch_check(container: Any, check_id: uuid.UUID) -> None:
     try:
-        await container.workflows.start_change_set_check(check.id)
+        await container.workflows.start_change_set_check(check_id)
     except WorkflowUnavailableError as exc:
         async with transaction(container.session_factory) as session:
-            stored = await session.get(ChangeSetCheck, check.id, with_for_update=True)
+            stored = await session.get(ChangeSetCheck, check_id, with_for_update=True)
             if stored is not None and stored.state == ChangeSetCheckState.QUEUED.value:
                 stored.state = ChangeSetCheckState.FAILED.value
                 stored.error_code = "workflow_unavailable"
                 stored.error_message = "The check service is not running; try again shortly."
                 stored.finished_at = datetime.now(UTC)
         raise ApiError(503, "workflow_unavailable", f"{exc}; try again shortly") from exc
-    return response
 
 
 @router.get(

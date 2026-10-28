@@ -407,7 +407,9 @@ export interface paths {
         put?: never;
         /**
          * Apply Fixes
-         * @description Apply the deterministic fix of each selected finding (or every finding of one rule).
+         * @description Apply the deterministic fix of each selected finding (findings, the findings of tracked
+         *     issues such as an NFR checkpoint's, or every finding of one rule), then optionally start a
+         *     check of the workspace.
          *
          *     Each fix is computed against the upload and applied to the workspace's current text: at its
          *     exact place, or where the same lines now are; otherwise it is skipped with the reason.
@@ -2187,6 +2189,11 @@ export interface components {
              * @description Always shown with the candidate (AI provenance, not verified)
              */
             label: string;
+            /**
+             * Notes
+             * @description How the suggestion was placed on the file (e.g. corrected line numbers)
+             */
+            notes?: string[];
             /** Passed */
             passed: boolean;
             /**
@@ -3181,6 +3188,11 @@ export interface components {
              * @description What the upload shows for it
              */
             evidence: components["schemas"]["EvidenceItem"][];
+            /**
+             * Fixable Issue Ids
+             * @description Its open issues that have an automatic (recipe) fix, up to 50
+             */
+            fixable_issue_ids: string[];
             /**
              * Handled Reason
              * @description The team's statement, when handled elsewhere
@@ -5455,10 +5467,21 @@ export interface components {
         };
         /** WorkspaceFixRequest */
         WorkspaceFixRequest: {
+            /**
+             * Check
+             * @description Start a check of the workspace when any fix was applied
+             * @default false
+             */
+            check: boolean;
             /** Engine */
             engine?: string | null;
             /** Finding Ids */
             finding_ids?: string[];
+            /**
+             * Issue Ids
+             * @description Tracked issues (for example an NFR checkpoint's): their findings in the upload's review
+             */
+            issue_ids?: string[];
             /**
              * Rule Id
              * @description With engine: every occurrence of this rule in the upload
@@ -5472,6 +5495,13 @@ export interface components {
             /** Applied */
             applied: components["schemas"]["WorkspaceFixApplied"][];
             change_set: components["schemas"]["ChangeSetResponse"];
+            /** @description The check started after the fixes (when requested) */
+            check?: components["schemas"]["ChangeSetCheckResponse"] | null;
+            /**
+             * Check Note
+             * @description Why no check was started although one was requested
+             */
+            check_note?: string | null;
             /** Skipped */
             skipped: components["schemas"]["WorkspaceFixSkipped"][];
         };

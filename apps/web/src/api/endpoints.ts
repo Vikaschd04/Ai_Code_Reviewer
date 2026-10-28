@@ -1000,11 +1000,13 @@ export async function revertWorkspaceFile(workspace: Workspace, path: string): P
 /** Apply automatic fixes to the selected findings, or to every finding of one rule. */
 export async function applyWorkspaceFixes(
   workspace: Workspace,
-  selection: { finding_ids: string[] } | { engine: string; rule_id: string },
+  selection:
+    { finding_ids: string[] } | { issue_ids: string[] } | { engine: string; rule_id: string },
+  check = false,
 ): Promise<WorkspaceFixResult> {
   const { data, error, response } = await api.POST("/v1/change-sets/{change_set_id}/fixes", {
     params: { path: { change_set_id: workspace.id } },
-    body: { version: workspace.version, ...selection },
+    body: { version: workspace.version, ...selection, check },
   });
   if (data) return data;
   throw toApiError(response, error);

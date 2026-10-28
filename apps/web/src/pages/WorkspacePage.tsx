@@ -41,6 +41,7 @@ import { DiffView } from "../components/Fixes";
 import { Icon } from "../components/Icon";
 import { SeverityChip } from "../components/Severity";
 import { StatusBadge } from "../components/Status";
+import { clearFixNote, readFixNote } from "../lib/fixNote";
 import { formatDate, formatRelative, shortHash } from "../lib/format";
 import { CHANGE_ACTIONS, CHANGE_SOURCES, checkName, editFlag, plural } from "../lib/labels";
 import { navigate, workspaceHref } from "../lib/router";
@@ -345,7 +346,9 @@ function FixResultNote({ result }: { result: WorkspaceFixResult }) {
         {result.applied.length > 0
           ? `Fixed ${plural(result.applied.length, "issue")} automatically.`
           : "No automatic fix could be applied."}{" "}
-        {result.skipped.length > 0 ? `${plural(result.skipped.length, "issue")} skipped.` : ""}
+        {result.skipped.length > 0 ? `${plural(result.skipped.length, "issue")} skipped.` : ""}{" "}
+        {result.check ? "A check of the changes was started; see “Check my changes”." : ""}
+        {result.check_note ?? ""}
       </Alert>
       {result.skipped.length > 0 ? (
         <Disclosure summary="Why some issues were skipped">
@@ -384,7 +387,10 @@ function IssueQueue({
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<WorkspaceFixResult | null>(null);
+  const [result, setResult] = useState<WorkspaceFixResult | null>(() => readFixNote(workspace.id));
+  useEffect(() => {
+    clearFixNote(workspace.id);
+  }, [workspace.id]);
   const checkId = workspace.latest_check?.state ?? "";
   const page = useAsync(
     (signal) => listWorkspaceIssues(workspace.id, query, signal),
@@ -1206,6 +1212,11 @@ function AiCandidateCard({
         <span className="small muted">{candidate.confidence} confidence</span>
       </div>
       <p className="small secondary">{candidate.explanation}</p>
+      {candidate.notes?.length ? (
+        <p className="small muted" data-testid="ai-candidate-notes">
+          {candidate.notes.join(" ")}
+        </p>
+      ) : null}
       {candidate.behaviour_note ? (
         <p className="small">
           <strong>What to watch:</strong> {candidate.behaviour_note}

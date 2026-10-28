@@ -194,3 +194,19 @@ Alternatives considered:
 - Storing whole patched trees per save: wasteful. Per-file content-addressed revisions plus a
   derived manifest give the same result.
 - Counting any vanished finding as fixed: rejected. Suppression must stay visible.
+
+Amendment (28 October 2026, ADD-A1 and live testing with free models):
+
+- Bulk fixes are idempotent per issue: a finding that already has a recorded change in the
+  workspace (recipe, AI or a hand edit naming it) is skipped as "Already changed for this issue in
+  this workspace" until the file is reverted to the upload. Before, an insertion recipe (for
+  example adding `replicas: 2` where no count was set) had no original lines to check and was
+  applied twice when selected again.
+- Bulk fixes accept tracked issue ids (an NFR checkpoint's issues) and can start the workspace
+  check when anything was applied: "Fix N automatically" on a checkpoint.
+- AI candidates are placed on the file's real lines when the model miscounted lines (the same
+  lines exactly once within 40 lines) or changed only indentation or trailing spaces (exactly
+  once within 40 lines; spacing inside a line must still match, since it can be part of a
+  string). The patch is rebuilt from the file's own lines and indentation, every later check runs
+  on that exact text, and the candidate says what was adjusted. Weaker models copied lines
+  inexactly, so their otherwise valid fixes were refused unchecked.
