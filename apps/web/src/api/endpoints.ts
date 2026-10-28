@@ -22,6 +22,7 @@ import {
   type WorkspaceFileContent,
   type WorkspaceFixResult,
   type ReviewSummary,
+  type HealthHistory,
   type WorkspaceIssuePage,
   type WorkspaceListItem,
   type WorkspaceSaveResult,
@@ -932,6 +933,16 @@ export async function createWorkspace(
   const { data, error, response } = await api.POST("/v1/projects/{project_id}/change-sets", {
     params: { path: { project_id: projectId } },
     body,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** ADD-A6: the last reviews' open issues and checkpoints that needed work, oldest first. */
+export async function fetchHealthHistory(projectId: string, signal?: Sig): Promise<HealthHistory> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/health-history", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
   });
   if (data) return data;
   throw toApiError(response, error);

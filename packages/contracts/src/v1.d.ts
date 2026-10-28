@@ -1308,6 +1308,27 @@ export interface paths {
         patch: operations["update_connection_v1_projects__project_id__git_connection_patch"];
         trace?: never;
     };
+    "/v1/projects/{project_id}/health-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health History
+         * @description Health over time (ADD-A6): each of the last reviews' open issues by severity and
+         *     checkpoints that needed work, computed from that review's own findings and evidence.
+         */
+        get: operations["health_history_v1_projects__project_id__health_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{project_id}/insights": {
         parameters: {
             query?: never;
@@ -4528,6 +4549,60 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthHistory */
+        HealthHistory: {
+            /**
+             * Points
+             * @description The last reviews that updated the project's issues, oldest first
+             */
+            points: components["schemas"]["HealthPointResponse"][];
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+        };
+        /** HealthPointResponse */
+        HealthPointResponse: {
+            /**
+             * Areas
+             * @description Area id -> attention | improve | no_problems | unknown
+             */
+            areas: {
+                [key: string]: string;
+            };
+            /**
+             * Failing
+             * @description Checkpoints that needed work in that review, by priority
+             */
+            failing: {
+                [key: string]: number;
+            };
+            /**
+             * Issues
+             * @description Open issues of that review by severity
+             */
+            issues: {
+                [key: string]: number;
+            };
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Scan Id
+             * Format: uuid
+             */
+            scan_id: string;
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+            /**
+             * Upload
+             * @description The upload's name
+             */
+            upload: string | null;
         };
         /** ImpactItem */
         ImpactItem: {
@@ -11055,6 +11130,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    health_history_v1_projects__project_id__health_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthHistory"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

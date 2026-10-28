@@ -523,3 +523,52 @@ def test_published_text_escapes_repository_content_and_caps_annotations() -> Non
         body.startswith("<!-- refactorx:review -->")
         and "No new problems in this pull request" in body
     )
+
+
+def test_summaries_name_the_checkpoints_new_problems_count_against() -> None:
+    """ADD-A6: the review comment says which NFR checkpoints the new problems break."""
+    from crp_analysis.sources.publication import checkpoints_of, summary_markdown
+
+    items = [
+        {
+            "finding_id": "f1",
+            "severity": "critical",
+            "title": "SQL built from input",
+            "path": "src/A.java",
+            "line": 3,
+            "engine": "opengrep",
+            "rule_id": "crp.java.sql-injection.string-concat",
+            "category": "security",
+        },
+        {
+            "finding_id": "f2",
+            "severity": "high",
+            "title": "CVE-2021-44228",
+            "path": "pom.xml",
+            "line": None,
+            "engine": "trivy",
+            "rule_id": "CVE-2021-44228",
+            "category": "dependencies",
+        },
+        {
+            "finding_id": "f3",
+            "severity": "high",
+            "title": "CVE-2021-45046",
+            "path": "pom.xml",
+            "line": None,
+            "engine": "trivy",
+            "rule_id": "CVE-2021-45046",
+            "category": "dependencies",
+        },
+    ]
+    assert checkpoints_of(items) == [
+        ("Libraries have no known vulnerabilities", 2),
+        ("Untrusted input cannot reach dangerous calls", 1),
+    ]
+    result = {"state": "SUCCEEDED", "new": 3, "new_items": items, "by_severity": {}}
+    text = summary_markdown({"review_id": "r", "head_sha": "a" * 40, "pr_number": 7}, result, None)
+    assert (
+        "NFR checkpoints these new problems count against: Libraries have no known "
+        "vulnerabilities (2); Untrusted input cannot reach dangerous calls (1)." in text
+    )
+    assert checkpoints_of([]) == []

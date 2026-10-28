@@ -93,6 +93,14 @@ def summary_markdown(info: dict[str, Any], result: dict[str, Any], link: str | N
             lines.append(f"- {label}: {md(item.get('title'))} ({where})")
         if len(new) > 10:
             lines.append(f"- … and {len(new) - 10} more")
+    affected = checkpoints_of(new)
+    if affected:
+        lines += [
+            "",
+            "NFR checkpoints these new problems count against: "
+            + "; ".join(f"{md(title)} ({count})" for title, count in affected)
+            + ".",
+        ]
     incomplete = result.get("incomplete") or []
     if incomplete:
         lines += ["", "Not every check finished: " + ", ".join(md(x) for x in incomplete) + "."]
@@ -100,6 +108,33 @@ def summary_markdown(info: dict[str, Any], result: dict[str, Any], link: str | N
         lines += ["", f"[Open the review in refactorX]({link})"]
     lines += ["", "_Source-level review: nothing was built, run or deployed._"]
     return "\n".join(lines)
+
+
+def checkpoints_of(items: list[dict[str, Any]]) -> list[tuple[str, int]]:
+    """The NFR checkpoints new findings count against (ADD-A6), most affected first."""
+    from crp_analysis.catalog import lookup
+    from crp_analysis.insights.engine import TrackedIssue, checkpoint_for
+
+    counts: dict[str, int] = {}
+    for item in items:
+        engine, rule = str(item.get("engine", "")), str(item.get("rule_id", ""))
+        info = lookup(engine, rule, None, None)
+        category = str(item.get("category") or info.category.value)
+        issue = TrackedIssue(
+            str(item.get("finding_id", "")),
+            engine,
+            rule,
+            category,
+            info.family,
+            str(item.get("severity", "")),
+            str(item.get("title", "")),
+            str(item.get("path", "")),
+            "OPEN",
+        )
+        checkpoint = checkpoint_for(issue)
+        if checkpoint is not None:
+            counts[checkpoint.title] = counts.get(checkpoint.title, 0) + 1
+    return sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
 
 
 def check_run_payload(

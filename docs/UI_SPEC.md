@@ -203,6 +203,16 @@ This section supersedes the per-phase tab lists above where they differ.
   "Tests to run", the files collapsed, and the source-level limit), "Copy as Markdown".
 - Checked in dark and 390 px by `e2e/fix-checkpoint.spec.ts`.
 
+## Health over time (28 October 2026; ADD-A6)
+
+- Overview, after "NFR health and next steps", once a project has two reviews: "Health over time"
+  with three tiles (open issues, critical and high, checkpoints needing work; each with the change
+  since the previous review in words), a column chart of open issues per review (critical and high
+  on the baseline; validated ramp tokens `--trend-strong`/`--trend-light` per theme; 24 px columns,
+  2 px gap, rounded data end; tooltip on hover and focus), a legend, and "Numbers per review" as a
+  table. The note says it shows what each review found (Insights keeps unverified issues open).
+- Checked in light, dark and 390 px by `e2e/duplicates.spec.ts` (`health-trend*.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

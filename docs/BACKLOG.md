@@ -126,5 +126,5 @@ From [research/USER_CHALLENGES_AND_ADDONS_2026.md](research/USER_CHALLENGES_AND_
 - **ADD-A3** Duplicate code detection with PMD CPD, plus an AI "extract shared function" proposal checked like every fix. **Detection and checkpoint done 28 October 2026** (P10_REPORT); cross-file AI extraction moves to P11 (needs build/test verification).
 - **ADD-A4** "Fix first" queue across checkpoints. **Done 28 October 2026** (P12_REPORT); change frequency joins the score with Git history (P10 slice 4).
 - **ADD-A5** Reviewer summary of a workspace (changes, checks, impact, what needs a human). **Done 28 October 2026** (P08_REPORT).
-- **ADD-A6** Health over time and a merge gate; **ADD-A7** code tour for newcomers.
+- **ADD-A6** Health over time and a merge gate. **Done 28 October 2026** (P12_REPORT): trend from each review; review comments name the checkpoints new problems break (the severity-threshold gate already existed, P06). **ADD-A7** code tour for newcomers.
 - Owner decision: **ADD-A8** build and tests on the copy (P09 Tiers 1–2), which unlocks safety-net tests (A9), the multi-file refactoring agent (A10, P11), framework migrations (A11) and mutation checks (A12).

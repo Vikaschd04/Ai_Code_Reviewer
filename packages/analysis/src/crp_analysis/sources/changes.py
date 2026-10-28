@@ -168,6 +168,7 @@ class FindingRef:
     text: str | None = None  # normalized evidence line; needed only for renamed files
     rule_sha256: str | None = None  # the rule's own hash, for engines that report one
     anchor_key: str | None = None  # part-level findings follow their part across files
+    category: str | None = None  # for naming the NFR checkpoint a new finding counts against
 
 
 @dataclass(frozen=True, slots=True)

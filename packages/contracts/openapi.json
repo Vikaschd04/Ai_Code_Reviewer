@@ -7285,6 +7285,104 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthHistory": {
+        "additionalProperties": false,
+        "properties": {
+          "points": {
+            "description": "The last reviews that updated the project's issues, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/HealthPointResponse"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "points"
+        ],
+        "title": "HealthHistory",
+        "type": "object"
+      },
+      "HealthPointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "areas": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Area id -> attention | improve | no_problems | unknown",
+            "title": "Areas",
+            "type": "object"
+          },
+          "failing": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Checkpoints that needed work in that review, by priority",
+            "title": "Failing",
+            "type": "object"
+          },
+          "issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Open issues of that review by severity",
+            "title": "Issues",
+            "type": "object"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "scan_id": {
+            "format": "uuid",
+            "title": "Scan Id",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "format": "uuid",
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "upload": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The upload's name",
+            "title": "Upload"
+          }
+        },
+        "required": [
+          "scan_id",
+          "snapshot_id",
+          "reviewed_at",
+          "upload",
+          "issues",
+          "failing",
+          "areas"
+        ],
+        "title": "HealthPointResponse",
+        "type": "object"
+      },
       "ImpactItem": {
         "additionalProperties": false,
         "properties": {
@@ -17465,6 +17563,102 @@
         "summary": "Connect Repository",
         "tags": [
           "code reviews"
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/health-history": {
+      "get": {
+        "description": "Health over time (ADD-A6): each of the last reviews' open issues by severity and\ncheckpoints that needed work, computed from that review's own findings and evidence.",
+        "operationId": "health_history_v1_projects__project_id__health_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "maximum": 24,
+              "minimum": 2,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Health History",
+        "tags": [
+          "insights"
         ]
       }
     },

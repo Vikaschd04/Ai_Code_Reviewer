@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import posixpath
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -26,15 +27,19 @@ from crp_analysis.nfr.signals import ConfigSignals, Evidence, LibraryUse, detect
 from crp_core.db.models import (
     EngineRun,
     FileEntry,
+    Finding,
     GraphBuild,
     GraphEdge,
     Issue,
     NfrProfileVersion,
     Scan,
+    Snapshot,
+    Source,
 )
 from crp_core.domain.states import EngineState, FileDisposition, GraphBuildState
 
 _ECOSYSTEM = {"pom.xml": "maven", "package.json": "npm"}
+_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 _CONFIG_RAN = frozenset(
     {EngineState.SUCCEEDED.value, EngineState.PARTIAL.value, EngineState.NOT_APPLICABLE.value}
 )
@@ -179,3 +184,86 @@ async def gather(session: Any, project_id: uuid.UUID) -> Gathered:
         context = review_context(engine_runs, uses, files)
     version, handled = await decisions(session, project_id)
     return Gathered(found, evidence, await issues(session, project_id), context, version, handled)
+
+
+# -- health over time (ADD-A6) ---------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class HealthPoint:
+    """One review's health: its open issues by severity, its checkpoints that need work by
+    priority and its areas, computed from that review's own findings and evidence (with the
+    team's current "handled elsewhere" decisions)."""
+
+    scan_id: uuid.UUID
+    snapshot_id: uuid.UUID
+    reviewed_at: datetime | None
+    upload: str | None
+    severities: dict[str, int]
+    failing: dict[str, int]
+    areas: dict[str, str]
+
+
+async def history(session: Any, project_id: uuid.UUID, limit: int) -> list[HealthPoint]:
+    """The project's last ``limit`` reviews that updated its issues, oldest first."""
+    scans = list(
+        (
+            await session.execute(
+                select(Scan)
+                .where(
+                    Scan.project_id == project_id,
+                    Scan.lifecycle_applied.is_(True),
+                    Scan.finished_at.is_not(None),
+                )
+                .order_by(Scan.finished_at.desc())
+                .limit(limit)
+            )
+        ).scalars()
+    )
+    _, handled = await decisions(session, project_id)
+    points: list[HealthPoint] = []
+    for scan in reversed(scans):
+        rows = await session.execute(
+            select(
+                Finding.id,
+                Finding.issue_id,
+                Finding.engine,
+                Finding.rule_id,
+                Finding.category,
+                Finding.severity,
+                Finding.title,
+                FileEntry.path,
+            )
+            .join(FileEntry, FileEntry.id == Finding.file_entry_id)
+            .where(Finding.scan_id == scan.id, Finding.status.in_(OPEN))
+        )
+        by_issue: dict[str, TrackedIssue] = {}
+        for fid, issue_id, engine, rule, category, severity, title, path in rows.all():
+            key = str(issue_id or fid)
+            known = by_issue.get(key)
+            if known is not None and _RANK.get(known.severity, 9) <= _RANK.get(severity, 9):
+                continue  # one issue, its most severe finding
+            family = lookup(engine, rule, None, None).family
+            by_issue[key] = TrackedIssue(
+                key, engine, rule, category, family, severity, title, path, "OPEN"
+            )
+        issues = list(by_issue.values())
+        engine_runs = await runs(session, scan.id)
+        files = await paths(session, scan.snapshot_id)
+        uses = await libraries(session, scan.snapshot_id)
+        evidence = detect(files, uses, config_signals(engine_runs))
+        report = build(issues, evidence, review_context(engine_runs, uses, files), handled)
+        snapshot = await session.get(Snapshot, scan.snapshot_id)
+        source = await session.get(Source, snapshot.source_id) if snapshot else None
+        points.append(
+            HealthPoint(
+                scan.id,
+                scan.snapshot_id,
+                scan.finished_at,
+                source.display_name if source else None,
+                dict(Counter(i.severity for i in issues)),
+                dict(Counter(r.priority or "low" for r in report.failing())),
+                {a.area.id: a.state for a in report.areas},
+            )
+        )
+    return points

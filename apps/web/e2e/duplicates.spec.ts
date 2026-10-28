@@ -49,4 +49,28 @@ test("duplicate code: found by the review and resolved through its checkpoint", 
   await page.setViewportSize({ width: 390, height: 844 });
   await noOverflow(page);
   await page.screenshot({ path: "test-results/screens/duplicates-mobile.png", fullPage: true });
+
+  // Health over time (ADD-A6): a second review of the same upload makes a trend on the Overview.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/#/projects/${project}`);
+  await page.getByRole("button", { name: "Review latest upload" }).click();
+  await expect(page.getByTestId("stage-publish")).toContainText(/Partly complete|Complete/, {
+    timeout: 150_000,
+  });
+  await page.goto(`/#/projects/${project}`);
+  const trend = page.getByTestId("health-trend");
+  await expect(trend).toContainText("What each of the last 2 reviews found");
+  await expect(trend.getByTestId("trend-tiles")).toContainText("Same as the previous review");
+  await trend.locator(".trend-column").first().focus();
+  await expect(trend.getByRole("status")).toContainText("critical and high");
+  await trend.getByTestId("trend-table").locator("summary").click();
+  await expect(trend.getByTestId("trend-table").locator("tbody tr")).toHaveCount(2);
+  await trend.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/screens/health-trend.png", fullPage: true });
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
+  await page.screenshot({ path: "test-results/screens/health-trend-dark.png", fullPage: true });
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await noOverflow(page);
+  await page.screenshot({ path: "test-results/screens/health-trend-mobile.png", fullPage: true });
 });

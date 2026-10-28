@@ -10,9 +10,9 @@ citations and numbers taken from the evidence (``crp_analysis.insights.advisor``
 from __future__ import annotations
 
 import uuid
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -41,6 +41,8 @@ from crp_api.schemas import (
     EvidenceItem,
     EvidenceLocation,
     FixFirstItem,
+    HealthHistory,
+    HealthPointResponse,
     InsightIssueRef,
     InsightsBasis,
     InsightsResponse,
@@ -213,6 +215,39 @@ async def get_insights(
             session, principal, Project, project_id, not_found="project_not_found"
         )
         return await _response(session, container.settings, principal, project)
+
+
+@router.get(
+    "/projects/{project_id}/health-history", response_model=HealthHistory, responses=_ERRORS
+)
+async def health_history(
+    project_id: uuid.UUID,
+    principal: CurrentPrincipal,
+    container: Container,
+    limit: Annotated[int, Query(ge=2, le=24)] = 12,
+) -> HealthHistory:
+    """Health over time (ADD-A6): each of the last reviews' open issues by severity and
+    checkpoints that needed work, computed from that review's own findings and evidence."""
+    async with transaction(container.session_factory) as session:
+        project = await get_scoped(
+            session, principal, Project, project_id, not_found="project_not_found"
+        )
+        points = await insights.history(session, project.id, limit)
+    return HealthHistory(
+        project_id=project_id,
+        points=[
+            HealthPointResponse(
+                scan_id=p.scan_id,
+                snapshot_id=p.snapshot_id,
+                reviewed_at=p.reviewed_at,
+                upload=p.upload,
+                issues=p.severities,
+                failing=p.failing,
+                areas=p.areas,
+            )
+            for p in points
+        ],
+    )
 
 
 async def _decide(

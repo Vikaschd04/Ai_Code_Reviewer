@@ -34,6 +34,7 @@ import { useAsync } from "../lib/useAsync";
 import { AiSettings } from "./AiView";
 import { FixesView } from "./FixesView";
 import { GitHubView } from "./GitHubView";
+import { HealthTrend } from "../components/HealthTrend";
 import { HealthSummary, InsightsView } from "./InsightsView";
 import { IssuesView } from "./IssuesView";
 import { WorkspacesView } from "./WorkspacesView";
@@ -493,6 +494,7 @@ export function ProjectPage({
             )}
           </section>
           <HealthSummary projectId={projectId} />
+          <HealthTrend projectId={projectId} />
         </div>
       ) : null}
       {tab === "uploads" ? (

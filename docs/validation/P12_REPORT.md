@@ -252,3 +252,29 @@ Found while gating: on the AI fixture the card's long file paths overflowed 390 
 Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 644 pytest + 30 vitest passed; `make test-e2e` 26/26 passed.
 
 Not included yet: change frequency from Git history (P10 slice 4) as a further weight.
+
+## Health over time and checkpoint names in reviews (28 October 2026; ADD-A6)
+
+`GET /v1/projects/{id}/health-history` (2–24 reviews, default 12): for each of the last reviews
+that updated the project's issues, oldest first, its open issues by severity, its checkpoints that
+needed work by priority and its area states, computed with the same checkpoint engine from that
+review's own findings, evidence and engine runs (and the team's current "handled elsewhere"
+decisions). The Overview's "Health over time" card shows three tiles (open issues, critical and
+high, checkpoints needing work, each with the change since the previous review), a column chart
+(critical and high on the baseline, medium and low above, an ordinal two-step ramp of one hue
+validated for both themes; tooltips on hover and keyboard focus; drawn at its natural size and
+scrolled on narrow screens) and the numbers as a table. GitHub review comments now name the NFR
+checkpoints the new problems count against (new items carry their category).
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| History | Two reviews of the configuration fixture, the second without its manifests: two points oldest first, fewer issues and checkpoints the second time, all six areas; never more than Insights (which keeps unverified issues open); limit 1 refused | PASS | `test_health_history_follows_the_reviews` |
+| Review comments | New problems in two checkpoints are named with counts, most affected first | PASS | `test_summaries_name_the_checkpoints_new_problems_count_against` |
+| Browser | After a second review the Overview shows the card, tiles ("Same as the previous review"), a focusable column with its tooltip and the table; light, dark, 390 px without overflow | PASS | `e2e/duplicates.spec.ts` (`health-trend*.png`) |
+
+Design notes: the first rendering scaled the SVG to the card width (a two-review chart grew 3.5x)
+and same-day reviews repeated their labels; the chart is now drawn at its natural size, names each
+day once and gives the time in the tooltip and table. The severity colours were rejected for the
+chart (high and medium fail the normal-vision separation as categories).
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 650 pytest + 30 vitest passed; `make test-e2e` 26/26 passed.

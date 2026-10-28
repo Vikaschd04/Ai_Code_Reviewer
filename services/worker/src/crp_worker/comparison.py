@@ -66,6 +66,7 @@ def item(finding: FindingRef) -> dict[str, Any]:
         "line": finding.start_line,
         "engine": finding.engine,
         "rule_id": finding.rule_id,
+        "category": finding.category,
     }
 
 
@@ -118,6 +119,7 @@ async def findings_of(session: AsyncSession, scan_id: UUID) -> list[FindingRef]:
             f.title,
             rule_sha256=observed_ruleset(f.details, None),
             anchor_key=anchor_key(f.details),
+            category=f.category,
         )
         for f, path in rows.all()
     ]
@@ -168,6 +170,7 @@ async def with_text(
             else None,
             f.rule_sha256,
             f.anchor_key,
+            f.category,
         )
         for f in findings
     ]

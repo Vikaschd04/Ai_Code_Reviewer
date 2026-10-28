@@ -1864,6 +1864,27 @@ class FixFirstItem(ApiModel):
     reason: str = Field(description="Why it is in this place, in one sentence")
 
 
+class HealthPointResponse(ApiModel):
+    scan_id: UUID
+    snapshot_id: UUID
+    reviewed_at: datetime | None
+    upload: str | None = Field(description="The upload's name")
+    issues: dict[str, int] = Field(description="Open issues of that review by severity")
+    failing: dict[str, int] = Field(
+        description="Checkpoints that needed work in that review, by priority"
+    )
+    areas: dict[str, str] = Field(
+        description="Area id -> attention | improve | no_problems | unknown"
+    )
+
+
+class HealthHistory(ApiModel):
+    project_id: UUID
+    points: list[HealthPointResponse] = Field(
+        description="The last reviews that updated the project's issues, oldest first"
+    )
+
+
 class InsightsResponse(ApiModel):
     project_id: UUID
     engine: str

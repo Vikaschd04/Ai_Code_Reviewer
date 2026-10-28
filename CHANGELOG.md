@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — health over time (28 October 2026)
+
+- **Health over time:** the project Overview shows how open issues and checkpoints needing work
+  changed across the last reviews, with the change since the previous review in words.
+- **Pull request reviews name the checkpoints** that new problems count against.
+
 ## Unreleased — a summary for the reviewer (28 October 2026)
 
 - **Review summary:** every fix workspace now tells the person who reviews it what still needs a
