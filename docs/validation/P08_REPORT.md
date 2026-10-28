@@ -99,6 +99,20 @@ request card) is covered by the P06 browser journey, which passed. Rerun on 9 Oc
 
 Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 623 pytest + 30 vitest passed; `make test-e2e` 23/23 passed.
 
+## Dependency upgrades as fixes (28 October 2026; ADD-A2, ADR 0027)
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Version choice | Maven ordering (`2.17` = `2.17.0.RELEASE`, `1.0-rc1` < `1.0` < `1.0-sp1`); per vulnerability the lowest newer fixed version on the same major, never a pre-release; the highest of those for the library (Log4Shell series: 2.17.1 from 2.14.1, 2.12.4 from 2.12.1) | PASS | `test_dependency_recipes.py` |
+| Where the version is set | Direct `<version>`, a shared `${property}` (noted), `<dependencyManagement>`; parent/BOM versions, undeclared libraries, missing properties, plugin dependencies and already-upgraded files are refused with the reason | PASS | `test_dependency_recipes.py` |
+| Policy | `pom.xml` passes the build-configuration rule only for version-value changes of `<version>` or properties; plugin settings, non-version properties, other elements and added lines are refused | PASS | `test_pom_changes_pass_only_when_they_change_version_values` |
+| Real stack | Security fixture: the checkpoint lists exactly the upgradable log4j-core vulnerabilities; one bulk request makes one `pom.xml` edit (no policy flags), records the others as fixed by the same change; Trivy's re-check on the copy reports every one `fixed`, lodash `still_present`, no new log4j finding; repeating changes nothing | PASS | `test_vulnerable_libraries_are_upgraded_and_confirmed_fixed` |
+| Browser | Insights "Fix N of M automatically" → workspace → check shows N fixed; the change "Upgrade log4j-core 2.14.1 to 2.25.4" (offline Trivy database of the test run) | PASS | `e2e/fix-checkpoint.spec.ts` (`fix-dependencies.png`) |
+
+Not verified: compiling and running the project's tests with the new library (P09 Tiers 1–2); npm upgrades (lockfile integrity needs the registry).
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 639 pytest + 30 vitest passed; `make test-e2e` 24/24 passed.
+
 ## Limitations
 
 - AI candidate quality with a real provider is unmeasured (K-P08-01). The change-set pull request (slice 5) is not built yet (K-P08-02).

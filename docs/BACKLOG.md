@@ -122,7 +122,7 @@ Items are TODO unless a status is shown. Expand into small vertical slices as ne
 From [research/USER_CHALLENGES_AND_ADDONS_2026.md](research/USER_CHALLENGES_AND_ADDONS_2026.md); not started, in recommended order:
 
 - **ADD-A1** Fix everything safe for a checkpoint (one button: all recipes in a workspace, check started). **Done 28 October 2026** (P08_REPORT; also idempotent bulk fixes and tolerant AI placement).
-- **ADD-A2** Dependency upgrades as fixes (Trivy's fixed version written into `pom.xml`/`package.json`; re-check confirms).
+- **ADD-A2** Dependency upgrades as fixes (Trivy's fixed version written into `pom.xml`/`package.json`; re-check confirms). **Done 28 October 2026 for Maven** (ADR 0027); npm and Gradle remain (npm needs registry integrity, P09).
 - **ADD-A3** Duplicate code detection with PMD CPD, plus an AI "extract shared function" proposal checked like every fix.
 - **ADD-A4** "Fix first" queue across checkpoints.
 - **ADD-A5** Reviewer summary of a workspace (changes, checks, impact, what needs a human).

@@ -59,6 +59,7 @@ from crp_api.schemas import (
     FixValidationResponse,
 )
 from crp_api.services import git as git_service
+from crp_api.services.recipe_context import dependency_fixes, details_with_siblings
 from crp_api.services.scope import get_scoped
 from crp_core.artifacts import ArtifactKey
 from crp_core.db.models import (
@@ -139,13 +140,18 @@ async def _context(
     entry = await session.get(FileEntry, finding.file_entry_id)
     if entry is None:
         raise ApiError(404, "file_not_found", "The finding's file is not in this upload")
+    siblings = (
+        await dependency_fixes(session, finding.scan_id)
+        if finding.engine == "trivy" and finding.scan_id is not None
+        else {}
+    )
     info = recipes.FindingInfo(
         finding.engine,
         finding.rule_id,
         entry.path,
         finding.start_line,
         finding.end_line,
-        finding.details,
+        details_with_siblings(finding, siblings),
     )
     return entry, await _text(container, entry), info
 

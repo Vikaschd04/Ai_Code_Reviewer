@@ -79,3 +79,43 @@ test("fix a checkpoint automatically: fixes applied, check started, issues confi
     fullPage: true,
   });
 });
+
+test("upgrade vulnerable libraries automatically: one pom.xml upgrade fixes them all", async ({
+  page,
+}) => {
+  test.setTimeout(360_000);
+  await signIn(page);
+  await createProject(page, `Upgrade libraries ${Date.now()}`);
+  const project = page
+    .url()
+    .replace(/^.*#\/projects\//, "")
+    .replace(/\?.*$/, "");
+  await page.getByLabel("ZIP archive to upload").setInputFiles(env("CRP_E2E_SECURITY_ZIP"));
+  await expect(page.getByTestId("snapshot-link")).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("snapshot-link").click();
+  await page.getByRole("button", { name: "Start review" }).click();
+  await expect(page.getByTestId("stage-publish")).toContainText(/Partly complete|Complete/, {
+    timeout: 150_000,
+  });
+
+  // The vulnerable-libraries checkpoint: log4j-core (pom.xml) can be upgraded, lodash (npm
+  // lockfile) is fixed by hand.
+  await page.goto(`/#/projects/${project}?tab=insights`);
+  const libraries = page.getByTestId("needs-work").getByTestId("checkpoint-security.dependencies");
+  const fix = libraries.getByTestId("checkpoint-fix-automatically");
+  await expect(fix).toHaveText(/Fix \d+ of \d+ automatically/);
+  const count = Number((await fix.innerText()).match(/Fix (\d+) of/)?.[1]);
+  expect(count).toBeGreaterThan(0);
+  await fix.click();
+
+  await expect(page).toHaveURL(/#\/workspaces\/.*issues=/);
+  await expect(page.getByTestId("workspace-fix-result")).toContainText(
+    `Fixed ${String(count)} issue`,
+  );
+  const outcomes = page.getByTestId("workspace-outcomes");
+  await expect(outcomes).toBeVisible({ timeout: 180_000 });
+  await expect(outcomes.locator('[data-outcome="fixed"] .tile-value')).toHaveText(String(count));
+  await page.getByRole("link", { name: /Changes/ }).click();
+  await expect(page.locator("main")).toContainText("Upgrade log4j-core 2.14.1 to");
+  await page.screenshot({ path: "test-results/screens/fix-dependencies.png", fullPage: true });
+});

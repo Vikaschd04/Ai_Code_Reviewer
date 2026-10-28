@@ -171,6 +171,15 @@ This section supersedes the per-phase tab lists above where they differ.
 - Checked in light, dark and 390 px by `e2e/fix-checkpoint.spec.ts` (screenshots
   `fix-checkpoint-*.png`).
 
+## Dependency upgrades (28 October 2026; ADD-A2, ADR 0027)
+
+- "Libraries have no known vulnerabilities": "Fix N of M automatically" counts the Maven
+  vulnerabilities with a published fix; npm lockfile findings stay hand fixes (their reason says
+  why when selected).
+- The workspace shows one change, "Upgrade log4j-core 2.14.1 to 2.25.4", with the other
+  vulnerabilities of the library as "Fixed by the same change"; the check confirms each one.
+- Checked by `e2e/fix-checkpoint.spec.ts` (`fix-dependencies.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

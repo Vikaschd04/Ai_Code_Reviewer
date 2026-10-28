@@ -82,6 +82,7 @@ from crp_api.schemas import (
 from crp_api.services import change_sets as workspace
 from crp_api.services import git as git_service
 from crp_api.services.ai_models import connection_setup
+from crp_api.services.recipe_context import dependency_fixes, details_with_siblings
 from crp_api.services.scope import decode_offset, encode_offset, get_scoped
 from crp_api.services.snapshot_files import read_blob_bytes, read_blob_text, sfdx_reader
 from crp_core.artifacts import ArtifactKey
@@ -691,6 +692,7 @@ async def apply_fixes(
         ]
         readers: dict[str, recipes.ReadFile] = {}
         done = await workspace.changed_findings(session, change_set.id)
+        siblings = await dependency_fixes(session, base_scan)
         for finding, entry in rows:
             if str(finding.id) in done.get(entry.path, set()):
                 skipped.append(
@@ -708,7 +710,7 @@ async def apply_fixes(
                 entry.path,
                 finding.start_line,
                 finding.end_line,
-                finding.details,
+                details_with_siblings(finding, siblings),
             )
             options = recipes.options(info)
             if not options:
@@ -744,14 +746,37 @@ async def apply_fixes(
                 readers[entry.path] = await sfdx_reader(
                     session, container, change_set.base_snapshot_id, entry.path
                 )
+            # A dependency upgrade sets the version where the file sets it now (it may already
+            # have moved for another vulnerability of the same library); the others are computed
+            # against the upload, where the finding's lines are, and applied to the current text.
+            basis = current if options[0].startswith("deps:") else base_text
             try:
                 proposal = recipes.propose(
                     options[0],
                     info,
-                    base_text,
+                    basis,
                     readers.get(entry.path, lambda _n: None),
                 )
                 updated = apply_on_current(current, list(proposal.edits))
+            except recipes.AlreadyFixed as exc:
+                workspace.record_fixed_by_earlier_change(
+                    session,
+                    change_set,
+                    path=entry.path,
+                    finding_id=finding.id,
+                    recipe_id=options[0],
+                    summary=str(exc),
+                    actor=principal.user_id,
+                )
+                applied.append(
+                    WorkspaceFixApplied(
+                        finding_id=finding.id,
+                        path=entry.path,
+                        recipe_id=options[0],
+                        title=f"Fixed by the same change: {exc}",
+                    )
+                )
+                continue
             except recipes.NoFix as exc:
                 skipped.append(
                     WorkspaceFixSkipped(finding_id=finding.id, path=entry.path, reason=str(exc))

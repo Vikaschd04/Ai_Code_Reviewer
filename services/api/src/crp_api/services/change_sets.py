@@ -313,6 +313,32 @@ async def changed_findings(session: AsyncSession, change_set_id: uuid.UUID) -> d
     return changed
 
 
+def record_fixed_by_earlier_change(
+    session: AsyncSession,
+    change_set: ChangeSet,
+    *,
+    path: str,
+    finding_id: uuid.UUID,
+    recipe_id: str,
+    summary: str,
+    actor: uuid.UUID | None,
+) -> None:
+    """Record that an earlier change already fixes this finding (no new content), so the issue
+    counts as changed in this workspace and is not fixed again."""
+    session.add(
+        _event(
+            change_set,
+            ChangeSource.RECIPE,
+            path=path,
+            action=None,
+            actor=actor,
+            summary=summary,
+            finding_ids=[finding_id],
+            recipe_id=recipe_id,
+        )
+    )
+
+
 async def revert_path(
     session: AsyncSession, change_set: ChangeSet, path: str, actor: uuid.UUID | None
 ) -> None:

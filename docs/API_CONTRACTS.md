@@ -248,6 +248,10 @@ No new endpoints. Every review plans the engine `nfr` (NOT_APPLICABLE without YA
 | POST /v1/change-sets/{id}/fixes | member | Also accepts `issue_ids` (tracked issues, up to 50: their findings in the upload's review) and `check` (start a workspace check when any fix was applied). The result adds `check` (the started check) or `check_note` (why none was started: nothing applied, a check already running, or the check service unavailable; the fixes stay saved). Findings already changed for their issue in the workspace (since the file was last at the upload's content) are skipped with "Already changed for this issue in this workspace" |
 | AI fix candidates | — | `notes`: how the suggestion was placed on the file (corrected line numbers or indentation) |
 
+## Implemented with dependency upgrades (ADD-A2, ADR 0027)
+
+No new endpoints. Trivy vulnerabilities of Maven libraries in a `pom.xml` with a published fix offer recipe `deps:maven-upgrade` through the existing fix endpoints (`GET /findings/{id}/fix-options`, fix proposals, workspace bulk fixes, and checkpoints' `fixable_issue_ids`). The fix sets the version to the lowest one that fixes every reported vulnerability of that library and version in the review (titles "Upgrade log4j-core 2.14.1 to 2.25.4", "(new major version)" when the major changes). In bulk, the library's other vulnerabilities are listed as applied with "Fixed by the same change: …" and recorded for the issue (no second edit). Versions set by a parent POM or BOM, undeclared libraries, plugin dependencies and npm lockfiles are skipped with the reason. A `pom.xml` change that only changes version values carries no `config_change` flag.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

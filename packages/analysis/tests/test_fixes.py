@@ -130,6 +130,40 @@ def test_policy_refuses_changes_that_hide_problems(
     assert code in {v.code for v in policy.check(path, before, after, allowed)}
 
 
+POM = (
+    "<project>\n  <properties>\n    <log4j.version>2.14.1</log4j.version>\n"
+    "    <pmd.skip>false</pmd.skip>\n  </properties>\n  <dependencies>\n    <dependency>\n"
+    "      <artifactId>log4j-core</artifactId>\n      <version>2.14.1</version>\n"
+    "    </dependency>\n  </dependencies>\n  <build><plugins><plugin>\n"
+    "    <configuration><excludes>none</excludes></configuration>\n"
+    "  </plugin></plugins></build>\n</project>\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "allowed"),
+    [
+        ("<version>2.14.1</version>", "<version>2.17.1</version>", True),
+        ("<log4j.version>2.14.1<", "<log4j.version>2.17.1<", True),  # a version property
+        ("<pmd.skip>false<", "<pmd.skip>true<", False),  # a property, but not a version
+        ("<excludes>none<", "<excludes>**/*<", False),  # plugin configuration
+        ("<artifactId>log4j-core<", "<artifactId>log4j-api<", False),  # another library
+    ],
+)
+def test_pom_changes_pass_only_when_they_change_version_values(
+    old: str, new: str, allowed: bool
+) -> None:
+    """ADR 0027: a dependency upgrade may change pom.xml; nothing else in it may."""
+    after = POM.replace(old, new)
+    assert after != POM
+    codes = {v.code for v in policy.check("pom.xml", POM, after, frozenset({"pom.xml"}))}
+    assert ("config_change" not in codes) is allowed
+    added = POM.replace("    </dependency>\n", "    </dependency>\n    <extra/>\n", 1)
+    assert "config_change" in {
+        v.code for v in policy.check("pom.xml", POM, added, frozenset({"pom.xml"}))
+    }  # a different number of lines is never a version-only change
+
+
 def test_policy_allows_a_real_fix() -> None:
     before = 'return status == "PAID";\n'
     after = 'return "PAID".equals(status);\n'

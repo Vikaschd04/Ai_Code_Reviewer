@@ -47,7 +47,14 @@ from crp_api.services import insights
 from crp_api.services.ai_models import connection_setup
 from crp_api.services.scope import get_scoped
 from crp_core.config import Settings
-from crp_core.db.models import AiRun, NfrProfileVersion, Project, ProjectAiPolicy
+from crp_core.db.models import (
+    AiRun,
+    FileEntry,
+    Finding,
+    NfrProfileVersion,
+    Project,
+    ProjectAiPolicy,
+)
 from crp_core.db.session import transaction
 from crp_core.domain.states import AiRunKind, AiRunState, MembershipRole
 from crp_core.workflows.contracts import ai_run_workflow_id
@@ -71,13 +78,32 @@ def _evidence(item: Evidence) -> EvidenceItem:
     )
 
 
-def _has_recipe(engine: str, rule_id: str, path: str) -> bool:
-    """An automatic (recipe) fix exists for the rule; it may still skip a finding whose lines
-    do not allow it (the fix result says why)."""
-    return bool(recipes.options(recipes.FindingInfo(engine, rule_id, path, None, None, None)))
+async def _fixable(session: Any, scan_id: uuid.UUID | None) -> set[str]:
+    """Issues whose finding in the reviewed upload has an automatic (recipe) fix. A fix may still
+    skip a finding whose lines do not allow it; the fix result says why."""
+    if scan_id is None:
+        return set()
+    rows = await session.execute(
+        select(
+            Finding.issue_id,
+            Finding.engine,
+            Finding.rule_id,
+            FileEntry.path,
+            Finding.start_line,
+            Finding.end_line,
+            Finding.details,
+        )
+        .join(FileEntry, FileEntry.id == Finding.file_entry_id)
+        .where(Finding.scan_id == scan_id, Finding.issue_id.is_not(None))
+    )
+    return {
+        str(issue_id)
+        for issue_id, engine, rule_id, path, start, end, details in rows.all()
+        if recipes.options(recipes.FindingInfo(engine, rule_id, path, start, end, details))
+    }
 
 
-def _checkpoint(result: CheckpointResult) -> CheckpointResponse:
+def _checkpoint(result: CheckpointResult, fixable: set[str]) -> CheckpointResponse:
     checkpoint = result.checkpoint
     return CheckpointResponse(
         id=checkpoint.id,
@@ -94,9 +120,9 @@ def _checkpoint(result: CheckpointResult) -> CheckpointResponse:
             for i in result.issues[:5]
         ],
         issue_ids=[uuid.UUID(i.id) for i in result.issues[:MAX_FIX_ISSUES]],
-        fixable_issue_ids=[
-            uuid.UUID(i.id) for i in result.issues if _has_recipe(i.engine, i.rule_id, i.path)
-        ][:MAX_FIX_ISSUES],
+        fixable_issue_ids=[uuid.UUID(i.id) for i in result.issues if i.id in fixable][
+            :MAX_FIX_ISSUES
+        ],
         evidence=[_evidence(e) for e in result.evidence],
         handled_reason=result.handled_reason,
         can_mark_handled=result.status in {"missing", "handled"},
@@ -108,6 +134,7 @@ async def _response(
 ) -> InsightsResponse:
     gathered = await insights.gather(session, project.id)
     report = gathered.report()
+    fixable = await _fixable(session, gathered.basis.scan_id if gathered.basis else None)
     policy = await session.get(ProjectAiPolicy, project.id)
     setup = await connection_setup(session, settings, policy)
     latest = (
@@ -146,7 +173,7 @@ async def _response(
             )
             for a in report.areas
         ],
-        checkpoints=[_checkpoint(r) for r in report.checkpoints],
+        checkpoints=[_checkpoint(r, fixable) for r in report.checkpoints],
         not_checked=[_evidence(e) for e in gathered.evidence if e.kind == "context"],
         decisions_version=gathered.version,
         can_edit=member,

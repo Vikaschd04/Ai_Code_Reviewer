@@ -74,6 +74,11 @@ class NoFix(Exception):
     """The recipe does not apply to this occurrence; the message says why."""
 
 
+class AlreadyFixed(NoFix):
+    """The text already contains this fix (for example the library upgrade made for another
+    vulnerability of the same library)."""
+
+
 def _line(text: str, number: int | None) -> str:
     lines = text.splitlines()
     if number is None or number < 1 or number > len(lines):
@@ -188,6 +193,10 @@ def options(finding: FindingInfo) -> list[str]:
 
         recipe = config_recipes.RECIPES.get(finding.rule_id)
         return [recipe] if recipe else []
+    if finding.engine == "trivy":
+        from crp_analysis.fixes import dependency_recipes  # lazy, like config_recipes
+
+        return [dependency_recipes.MAVEN_UPGRADE] if dependency_recipes.applies(finding) else []
     return []
 
 
@@ -203,4 +212,8 @@ def propose(recipe_id: str, finding: FindingInfo, text: str, read: ReadFile) -> 
         from crp_analysis.fixes import config_recipes  # lazy: config_recipes imports this module
 
         return config_recipes.propose(recipe_id, finding, text)
+    if recipe_id.startswith("deps:"):
+        from crp_analysis.fixes import dependency_recipes
+
+        return dependency_recipes.maven_upgrade(finding, text)
     return salesforce_api_version(finding, text, read)

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — upgrade vulnerable libraries automatically (28 October 2026)
+
+- **Dependency upgrades as fixes:** a vulnerable Maven library is upgraded in `pom.xml` to the
+  lowest version that fixes all of its reported vulnerabilities (for example log4j-core 2.14.1
+  to 2.25.4), with one change; the check confirms each vulnerability fixed. Versions set by a
+  parent POM or BOM are not guessed, and npm lockfiles stay hand fixes.
+- Compile and run your tests after an upgrade: refactorX does not build or run your project.
+
 ## Unreleased — fix a checkpoint in one click (28 October 2026)
 
 - **Fix automatically:** each NFR checkpoint that needs attention says how many of its issues
