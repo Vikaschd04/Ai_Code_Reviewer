@@ -188,6 +188,14 @@ This section supersedes the per-phase tab lists above where they differ.
   to move the shared logic into one place; no automatic fix is offered.
 - Checked by `e2e/duplicates.spec.ts` in light, dark and 390 px (`duplicates*.png`).
 
+## Fix first (28 October 2026; ADD-A4)
+
+- Insights (NFR checkpoints), after "NFR health by area": "Fix first" lists up to 10 issues across
+  checkpoints (severity chip, title, file, "Safe automatic fix" chip, checkpoint and the one-line
+  reason). Buttons (members): "Fix the N safe ones automatically" (primary; fixes, starts the
+  check, opens the workspace on these issues) and "Open these in a fix workspace".
+- Checked by `e2e/fix-checkpoint.spec.ts` (`fix-first.png`, `fix-first-mobile.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

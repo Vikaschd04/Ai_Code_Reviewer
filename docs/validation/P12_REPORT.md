@@ -232,3 +232,23 @@ Limitations: the rules see one file at a time — a timeout set in another class
 `axios.defaults.timeout`) is not seen, so such findings can be resolved as false positives;
 statelessness (server-side sessions) is not checked yet; precision on real code is not measured.
 
+## "Fix first" across checkpoints (28 October 2026; ADD-A4)
+
+One ordered list of the open issues to resolve first, across all checkpoints that need attention:
+score = severity weight (critical 5, high 4, medium 3, low 2) x the checkpoint's priority weight
+(high 3, medium 2, low 1) x 1.5 when a safe automatic fix exists; ties by severity, then fixable
+first, then path. Each item says why ("High issue in a high-priority checkpoint; a safe automatic
+fix exists."). Insights returns the top 10 (`fix_first`); the card offers "Fix the N safe ones
+automatically" (ADD-A1 flow) and "Open these in a fix workspace".
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Ranking | Critical injection (15) before a fixable medium style issue (9), a fixable low one (6) and a low duplicate (2); only failing checkpoints; limit honoured | PASS | `test_fix_first_orders_issues_across_checkpoints_and_says_why` |
+| Real stack | Configuration fixture: the first item is the fixable high schema setting in "Database changes are versioned and recoverable", ahead of Trivy's unfixable high findings | PASS | `test_configuration_evidence_from_a_real_review` |
+| Browser | The card lists up to 10 items with "Safe automatic fix" chips; one click fixes the safe ones and the check reports them fixed; 390 px | PASS | `e2e/fix-checkpoint.spec.ts` (`fix-first*.png`) |
+
+Found while gating: on the AI fixture the card's long file paths overflowed 390 px by 96 px (`p03-ai.spec.ts`); paths and titles now wrap (`wrap-anywhere`) and the Fix first browser test checks overflow.
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 644 pytest + 30 vitest passed; `make test-e2e` 26/26 passed.
+
+Not included yet: change frequency from Git history (P10 slice 4) as a further weight.

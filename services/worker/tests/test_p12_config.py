@@ -77,6 +77,15 @@ async def test_configuration_evidence_from_a_real_review(
         assert security["priority"] == "high" and security["issue_count"] >= 10
         assert security["issues"][0]["severity"] == "high"  # the five most severe are shown
         assert [e["signal"] for e in data["not_checked"]] == ["helm-charts", "terraform"]
+        # "Fix first" (ADD-A4): a high issue with a safe fix (4 x 3 x 1.5) outranks Trivy's
+        # high findings without one (4 x 3) in the same-priority checkpoint.
+        first = data["fix_first"]
+        assert 0 < len(first) <= 10
+        assert first[0]["checkpoint_id"] == "reliability.data" and first[0]["fixable"], first[0]
+        assert first[0]["reason"] == (
+            "High issue in a high-priority checkpoint; a safe automatic fix exists."
+        )
+        assert all(i["checkpoint_id"] in checks for i in first)
 
         # "Fix automatically" on a checkpoint (ADD-A1): every automatic fix of its issues in a
         # workspace, with the check started; the check confirms them fixed.

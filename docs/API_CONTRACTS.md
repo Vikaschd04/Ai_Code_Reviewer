@@ -256,6 +256,10 @@ No new endpoints. Trivy vulnerabilities of Maven libraries in a `pom.xml` with a
 
 No new endpoints. Reviews run the engine `cpd` (PMD's copy/paste detector) on Java, JavaScript, TypeScript, Apex, Kotlin and Python files; findings use rule `crp.duplication.block` (catalog `crp-rules-v7`), `title` "Duplicated code (N lines, M copies)", `details` (`lines`, `tokens`, `copies`, `others`: up to 20 `[path, line, end_line]`), and the run's `diagnostics` (`minimum_tokens`, `duplications`, `duplicated_lines`, `languages`). Insights adds the checkpoint `architecture.duplication` ("Logic is not copy-pasted").
 
+## Implemented with "Fix first" (ADD-A4)
+
+`GET /v1/projects/{id}/insights` adds `fix_first`: up to 10 items (`issue_id`, `title`, `severity`, `path`, `checkpoint_id`, `checkpoint_title`, `area`, `fixable`, `reason`), ordered by severity x checkpoint priority, x1.5 with a safe automatic fix.
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

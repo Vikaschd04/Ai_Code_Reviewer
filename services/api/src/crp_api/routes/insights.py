@@ -25,6 +25,7 @@ from crp_analysis.insights.engine import (
     MISSING_CAPABLE,
     CheckpointResult,
     facts,
+    fix_first,
 )
 from crp_analysis.nfr.signals import Evidence
 from crp_api.auth.dependencies import Container, CurrentPrincipal
@@ -39,6 +40,7 @@ from crp_api.schemas import (
     CheckpointResponse,
     EvidenceItem,
     EvidenceLocation,
+    FixFirstItem,
     InsightIssueRef,
     InsightsBasis,
     InsightsResponse,
@@ -172,6 +174,20 @@ async def _response(
                 id=a.area.id, name=a.area.name, state=cast(Any, a.state), counts=a.counts
             )
             for a in report.areas
+        ],
+        fix_first=[
+            FixFirstItem(
+                issue_id=uuid.UUID(item.issue.id),
+                title=item.issue.title,
+                severity=item.issue.severity,
+                path=item.issue.path,
+                checkpoint_id=item.checkpoint.id,
+                checkpoint_title=item.checkpoint.title,
+                area=item.checkpoint.area,
+                fixable=item.fixable,
+                reason=item.reason,
+            )
+            for item in fix_first(report, fixable)
         ],
         checkpoints=[_checkpoint(r, fixable) for r in report.checkpoints],
         not_checked=[_evidence(e) for e in gathered.evidence if e.kind == "context"],

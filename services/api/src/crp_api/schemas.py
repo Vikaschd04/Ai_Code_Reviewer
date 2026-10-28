@@ -1816,11 +1816,27 @@ class AdvisorState(ApiModel):
     latest: AiRunResponse | None = Field(description="The newest advisor run")
 
 
+class FixFirstItem(ApiModel):
+    issue_id: UUID
+    title: str
+    severity: str
+    path: str
+    checkpoint_id: str
+    checkpoint_title: str
+    area: str
+    fixable: bool = Field(description="A safe automatic fix exists")
+    reason: str = Field(description="Why it is in this place, in one sentence")
+
+
 class InsightsResponse(ApiModel):
     project_id: UUID
     engine: str
     basis: InsightsBasis | None
     areas: list[AreaHealthResponse]
+    fix_first: list[FixFirstItem] = Field(
+        description="Up to 10 open issues to resolve first across checkpoints: severity x "
+        "checkpoint priority, more when a safe automatic fix exists"
+    )
     checkpoints: list[CheckpointResponse] = Field(
         description="Checkpoints that need work first (by priority), then the rest"
     )

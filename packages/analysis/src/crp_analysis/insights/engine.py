@@ -20,7 +20,7 @@ evidence in the newest reviewed upload:
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
@@ -748,6 +748,57 @@ def _evaluate(
             + ("; some files could not be checked." if partly else "."),
         )
     return result("not_checked", "The checks that look for it did not run in the latest review.")
+
+
+# "Fix first" (ADD-A4): one ordered list across checkpoints. Weights are deliberately simple so
+# the order can be explained in one sentence.
+_SEVERITY_WEIGHT = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+_PRIORITY_WEIGHT = {"high": 3, "medium": 2, "low": 1}
+SAFE_FIX_BONUS = 1.5  # a safe automatic fix makes an issue a quick win
+
+
+@dataclass(frozen=True, slots=True)
+class FixFirstItem:
+    issue: TrackedIssue
+    checkpoint: Checkpoint
+    priority: str
+    fixable: bool
+    score: float
+    reason: str
+
+
+def fix_first(report: Report, fixable: Set[str], limit: int = 10) -> list[FixFirstItem]:
+    """The open issues to resolve first, across checkpoints: severity x checkpoint priority, more
+    when a safe automatic fix exists. Each item says why it is where it is."""
+    items: list[FixFirstItem] = []
+    for result in report.checkpoints:
+        if result.status != "attention" or result.priority is None:
+            continue
+        for issue in result.issues:
+            safe = issue.id in fixable
+            score = (
+                _SEVERITY_WEIGHT.get(issue.severity, 1)
+                * _PRIORITY_WEIGHT.get(result.priority, 1)
+                * (SAFE_FIX_BONUS if safe else 1.0)
+            )
+            reason = (
+                f"{issue.severity.capitalize()} issue in a {result.priority}-priority checkpoint"
+                + ("; a safe automatic fix exists" if safe else "")
+                + "."
+            )
+            items.append(
+                FixFirstItem(issue, result.checkpoint, result.priority, safe, score, reason)
+            )
+    items.sort(
+        key=lambda i: (
+            -i.score,
+            _SEVERITY.get(i.issue.severity, 9),
+            not i.fixable,
+            i.issue.path,
+            i.issue.title,
+        )
+    )
+    return items[:limit]
 
 
 def build(

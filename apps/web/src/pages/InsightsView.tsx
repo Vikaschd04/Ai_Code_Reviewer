@@ -10,6 +10,7 @@ import {
   type Checkpoint,
   type EvidenceItem,
   type Insights,
+  type Workspace,
 } from "../api/client";
 import {
   applyWorkspaceFixes,
@@ -169,6 +170,28 @@ function EvidenceList({ items, testId }: { items: EvidenceItem[]; testId: string
   );
 }
 
+/** The fix workspace on the newest reviewed upload (reused when it exists). */
+async function openWorkspace(projectId: string, snapshotId: string): Promise<Workspace> {
+  const items = await listWorkspaces(projectId);
+  const existing = items.find((item) => item.base_snapshot_id === snapshotId);
+  return existing
+    ? fetchWorkspace(existing.id)
+    : createWorkspace(projectId, { snapshot_id: snapshotId });
+}
+
+/** Apply the safe automatic fixes of these issues, start the check, and open the workspace
+ * focused on ``focus``; the workspace shows what was fixed or skipped (ADD-A1). */
+async function fixAndOpen(
+  projectId: string,
+  snapshotId: string,
+  fix: string[],
+  focus: string[],
+): Promise<void> {
+  const ws = await openWorkspace(projectId, snapshotId);
+  saveFixNote(ws.id, await applyWorkspaceFixes(ws, { issue_ids: fix }, true));
+  navigate(workspaceHref(ws.id, "issues", null, null, focus));
+}
+
 function StartFixing({
   projectId,
   data,
@@ -196,21 +219,15 @@ function StartFixing({
         onClick={() => {
           setBusy(true);
           setError(null);
-          listWorkspaces(projectId)
-            .then(async (items): Promise<string> => {
-              const existing = items.find((item) => item.base_snapshot_id === snapshotId);
-              if (existing) return existing.id;
-              return (await createWorkspace(projectId, { snapshot_id: snapshotId })).id;
-            })
-            .then(
-              (id) => {
-                navigate(workspaceHref(id, "issues", null, null, insight.issue_ids));
-              },
-              (caught: unknown) => {
-                setError(describeError(caught));
-                setBusy(false);
-              },
-            );
+          openWorkspace(projectId, snapshotId).then(
+            (ws) => {
+              navigate(workspaceHref(ws.id, "issues", null, null, insight.issue_ids));
+            },
+            (caught: unknown) => {
+              setError(describeError(caught));
+              setBusy(false);
+            },
+          );
         }}
       >
         <Icon name="wrench" size={15} /> {busy ? "Opening…" : "Start fixing"}
@@ -245,29 +262,12 @@ function FixAutomatically({
         onClick={() => {
           setBusy(true);
           setError(null);
-          listWorkspaces(projectId)
-            .then(async (items) => {
-              const existing = items.find((item) => item.base_snapshot_id === snapshotId);
-              const ws = existing
-                ? await fetchWorkspace(existing.id)
-                : await createWorkspace(projectId, { snapshot_id: snapshotId });
-              const result = await applyWorkspaceFixes(
-                ws,
-                { issue_ids: insight.fixable_issue_ids },
-                true,
-              );
-              saveFixNote(ws.id, result);
-              return ws.id;
-            })
-            .then(
-              (id) => {
-                navigate(workspaceHref(id, "issues", null, null, insight.issue_ids));
-              },
-              (caught: unknown) => {
-                setError(describeError(caught));
-                setBusy(false);
-              },
-            );
+          fixAndOpen(projectId, snapshotId, insight.fixable_issue_ids, insight.issue_ids).catch(
+            (caught: unknown) => {
+              setError(describeError(caught));
+              setBusy(false);
+            },
+          );
         }}
       >
         <Icon name="wrench" size={15} />{" "}
@@ -726,6 +726,90 @@ function AreaChecks({
   );
 }
 
+/** ADD-A4: one ordered list across checkpoints of the issues to resolve first. */
+function FixFirst({ data, projectId }: { data: Insights; projectId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const snapshotId = data.basis?.snapshot_id;
+  const items = data.fix_first;
+  if (!snapshotId || items.length === 0) return null;
+  const safe = items.filter((item) => item.fixable).map((item) => item.issue_id);
+  const all = items.map((item) => item.issue_id);
+  const fail = (caught: unknown) => {
+    setError(describeError(caught));
+    setBusy(false);
+  };
+  return (
+    <section className="card stack" aria-labelledby="fix-first-title" data-testid="fix-first">
+      <div className="stack stack-xs">
+        <h2 id="fix-first-title" className="card-title">
+          <Icon name="wrench" size={16} /> Fix first
+        </h2>
+        <p className="card-sub">
+          The open issues that matter most across all checkpoints: the more severe the issue and the
+          higher its checkpoint&apos;s priority, the sooner; issues with a safe automatic fix come
+          earlier.
+        </p>
+      </div>
+      <ol className="stack stack-sm" data-testid="fix-first-items">
+        {items.map((item) => (
+          <li key={item.issue_id} className="stack stack-xs" data-fixable={item.fixable}>
+            <span className="row">
+              <SeverityChip severity={item.severity} />
+              <strong className="small wrap-anywhere">{item.title}</strong>
+              {item.fixable ? (
+                <Chip tone="ok" icon="check">
+                  Safe automatic fix
+                </Chip>
+              ) : null}
+            </span>
+            <span className="small mono secondary wrap-anywhere">{item.path}</span>
+            <span className="small muted">
+              {item.checkpoint_title}. {item.reason}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {data.can_edit ? (
+        <div className="row">
+          {safe.length > 0 ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              data-testid="fix-first-fix"
+              onClick={() => {
+                setBusy(true);
+                setError(null);
+                fixAndOpen(projectId, snapshotId, safe, all).catch(fail);
+              }}
+            >
+              <Icon name="wrench" size={15} />{" "}
+              {busy ? "Fixing…" : `Fix the ${plural(safe.length, "safe one")} automatically`}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy}
+            data-testid="fix-first-open"
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              openWorkspace(projectId, snapshotId).then((ws) => {
+                navigate(workspaceHref(ws.id, "issues", null, null, all));
+              }, fail);
+            }}
+          >
+            Open these in a fix workspace
+          </button>
+        </div>
+      ) : null}
+      {error ? <Alert tone="bad">{error}</Alert> : null}
+    </section>
+  );
+}
+
 function Checkpoints({
   data,
   projectId,
@@ -755,6 +839,7 @@ function Checkpoints({
         </div>
         <AreaTiles data={data} />
       </section>
+      <FixFirst data={data} projectId={projectId} />
       {failing.length > 0 ? (
         <AdvisorCard data={data} projectId={projectId} onDone={onRefresh} />
       ) : null}

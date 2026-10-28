@@ -119,3 +119,46 @@ test("upgrade vulnerable libraries automatically: one pom.xml upgrade fixes them
   await expect(page.locator("main")).toContainText("Upgrade log4j-core 2.14.1 to");
   await page.screenshot({ path: "test-results/screens/fix-dependencies.png", fullPage: true });
 });
+
+test("fix first: the most important issues across checkpoints, safe ones fixed in one click", async ({
+  page,
+}) => {
+  test.setTimeout(360_000);
+  await signIn(page);
+  await createProject(page, `Fix first ${Date.now()}`);
+  const project = page
+    .url()
+    .replace(/^.*#\/projects\//, "")
+    .replace(/\?.*$/, "");
+  await page.getByLabel("ZIP archive to upload").setInputFiles(env("CRP_E2E_NFR_CONFIG_ZIP"));
+  await expect(page.getByTestId("snapshot-link")).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("snapshot-link").click();
+  await page.getByRole("button", { name: "Start review" }).click();
+  await expect(page.getByTestId("stage-publish")).toContainText(/Partly complete|Complete/, {
+    timeout: 150_000,
+  });
+
+  await page.goto(`/#/projects/${project}?tab=insights`);
+  const card = page.getByTestId("fix-first");
+  const items = card.getByTestId("fix-first-items").locator("> li");
+  await expect(items.first()).toContainText("Safe automatic fix");
+  await expect(items.first()).toContainText("a safe automatic fix exists");
+  expect(await items.count()).toBeLessThanOrEqual(10);
+  const safe = await card.locator('li[data-fixable="true"]').count();
+  expect(safe).toBeGreaterThan(0);
+  await page.screenshot({ path: "test-results/screens/fix-first.png", fullPage: true });
+
+  await card.getByTestId("fix-first-fix").click();
+  await expect(page).toHaveURL(/#\/workspaces\/.*issues=/);
+  await expect(page.getByTestId("workspace-fix-result")).toContainText(
+    `Fixed ${String(safe)} issue`,
+  );
+  const outcomes = page.getByTestId("workspace-outcomes");
+  await expect(outcomes).toBeVisible({ timeout: 180_000 });
+  await expect(outcomes.locator('[data-outcome="fixed"] .tile-value')).toHaveText(String(safe));
+  await page.goto(`/#/projects/${project}?tab=insights`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("fix-first")).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({ path: "test-results/screens/fix-first-mobile.png", fullPage: true });
+});

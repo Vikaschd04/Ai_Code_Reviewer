@@ -5435,6 +5435,63 @@
         "title": "FixFindingSummary",
         "type": "object"
       },
+      "FixFirstItem": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "title": "Area",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "checkpoint_title": {
+            "title": "Checkpoint Title",
+            "type": "string"
+          },
+          "fixable": {
+            "description": "A safe automatic fix exists",
+            "title": "Fixable",
+            "type": "boolean"
+          },
+          "issue_id": {
+            "format": "uuid",
+            "title": "Issue Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it is in this place, in one sentence",
+            "title": "Reason",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_id",
+          "title",
+          "severity",
+          "path",
+          "checkpoint_id",
+          "checkpoint_title",
+          "area",
+          "fixable",
+          "reason"
+        ],
+        "title": "FixFirstItem",
+        "type": "object"
+      },
       "FixOption": {
         "additionalProperties": false,
         "properties": {
@@ -7360,6 +7417,14 @@
             "title": "Engine",
             "type": "string"
           },
+          "fix_first": {
+            "description": "Up to 10 open issues to resolve first across checkpoints: severity x checkpoint priority, more when a safe automatic fix exists",
+            "items": {
+              "$ref": "#/components/schemas/FixFirstItem"
+            },
+            "title": "Fix First",
+            "type": "array"
+          },
           "not_checked": {
             "description": "Material in the upload that refactorX does not assess",
             "items": {
@@ -7379,6 +7444,7 @@
           "engine",
           "basis",
           "areas",
+          "fix_first",
           "checkpoints",
           "not_checked",
           "decisions_version",

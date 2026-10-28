@@ -3845,6 +3845,36 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** FixFirstItem */
+        FixFirstItem: {
+            /** Area */
+            area: string;
+            /** Checkpoint Id */
+            checkpoint_id: string;
+            /** Checkpoint Title */
+            checkpoint_title: string;
+            /**
+             * Fixable
+             * @description A safe automatic fix exists
+             */
+            fixable: boolean;
+            /**
+             * Issue Id
+             * Format: uuid
+             */
+            issue_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Reason
+             * @description Why it is in this place, in one sentence
+             */
+            reason: string;
+            /** Severity */
+            severity: string;
+            /** Title */
+            title: string;
+        };
         /** FixOption */
         FixOption: {
             /** Available */
@@ -4538,6 +4568,11 @@ export interface components {
             decisions_version: number;
             /** Engine */
             engine: string;
+            /**
+             * Fix First
+             * @description Up to 10 open issues to resolve first across checkpoints: severity x checkpoint priority, more when a safe automatic fix exists
+             */
+            fix_first: components["schemas"]["FixFirstItem"][];
             /**
              * Not Checked
              * @description Material in the upload that refactorX does not assess

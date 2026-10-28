@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — fix first (28 October 2026)
+
+- **Fix first:** Insights now opens with the ten issues to resolve first across all checkpoints —
+  the most severe issues in the highest-priority checkpoints, with safe automatic fixes earlier —
+  each with the reason for its place. One click fixes the safe ones and starts the check.
+
 ## Unreleased — find copy-pasted code (28 October 2026)
 
 - **Duplicate code:** every review now finds blocks of code copied between files (Java,

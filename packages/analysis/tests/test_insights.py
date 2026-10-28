@@ -16,6 +16,7 @@ from crp_analysis.insights.engine import (
     build,
     checkpoint_for,
     facts,
+    fix_first,
     review_context,
 )
 from crp_analysis.nfr.signals import LibraryUse, detect
@@ -239,3 +240,27 @@ def test_decisions_are_validated_and_old_documents_hold_none() -> None:
         decisions.with_handled({}, "operations.monitoring", "no")
     # Documents of the retired questionnaire carry no decisions.
     assert decisions.handled_from({"targets": {"rto_minutes": 30}, "answers": {}}) == {}
+
+
+def test_fix_first_orders_issues_across_checkpoints_and_says_why() -> None:
+    """ADD-A4: severity x checkpoint priority, x1.5 with a safe automatic fix; failing
+    checkpoints only; at most ``limit`` items."""
+    injection = _issue(
+        "opengrep", "crp.java.sql-injection.string-concat", "security", "critical", "injection.sql"
+    )
+    const = _issue("eslint", "prefer-const", "maintainability", "medium", path="web/a.js")
+    unused = _issue("eslint", "no-unused-vars", "maintainability", "low", path="web/b.js")
+    copy = _issue(
+        "cpd", "crp.duplication.block", "maintainability", "low", "maintainability.duplication"
+    )
+    report = build([injection, const, unused, copy], [], _context())
+    owners = {_owner(i) for i in (injection, const, unused, copy)}
+    assert owners == {"security.injection", "architecture.code", "architecture.duplication"}
+    ranked = fix_first(report, {const.id, unused.id})
+    assert [i.issue.id for i in ranked] == [injection.id, const.id, unused.id, copy.id]
+    assert [i.score for i in ranked] == [15, 9, 6, 2]  # 5x3; 3x2x1.5; 2x2x1.5 (medium cp); 2x1
+    assert ranked[0].reason == "Critical issue in a high-priority checkpoint."
+    assert ranked[1].fixable and ranked[1].reason.endswith("a safe automatic fix exists.")
+    assert [i.checkpoint.id for i in ranked][-1] == "architecture.duplication"
+    assert len(fix_first(report, set(), limit=2)) == 2
+    assert fix_first(build([], [], _context()), set()) == []  # nothing failing, nothing first
