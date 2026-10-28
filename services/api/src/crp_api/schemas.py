@@ -1449,6 +1449,42 @@ class WorkspaceSaveResult(ApiModel):
     flags: list[str] = Field(description="Policy flags of this save (information, not refusal)")
 
 
+class ReviewChange(ApiModel):
+    path: str
+    action: str
+    sources: list[str]
+    flags: list[str]
+    reasons: list[str] = Field(description="Recorded change summaries (fix titles, edits)")
+
+
+class ReviewCheck(ApiModel):
+    checked: bool
+    current: bool = Field(description="The check covers the workspace's current content")
+    state: str | None
+    counts: dict[str, int]
+
+
+class ReviewImpact(ApiModel):
+    available: bool = Field(description="A dependency map exists for the upload")
+    direct_count: int
+    direct: list[str] = Field(description="Code files that use a changed file (up to 20)")
+    indirect_count: int
+    indirect: list[str] = Field(description="Code files that use those (up to 20)")
+    tests: list[str] = Field(description="Test files that use the changed code (up to 20)")
+    parts: list[str] = Field(description="Packages or folders affected (up to 20)")
+
+
+class ReviewSummaryResponse(ApiModel):
+    change_set_id: UUID
+    changes: list[ReviewChange]
+    check: ReviewCheck
+    impact: ReviewImpact
+    needs_human: list[str] = Field(
+        description="What a person must look at or do, most important first"
+    )
+    markdown: str = Field(description="The summary for a pull request or a ticket")
+
+
 class WorkspaceFixRequest(ApiModel):
     version: int = Field(ge=1)
     finding_ids: list[UUID] = Field(default_factory=list, max_length=500)

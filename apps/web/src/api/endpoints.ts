@@ -21,6 +21,7 @@ import {
   type WorkspaceCheck,
   type WorkspaceFileContent,
   type WorkspaceFixResult,
+  type ReviewSummary,
   type WorkspaceIssuePage,
   type WorkspaceListItem,
   type WorkspaceSaveResult,
@@ -932,6 +933,19 @@ export async function createWorkspace(
     params: { path: { project_id: projectId } },
     body,
   });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** ADD-A5: what changed and why, the check, the impact and what still needs a person. */
+export async function fetchReviewSummary(
+  workspaceId: string,
+  signal?: Sig,
+): Promise<ReviewSummary> {
+  const { data, error, response } = await api.GET(
+    "/v1/change-sets/{change_set_id}/review-summary",
+    { params: { path: { change_set_id: workspaceId } }, signal: signal ?? null },
+  );
   if (data) return data;
   throw toApiError(response, error);
 }

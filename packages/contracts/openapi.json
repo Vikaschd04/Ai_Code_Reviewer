@@ -8826,6 +8826,197 @@
         "title": "ReadinessReport",
         "type": "object"
       },
+      "ReviewChange": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reasons": {
+            "description": "Recorded change summaries (fix titles, edits)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "action",
+          "sources",
+          "flags",
+          "reasons"
+        ],
+        "title": "ReviewChange",
+        "type": "object"
+      },
+      "ReviewCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "checked": {
+            "title": "Checked",
+            "type": "boolean"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "current": {
+            "description": "The check covers the workspace's current content",
+            "title": "Current",
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "required": [
+          "checked",
+          "current",
+          "state",
+          "counts"
+        ],
+        "title": "ReviewCheck",
+        "type": "object"
+      },
+      "ReviewImpact": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "description": "A dependency map exists for the upload",
+            "title": "Available",
+            "type": "boolean"
+          },
+          "direct": {
+            "description": "Code files that use a changed file (up to 20)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Direct",
+            "type": "array"
+          },
+          "direct_count": {
+            "title": "Direct Count",
+            "type": "integer"
+          },
+          "indirect": {
+            "description": "Code files that use those (up to 20)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Indirect",
+            "type": "array"
+          },
+          "indirect_count": {
+            "title": "Indirect Count",
+            "type": "integer"
+          },
+          "parts": {
+            "description": "Packages or folders affected (up to 20)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "tests": {
+            "description": "Test files that use the changed code (up to 20)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Tests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "direct_count",
+          "direct",
+          "indirect_count",
+          "indirect",
+          "tests",
+          "parts"
+        ],
+        "title": "ReviewImpact",
+        "type": "object"
+      },
+      "ReviewSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "change_set_id": {
+            "format": "uuid",
+            "title": "Change Set Id",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "check": {
+            "$ref": "#/components/schemas/ReviewCheck"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/ReviewImpact"
+          },
+          "markdown": {
+            "description": "The summary for a pull request or a ticket",
+            "title": "Markdown",
+            "type": "string"
+          },
+          "needs_human": {
+            "description": "What a person must look at or do, most important first",
+            "items": {
+              "type": "string"
+            },
+            "title": "Needs Human",
+            "type": "array"
+          }
+        },
+        "required": [
+          "change_set_id",
+          "changes",
+          "check",
+          "impact",
+          "needs_human",
+          "markdown"
+        ],
+        "title": "ReviewSummaryResponse",
+        "type": "object"
+      },
       "RuleGuidance": {
         "additionalProperties": false,
         "properties": {
@@ -12579,6 +12770,90 @@
           }
         },
         "summary": "Open Pull Request",
+        "tags": [
+          "fix workspaces"
+        ]
+      }
+    },
+    "/v1/change-sets/{change_set_id}/review-summary": {
+      "get": {
+        "description": "What changed and why, what the check showed, what else depends on the changed files and\nwhat still needs a person, with the same as Markdown for a pull request.",
+        "operationId": "review_summary_v1_change_sets__change_set_id__review_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_set_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Change Set Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Review Summary",
         "tags": [
           "fix workspaces"
         ]

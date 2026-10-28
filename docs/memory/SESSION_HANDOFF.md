@@ -8,7 +8,9 @@ ADD-A3 done: engine `cpd` (`engines/cpd.py`, in `ENGINE_NAMES` after trivy, `def
 
 ADD-A4 done: `insights.engine.fix_first` (severity 5..1 × checkpoint priority 3..1 × 1.5 safe fix), Insights `fix_first`, UI `FixFirst` card + shared `openWorkspace`/`fixAndOpen`.
 
-Next runnable task: ADD-A5 reviewer summary — `fixes/review_summary.py` (impact from the dependency map, needs_human, markdown) written with tests; remaining: API endpoint, workspace card with copy-as-Markdown, use in summary-md export and the pull request body, real-stack + e2e tests. Owner inputs unchanged: rotate the UnoRouter key; AI key; GitHub App; compute.
+ADD-A5 done: `fixes/review_summary.py`, `services/review_summary.py` (`gather`), `GET /change-sets/{id}/review-summary`, UI `ReviewSummaryCard` on the Changes tab, PR description gets impact + needs-a-person.
+
+Next runnable task: ADD-A6 health over time (history computed per baseline review from that review's findings with the same checkpoint engine; Overview trend chart — load the dataviz skill first) and checkpoint names in PR comments; then ADD-A7 code tour (deterministic brief; AI narrative needs a key). Owner inputs unchanged: rotate the UnoRouter key; AI key; GitHub App; compute.
 
 15 October 2026 (live AI fix test) — Owner: test AI fixes with the sample project and their UnoRouter key ("no response" on the portal); suggest the best free model. Found and fixed: Temporal heartbeat timeout during slow paced calls (keep-alive every 30 s), key test used the model's allowance (now `GET /models`), paced runs capped (fix 4 calls, others 6; `AiSetup.limits_for`), pacing from the end of the previous answer, plain provider error messages, saved model missing from UnoRouter's live list pauses AI (`offered`), fix screen shows progress, `make dev` creates missing secrets. UnoRouter free tier: per-user 1 req/min per model, daily budgets, list changes daily; on 15 October the account was rate limited on every free model (likely other use of the key) — no quality ranking possible. Key was used only via a temp file (deleted); test projects deleted. Results: see PHASE_STATUS.
 

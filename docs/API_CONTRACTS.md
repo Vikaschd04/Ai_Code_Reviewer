@@ -260,6 +260,12 @@ No new endpoints. Reviews run the engine `cpd` (PMD's copy/paste detector) on Ja
 
 `GET /v1/projects/{id}/insights` adds `fix_first`: up to 10 items (`issue_id`, `title`, `severity`, `path`, `checkpoint_id`, `checkpoint_title`, `area`, `fixable`, `reason`), ordered by severity x checkpoint priority, x1.5 with a safe automatic fix.
 
+## Implemented with the reviewer summary (ADD-A5)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/change-sets/{id}/review-summary | viewer | `changes` (`path`, `action`, `sources`, `flags`, `reasons`), `check` (`checked`, `current`, `state`, `counts`), `impact` (`available`, `direct_count`, `direct`, `indirect_count`, `indirect`, `tests`, `parts`; lists up to 20), `needs_human` (most important first; always ends with the source-only limit) and `markdown`. Fix pull requests append the impact and the "Needs a person" list to their description |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

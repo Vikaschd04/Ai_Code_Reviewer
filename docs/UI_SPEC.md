@@ -196,6 +196,13 @@ This section supersedes the per-phase tab lists above where they differ.
   check, opens the workspace on these issues) and "Open these in a fix workspace".
 - Checked by `e2e/fix-checkpoint.spec.ts` (`fix-first.png`, `fix-first-mobile.png`).
 
+## Review summary in a fix workspace (28 October 2026; ADD-A5)
+
+- Changes tab, first card: "Review summary" — "Needs a person" (a short list, most important
+  first), "Impact" (how many files use the changed files directly and through them, the parts,
+  "Tests to run", the files collapsed, and the source-level limit), "Copy as Markdown".
+- Checked in dark and 390 px by `e2e/fix-checkpoint.spec.ts`.
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

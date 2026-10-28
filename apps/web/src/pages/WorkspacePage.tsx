@@ -21,6 +21,7 @@ import {
   cancelAiRun,
   cancelWorkspaceCheck,
   deleteWorkspaceFile,
+  fetchReviewSummary,
   fetchWorkspace,
   fetchWorkspaceFile,
   listAiFixes,
@@ -956,6 +957,7 @@ function ChangesView({
   const current = path ?? workspace.files[0]?.path ?? null;
   return (
     <div className="stack">
+      <ReviewSummaryCard workspace={workspace} />
       <PullRequestCard workspace={workspace} onChange={onChange} />
       <div className="split split-files">
         <section className="card stack" aria-labelledby="ws-files-title">
@@ -1405,6 +1407,101 @@ function AiSuggestions({
           ) : null}
         </div>
       ))}
+    </section>
+  );
+}
+
+/** ADD-A5: for the person who reviews the changes — what needs a person, the impact on the rest
+ * of the upload, and the same as Markdown for a pull request or a ticket. */
+function ReviewSummaryCard({ workspace }: { workspace: Workspace }) {
+  const summary = useAsync(
+    (signal) => fetchReviewSummary(workspace.id, signal),
+    [workspace.id, workspace.version, workspace.latest_check?.state ?? ""],
+  );
+  const [copied, setCopied] = useState(false);
+  if (summary.error) return <Alert tone="bad">{summary.error}</Alert>;
+  if (!summary.data) return <Loading />;
+  const data = summary.data;
+  const impact = data.impact;
+  return (
+    <section
+      className="card stack"
+      aria-labelledby="ws-review-title"
+      data-testid="workspace-review-summary"
+    >
+      <div className="card-head">
+        <div>
+          <h2 id="ws-review-title" className="card-title">
+            <Icon name="users" size={16} /> Review summary
+          </h2>
+          <p className="card-sub">
+            For the person who reviews these changes: what still needs a person and what else
+            depends on the changed files.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          data-testid="review-copy"
+          onClick={() => {
+            void navigator.clipboard.writeText(data.markdown).then(() => {
+              setCopied(true);
+              window.setTimeout(() => {
+                setCopied(false);
+              }, 1500);
+            });
+          }}
+        >
+          <Icon name={copied ? "check" : "copy"} size={14} />
+          {copied ? "Copied" : "Copy as Markdown"}
+        </button>
+      </div>
+      <div className="stack stack-xs">
+        <h3 className="subheading">Needs a person</h3>
+        <ul className="stack stack-xs small" data-testid="review-needs-human">
+          {data.needs_human.map((item) => (
+            <li key={item} className="wrap-anywhere">
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="stack stack-xs" data-testid="review-impact">
+        <h3 className="subheading">Impact</h3>
+        {impact.available ? (
+          <>
+            <p className="small">
+              {`${plural(impact.direct_count, "file")} use the changed files directly, ${String(
+                impact.indirect_count,
+              )} more through them`}
+              {impact.parts.length > 0 ? ` (${impact.parts.slice(0, 6).join(", ")})` : ""}.
+            </p>
+            {impact.tests.length > 0 ? (
+              <p className="small">
+                Tests to run:{" "}
+                <span className="mono wrap-anywhere">{impact.tests.slice(0, 5).join(", ")}</span>
+              </p>
+            ) : null}
+            {impact.direct.length > 0 ? (
+              <Disclosure summary="Files that use the changed files">
+                <ul className="stack stack-xs small mono">
+                  {impact.direct.map((file) => (
+                    <li key={file} className="wrap-anywhere">
+                      {file}
+                    </li>
+                  ))}
+                </ul>
+              </Disclosure>
+            ) : null}
+            <p className="small muted">
+              From imports and type references in the source; reflection and dependency injection
+              are not seen.
+            </p>
+          </>
+        ) : (
+          <p className="small muted">No dependency map for this upload.</p>
+        )}
+      </div>
     </section>
   );
 }

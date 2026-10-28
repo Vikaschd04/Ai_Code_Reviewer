@@ -66,6 +66,15 @@ test("fix a checkpoint automatically: fixes applied, check started, issues confi
     path: "test-results/screens/fix-checkpoint-workspace.png",
     fullPage: true,
   });
+
+  // The reviewer's summary (ADD-A5): what needs a person and the impact, as Markdown too.
+  await page.getByRole("link", { name: /Changes/ }).click();
+  const review = page.getByTestId("workspace-review-summary");
+  await expect(review.getByTestId("review-needs-human")).toContainText(
+    "refactorX checked the source only",
+  );
+  await expect(review.getByTestId("review-impact")).toContainText("Impact");
+  await expect(review.getByTestId("review-copy")).toHaveText(/Copy as Markdown/);
   await page.getByRole("button", { name: "Switch to dark theme" }).click(); // design review
   await page.screenshot({
     path: "test-results/screens/fix-checkpoint-workspace-dark.png",

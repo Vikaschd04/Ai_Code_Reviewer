@@ -464,6 +464,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/change-sets/{change_set_id}/review-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Summary
+         * @description What changed and why, what the check showed, what else depends on the changed files and
+         *     what still needs a person, with the same as Markdown for a pull request.
+         */
+        get: operations["review_summary_v1_change_sets__change_set_id__review_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/code-reviews/{review_id}": {
         parameters: {
             query?: never;
@@ -5088,6 +5109,92 @@ export interface components {
             environment: string;
             status: components["schemas"]["OverallReadiness"];
         };
+        /** ReviewChange */
+        ReviewChange: {
+            /** Action */
+            action: string;
+            /** Flags */
+            flags: string[];
+            /** Path */
+            path: string;
+            /**
+             * Reasons
+             * @description Recorded change summaries (fix titles, edits)
+             */
+            reasons: string[];
+            /** Sources */
+            sources: string[];
+        };
+        /** ReviewCheck */
+        ReviewCheck: {
+            /** Checked */
+            checked: boolean;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * Current
+             * @description The check covers the workspace's current content
+             */
+            current: boolean;
+            /** State */
+            state: string | null;
+        };
+        /** ReviewImpact */
+        ReviewImpact: {
+            /**
+             * Available
+             * @description A dependency map exists for the upload
+             */
+            available: boolean;
+            /**
+             * Direct
+             * @description Code files that use a changed file (up to 20)
+             */
+            direct: string[];
+            /** Direct Count */
+            direct_count: number;
+            /**
+             * Indirect
+             * @description Code files that use those (up to 20)
+             */
+            indirect: string[];
+            /** Indirect Count */
+            indirect_count: number;
+            /**
+             * Parts
+             * @description Packages or folders affected (up to 20)
+             */
+            parts: string[];
+            /**
+             * Tests
+             * @description Test files that use the changed code (up to 20)
+             */
+            tests: string[];
+        };
+        /** ReviewSummaryResponse */
+        ReviewSummaryResponse: {
+            /**
+             * Change Set Id
+             * Format: uuid
+             */
+            change_set_id: string;
+            /** Changes */
+            changes: components["schemas"]["ReviewChange"][];
+            check: components["schemas"]["ReviewCheck"];
+            impact: components["schemas"]["ReviewImpact"];
+            /**
+             * Markdown
+             * @description The summary for a pull request or a ticket
+             */
+            markdown: string;
+            /**
+             * Needs Human
+             * @description What a person must look at or do, most important first
+             */
+            needs_human: string[];
+        };
         /** RuleGuidance */
         RuleGuidance: {
             /** Explanation */
@@ -7332,6 +7439,73 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    review_summary_v1_change_sets__change_set_id__review_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                change_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewSummaryResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

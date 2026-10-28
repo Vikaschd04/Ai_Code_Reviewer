@@ -113,6 +113,27 @@ Not verified: compiling and running the project's tests with the new library (P0
 
 Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 639 pytest + 30 vitest passed; `make test-e2e` 24/24 passed.
 
+## Reviewer summary of a workspace (28 October 2026; ADD-A5)
+
+`GET /v1/change-sets/{id}/review-summary` and a "Review summary" card on the Changes tab: what
+changed and why (recorded change summaries since the file was last back at the upload), what the
+latest check showed and whether it covers the current content, the impact from the upload's
+dependency map (files that use a changed file, files that use those, the parts affected and the
+test files that use the changed code), and what needs a person, most important first; the same as
+Markdown ("Copy as Markdown"). Fix pull requests append the impact and the "Needs a person" list.
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Impact | Direct users, an on-demand package import, the second step, test files; generated code and what the changed file itself uses are not impact; no map → "not available" | PASS | `test_impact_follows_users_two_steps_and_finds_the_tests` |
+| Needs a person | Stale or missing check first, new and hidden problems, policy flags, AI changes, upgrades (build and test), tests to run, the source-only limit always last | PASS | `test_what_needs_a_person_comes_first_and_the_source_only_limit_is_always_said` |
+| Real stack | Graph fixture: editing `Entity` lists `Customer.java` (extends it) and the part `com.acme.app`; asks for a check until one covers the current content; Markdown has the sections; other workspaces 404 | PASS | `test_the_summary_shows_impact_and_what_needs_a_person` |
+| Browser | Changes tab shows the card with "Needs a person", "Impact" and "Copy as Markdown"; dark and 390 px | PASS | `e2e/fix-checkpoint.spec.ts` (`fix-checkpoint-workspace*.png`, `fix-checkpoint-mobile.png`) |
+
+Impact is source-level: imports and type references only (reflection, dependency injection and
+references from other languages are not seen), and the summary says so.
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 648 pytest + 30 vitest passed; `make test-e2e` 26/26 passed.
+
 ## Limitations
 
 - AI candidate quality with a real provider is unmeasured (K-P08-01). The change-set pull request (slice 5) is not built yet (K-P08-02).

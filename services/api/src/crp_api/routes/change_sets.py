@@ -36,6 +36,7 @@ from crp_analysis.fixes.changeset import (
     file_patch,
 )
 from crp_analysis.fixes.patching import Edit, PatchError, apply_edits
+from crp_analysis.fixes.review_summary import MAX_LISTED, pull_request_review_sections
 from crp_analysis.manifest import blob_key
 from crp_analysis.sources import publication
 from crp_analysis.sources.changes import diff_manifests
@@ -61,6 +62,10 @@ from crp_api.schemas import (
     ChangeSetListItem,
     ChangeSetResponse,
     FileComparison,
+    ReviewChange,
+    ReviewCheck,
+    ReviewImpact,
+    ReviewSummaryResponse,
     SnapshotChange,
     SnapshotComparisonResponse,
     WorkspaceAiFixApply,
@@ -81,6 +86,7 @@ from crp_api.schemas import (
 )
 from crp_api.services import change_sets as workspace
 from crp_api.services import git as git_service
+from crp_api.services import review_summary as review_summaries
 from crp_api.services.ai_models import connection_setup
 from crp_api.services.recipe_context import dependency_fixes, details_with_siblings
 from crp_api.services.scope import decode_offset, encode_offset, get_scoped
@@ -1241,6 +1247,8 @@ async def open_pull_request(
             for row in files
         ]
         title, body, message = _pull_request_text(change_set, files, latest, target.base_sha[:7])
+        reviewer = await review_summaries.gather(session, change_set)
+        body += pull_request_review_sections(reviewer.impact, reviewer.needs_human)
         try:
             head = await client.branch_head(target.access, target.branch)
             if head != target.base_sha:
@@ -1298,6 +1306,57 @@ async def open_pull_request(
         await session.flush()
         await session.refresh(row)
         return _pull_request(row, change_set)
+
+
+# -- reviewer summary (ADD-A5) -----------------------------------------------------------------
+
+
+@router.get(
+    "/change-sets/{change_set_id}/review-summary",
+    response_model=ReviewSummaryResponse,
+    responses=_ERRORS,
+)
+async def review_summary(
+    change_set_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> ReviewSummaryResponse:
+    """What changed and why, what the check showed, what else depends on the changed files and
+    what still needs a person, with the same as Markdown for a pull request."""
+    async with transaction(container.session_factory) as session:
+        change_set = await get_scoped(
+            session, principal, ChangeSet, change_set_id, not_found="workspace_not_found"
+        )
+        found = await review_summaries.gather(session, change_set)
+    cap = MAX_LISTED
+    return ReviewSummaryResponse(
+        change_set_id=change_set_id,
+        changes=[
+            ReviewChange(
+                path=c.path,
+                action=c.action,
+                sources=list(c.sources),
+                flags=list(c.flags),
+                reasons=list(c.reasons),
+            )
+            for c in found.changes
+        ],
+        check=ReviewCheck(
+            checked=found.check.checked,
+            current=found.check.current,
+            state=found.check.state,
+            counts=dict(found.check.counts),
+        ),
+        impact=ReviewImpact(
+            available=found.impact.available,
+            direct_count=len(found.impact.direct),
+            direct=found.impact.direct[:cap],
+            indirect_count=len(found.impact.indirect),
+            indirect=found.impact.indirect[:cap],
+            tests=found.impact.tests[:cap],
+            parts=found.impact.parts[:cap],
+        ),
+        needs_human=found.needs_human,
+        markdown=found.markdown,
+    )
 
 
 # -- checks ----------------------------------------------------------------------------------------

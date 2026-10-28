@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — a summary for the reviewer (28 October 2026)
+
+- **Review summary:** every fix workspace now tells the person who reviews it what still needs a
+  person (run the check again, hidden or new problems, AI changes to read, tests to run), which
+  other files depend on the changed ones, and what changed and why — copyable as Markdown, and
+  added to fix pull requests.
+
 ## Unreleased — fix first (28 October 2026)
 
 - **Fix first:** Insights now opens with the ten issues to resolve first across all checkpoints —
