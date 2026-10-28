@@ -1490,6 +1490,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{project_id}/tour": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Code Tour
+         * @description A one-page brief for newcomers (ADD-A7) from the newest reviewed upload: languages and
+         *     technologies, its parts, where to start reading, entry points and the files with the most
+         *     open issues. Built from the review only; no AI.
+         */
+        get: operations["code_tour_v1_projects__project_id__tour_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/scans/{scan_id}": {
         parameters: {
             query?: never;
@@ -5551,6 +5573,88 @@ export interface components {
             name: string;
             /** Start Line */
             start_line: number;
+        };
+        /** TourFileResponse */
+        TourFileResponse: {
+            /** Path */
+            path: string;
+            /** Reason */
+            reason: string;
+        };
+        /** TourLanguage */
+        TourLanguage: {
+            /** Files */
+            files: number;
+            /** Language */
+            language: string;
+            /** Lines */
+            lines: number;
+        };
+        /** TourPartResponse */
+        TourPartResponse: {
+            /** Files */
+            files: number;
+            /** Lines */
+            lines: number;
+            /**
+             * Name
+             * @description Package or folder
+             */
+            name: string;
+            /**
+             * Used By
+             * @description How many other parts depend on it
+             */
+            used_by: number;
+            /**
+             * Uses
+             * @description Other parts it depends on, most used first
+             */
+            uses: string[];
+        };
+        /** TourResponse */
+        TourResponse: {
+            /**
+             * Docs
+             * @description README, ADRs and other documents in the upload
+             */
+            docs: string[];
+            /**
+             * Entry Points
+             * @description Files with a main method or function
+             */
+            entry_points: components["schemas"]["TourFileResponse"][];
+            /**
+             * Hotspots
+             * @description Files with the most open issues
+             */
+            hotspots: components["schemas"]["TourFileResponse"][];
+            /** Languages */
+            languages: components["schemas"]["TourLanguage"][];
+            /**
+             * Map Available
+             * @description A dependency map exists for the upload
+             */
+            map_available: boolean;
+            /** Parts */
+            parts: components["schemas"]["TourPartResponse"][];
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Snapshot Id
+             * @description The newest reviewed upload (none before a review)
+             */
+            snapshot_id: string | null;
+            /**
+             * Start Here
+             * @description The files most others use
+             */
+            start_here: components["schemas"]["TourFileResponse"][];
+            /** Technologies */
+            technologies: string[];
         };
         /**
          * UploadTicketResponse
@@ -11919,6 +12023,73 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    code_tour_v1_projects__project_id__tour_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TourResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -213,6 +213,14 @@ This section supersedes the per-phase tab lists above where they differ.
   table. The note says it shows what each review found (Insights keeps unverified issues open).
 - Checked in light, dark and 390 px by `e2e/duplicates.spec.ts` (`health-trend*.png`).
 
+## Code tour (28 October 2026; ADD-A7)
+
+- Insights has a third view, "Code tour" (`?tab=insights&view=tour`): "What it is made of", "Its
+  parts" (table: part, files, lines, uses, used by; scrolls on narrow screens), "Start reading
+  here", "Entry points", "Handle with care", "Documents in the upload". The subtitle says every
+  item names its files and nothing is written by AI. Before a review: "No review yet".
+- Checked in light, dark and 390 px by `e2e/tour.spec.ts` (`tour*.png`).
+
 ## First journey
 
 Projects → New source → ZIP upload or Local folder instructions → scope review → Scan → progress/coverage → overview/issues → evidence. Local folder instructions explain how the local runner captures and uploads bytes; no misleading text field that promises remote laptop access.

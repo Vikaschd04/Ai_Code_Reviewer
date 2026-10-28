@@ -35,6 +35,7 @@ import { navigate, workspaceHref } from "../lib/router";
 import { useAsync } from "../lib/useAsync";
 import { AiQuestions } from "./AiView";
 import { ArchitectureView } from "./ArchitectureView";
+import { TourView } from "./TourView";
 
 const UNKNOWN_STATE = { label: "Not enough evidence", tone: "neutral", icon: "info" as IconName };
 const AREA_STATE: Record<string, { label: string; tone: string; icon: IconName }> = {
@@ -878,6 +879,7 @@ function Checkpoints({
 const VIEWS = [
   { id: "checkpoints", label: "NFR checkpoints" },
   { id: "architecture", label: "Architecture" },
+  { id: "tour", label: "Code tour" },
 ];
 
 export function InsightsView({
@@ -889,7 +891,7 @@ export function InsightsView({
   snapshotId: string | null;
   view: string | null;
 }) {
-  const current = view === "architecture" ? "architecture" : "checkpoints";
+  const current = view === "architecture" || view === "tour" ? view : "checkpoints";
   const [stamp, setStamp] = useState(0);
   const [saved, setSaved] = useState<Insights | null>(null);
   const insights = useAsync((signal) => fetchInsights(projectId, signal), [projectId, stamp]);
@@ -926,6 +928,7 @@ export function InsightsView({
           <Loading />
         )
       ) : null}
+      {current === "tour" ? <TourView projectId={projectId} /> : null}
       {current === "architecture" ? (
         <div className="stack">
           <ArchitectureRules projectId={projectId} snapshotId={snapshotId} />

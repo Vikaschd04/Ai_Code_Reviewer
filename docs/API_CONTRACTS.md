@@ -273,6 +273,12 @@ No new endpoints. Reviews run the engine `cpd` (PMD's copy/paste detector) on Ja
 | GET /v1/projects/{id}/health-history?limit=2..24 | viewer | `points` oldest first: `scan_id`, `snapshot_id`, `reviewed_at`, `upload`, `issues` (open issues of that review by severity), `failing` (checkpoints that needed work by priority), `areas` (area id → state); computed from each review's own findings |
 | GitHub check and comment | — | The summary adds "NFR checkpoints these new problems count against: … (n)"; new items carry `category` |
 
+## Implemented with the code tour (ADD-A7)
+
+| Method/path | Auth | Behavior |
+|---|---|---|
+| GET /v1/projects/{id}/tour | viewer | From the newest reviewed upload (`snapshot_id`; none before a review): `languages` (`language`, `files`, `lines`), `technologies`, `parts` (`name`, `files`, `lines`, `uses`, `used_by`), `start_here`, `entry_points`, `hotspots` (each `path` + `reason`), `docs`, `map_available` |
+
 ## Target contract (later phases)
  Prefix /v1. Resolve workspace/project authorization at each boundary. Use structured errors {code, message, request_id, details}; details must not expose absolute paths or secrets.
 

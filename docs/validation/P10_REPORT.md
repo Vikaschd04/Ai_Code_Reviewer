@@ -193,3 +193,28 @@ confirmed by re-running the check on that file alone, which cannot reproduce a c
 duplicate, so such candidates are never shown as confirmed; copies inside one file can be fixed
 with "Ask AI". Multi-file refactoring belongs to P11, after build and test verification (P09
 Tiers 1–2).
+
+## Code tour for newcomers (28 October 2026; ADD-A7)
+
+`GET /v1/projects/{id}/tour` and Insights → "Code tour": a one-page brief of the newest reviewed
+upload, built from the review only (no AI): what it is made of (languages from the inventory,
+declared technologies), its parts (packages or folders by size, the parts each uses, how many use
+it), where to start reading (the files most others use), entry points (files with a `main`
+method or function), "Handle with care" (files whose open issues weigh most: critical 8, high 4,
+medium 2, low 1) and the documents in the upload. Every item names its files.
+
+| Check | Procedure | Outcome | Evidence |
+|---|---|---|---|
+| Brief | Parts with sizes and dependencies, start-here by fan-in (tests not counted), entries from `main` symbols, hotspots by weight (info weighs nothing), docs; no map → says less, never invents | PASS | `test_tour.py` |
+| Real stack | Graph fixture: before a review nothing; after it `com.acme.app` uses `com.acme.core`, `Entity.java` is a place to start, no entry point (its `Main` extends `Thread`) | PASS | `services/worker/tests/test_tour.py` |
+| Browser | "No review yet", then the brief; light, dark, 390 px (the parts table scrolls inside the card; names are not broken) | PASS | `e2e/tour.spec.ts` (`tour*.png`) |
+
+Not done: the optional AI narrative (every sentence citing files, labelled AI) waits for a
+configured model; the brief is complete without it.
+
+Note from verification: one run of the browser suite stalled for 36 minutes with three engines
+"Working…" while Playwright's own 5-minute test limit also did not fire — the pattern of the Mac
+sleeping (monotonic clocks stop; wall-clock time moves on). The same test passed alone in 14 s
+and in the full gate below.
+
+Gates (28 October 2026, macOS arm64): `make check` exit 0; `make test` 653 pytest + 30 vitest passed; `make test-e2e` 27/27 passed.

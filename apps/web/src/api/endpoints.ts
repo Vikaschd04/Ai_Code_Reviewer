@@ -23,6 +23,7 @@ import {
   type WorkspaceFixResult,
   type ReviewSummary,
   type HealthHistory,
+  type Tour,
   type WorkspaceIssuePage,
   type WorkspaceListItem,
   type WorkspaceSaveResult,
@@ -933,6 +934,16 @@ export async function createWorkspace(
   const { data, error, response } = await api.POST("/v1/projects/{project_id}/change-sets", {
     params: { path: { project_id: projectId } },
     body,
+  });
+  if (data) return data;
+  throw toApiError(response, error);
+}
+
+/** ADD-A7: a one-page brief of the newest reviewed upload for people new to the code. */
+export async function fetchTour(projectId: string, signal?: Sig): Promise<Tour> {
+  const { data, error, response } = await api.GET("/v1/projects/{project_id}/tour", {
+    params: { path: { project_id: projectId } },
+    signal: signal ?? null,
   });
   if (data) return data;
   throw toApiError(response, error);

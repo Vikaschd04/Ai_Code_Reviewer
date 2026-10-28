@@ -1885,6 +1885,40 @@ class HealthHistory(ApiModel):
     )
 
 
+class TourLanguage(ApiModel):
+    language: str
+    files: int
+    lines: int
+
+
+class TourPartResponse(ApiModel):
+    name: str = Field(description="Package or folder")
+    files: int
+    lines: int
+    uses: list[str] = Field(description="Other parts it depends on, most used first")
+    used_by: int = Field(description="How many other parts depend on it")
+
+
+class TourFileResponse(ApiModel):
+    path: str
+    reason: str
+
+
+class TourResponse(ApiModel):
+    project_id: UUID
+    snapshot_id: UUID | None = Field(
+        description="The newest reviewed upload (none before a review)"
+    )
+    map_available: bool = Field(description="A dependency map exists for the upload")
+    languages: list[TourLanguage]
+    technologies: list[str]
+    parts: list[TourPartResponse]
+    start_here: list[TourFileResponse] = Field(description="The files most others use")
+    entry_points: list[TourFileResponse] = Field(description="Files with a main method or function")
+    hotspots: list[TourFileResponse] = Field(description="Files with the most open issues")
+    docs: list[str] = Field(description="README, ADRs and other documents in the upload")
+
+
 class InsightsResponse(ApiModel):
     project_id: UUID
     engine: str

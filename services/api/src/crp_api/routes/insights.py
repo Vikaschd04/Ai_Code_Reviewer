@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from crp_analysis.architecture.tour import TourFile
 from crp_analysis.fixes import recipes
 from crp_analysis.insights import decisions
 from crp_analysis.insights.advisor import ADVISOR_PROMPT_VERSION
@@ -46,8 +47,13 @@ from crp_api.schemas import (
     InsightIssueRef,
     InsightsBasis,
     InsightsResponse,
+    TourFileResponse,
+    TourLanguage,
+    TourPartResponse,
+    TourResponse,
 )
 from crp_api.services import insights
+from crp_api.services import tour as tour_service
 from crp_api.services.ai_models import connection_setup
 from crp_api.services.scope import get_scoped
 from crp_core.config import Settings
@@ -247,6 +253,58 @@ async def health_history(
             )
             for p in points
         ],
+    )
+
+
+def _tour_files(items: list[TourFile]) -> list[TourFileResponse]:
+    return [TourFileResponse(path=f.path, reason=f.reason) for f in items]
+
+
+@router.get("/projects/{project_id}/tour", response_model=TourResponse, responses=_ERRORS)
+async def code_tour(
+    project_id: uuid.UUID, principal: CurrentPrincipal, container: Container
+) -> TourResponse:
+    """A one-page brief for newcomers (ADD-A7) from the newest reviewed upload: languages and
+    technologies, its parts, where to start reading, entry points and the files with the most
+    open issues. Built from the review only; no AI."""
+    async with transaction(container.session_factory) as session:
+        project = await get_scoped(
+            session, principal, Project, project_id, not_found="project_not_found"
+        )
+        found = await tour_service.gather(session, project.id)
+    if found is None:
+        return TourResponse(
+            project_id=project_id,
+            snapshot_id=None,
+            map_available=False,
+            languages=[],
+            technologies=[],
+            parts=[],
+            start_here=[],
+            entry_points=[],
+            hotspots=[],
+            docs=[],
+        )
+    snapshot_id, tour = found
+    return TourResponse(
+        project_id=project_id,
+        snapshot_id=snapshot_id,
+        map_available=tour.map_available,
+        languages=[
+            TourLanguage(language=name, files=count, lines=size)
+            for name, count, size in tour.languages
+        ],
+        technologies=tour.technologies,
+        parts=[
+            TourPartResponse(
+                name=p.name, files=p.files, lines=p.lines, uses=p.uses, used_by=p.used_by
+            )
+            for p in tour.parts
+        ],
+        start_here=_tour_files(tour.start_here),
+        entry_points=_tour_files(tour.entry_points),
+        hotspots=_tour_files(tour.hotspots),
+        docs=tour.docs,
     )
 
 

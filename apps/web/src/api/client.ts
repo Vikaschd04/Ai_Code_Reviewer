@@ -81,6 +81,7 @@ export type WorkspaceFixResult = Schemas["WorkspaceFixResult"];
 export type ReviewSummary = Schemas["ReviewSummaryResponse"];
 export type HealthHistory = Schemas["HealthHistory"];
 export type HealthPoint = Schemas["HealthPointResponse"];
+export type Tour = Schemas["TourResponse"];
 export type WorkspaceIssue = Schemas["WorkspaceIssue"];
 export type WorkspaceIssuePage = Schemas["WorkspaceIssuePage"];
 export type SnapshotComparison = Schemas["SnapshotComparisonResponse"];

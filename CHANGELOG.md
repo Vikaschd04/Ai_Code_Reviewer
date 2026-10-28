@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — a code tour for newcomers (28 October 2026)
+
+- **Code tour:** Insights → Code tour gives people new to a codebase a one-page brief — what it is
+  made of, its parts and how they depend on each other, which files to read first, entry points and
+  which files to handle with care — from the review alone.
+
 ## Unreleased — health over time (28 October 2026)
 
 - **Health over time:** the project Overview shows how open issues and checkpoints needing work

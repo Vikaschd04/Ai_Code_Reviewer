@@ -9863,6 +9863,184 @@
         "title": "SymbolResponse",
         "type": "object"
       },
+      "TourFileResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "reason"
+        ],
+        "title": "TourFileResponse",
+        "type": "object"
+      },
+      "TourLanguage": {
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "language",
+          "files",
+          "lines"
+        ],
+        "title": "TourLanguage",
+        "type": "object"
+      },
+      "TourPartResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Package or folder",
+            "title": "Name",
+            "type": "string"
+          },
+          "used_by": {
+            "description": "How many other parts depend on it",
+            "title": "Used By",
+            "type": "integer"
+          },
+          "uses": {
+            "description": "Other parts it depends on, most used first",
+            "items": {
+              "type": "string"
+            },
+            "title": "Uses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "files",
+          "lines",
+          "uses",
+          "used_by"
+        ],
+        "title": "TourPartResponse",
+        "type": "object"
+      },
+      "TourResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "docs": {
+            "description": "README, ADRs and other documents in the upload",
+            "items": {
+              "type": "string"
+            },
+            "title": "Docs",
+            "type": "array"
+          },
+          "entry_points": {
+            "description": "Files with a main method or function",
+            "items": {
+              "$ref": "#/components/schemas/TourFileResponse"
+            },
+            "title": "Entry Points",
+            "type": "array"
+          },
+          "hotspots": {
+            "description": "Files with the most open issues",
+            "items": {
+              "$ref": "#/components/schemas/TourFileResponse"
+            },
+            "title": "Hotspots",
+            "type": "array"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/TourLanguage"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "map_available": {
+            "description": "A dependency map exists for the upload",
+            "title": "Map Available",
+            "type": "boolean"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/TourPartResponse"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest reviewed upload (none before a review)",
+            "title": "Snapshot Id"
+          },
+          "start_here": {
+            "description": "The files most others use",
+            "items": {
+              "$ref": "#/components/schemas/TourFileResponse"
+            },
+            "title": "Start Here",
+            "type": "array"
+          },
+          "technologies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Technologies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project_id",
+          "snapshot_id",
+          "map_available",
+          "languages",
+          "technologies",
+          "parts",
+          "start_here",
+          "entry_points",
+          "hotspots",
+          "docs"
+        ],
+        "title": "TourResponse",
+        "type": "object"
+      },
       "UploadTicketResponse": {
         "additionalProperties": false,
         "description": "Where and until when the archive may be uploaded without other credentials.",
@@ -18726,6 +18904,90 @@
         "summary": "List Snapshots",
         "tags": [
           "snapshots"
+        ]
+      }
+    },
+    "/v1/projects/{project_id}/tour": {
+      "get": {
+        "description": "A one-page brief for newcomers (ADD-A7) from the newest reviewed upload: languages and\ntechnologies, its parts, where to start reading, entry points and the files with the most\nopen issues. Built from the review only; no AI.",
+        "operationId": "code_tour_v1_projects__project_id__tour_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TourResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Code Tour",
+        "tags": [
+          "insights"
         ]
       }
     },
